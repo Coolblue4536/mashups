@@ -1,9 +1,9 @@
-# Read-only report on how Wardogs stores its files, to decide what the mashup can read.
-# It never starts Wardogs and never writes into its folder. Prints a text report.
-# Usage: powershell -ExecutionPolicy Bypass -File inspect-wardogs.ps1
+# Read-only report on how a Steam game stores its files, to decide what the mashup can read.
+# It never starts the game and never writes into its folder. Prints a text report.
+# Usage: powershell -ExecutionPolicy Bypass -File inspect-game.ps1 -AppId 2767030
 
+param([string]$AppId = '2767030')  # 2767030 = Marvel Rivals
 $ErrorActionPreference = 'Stop'
-$AppId = '1867240'
 
 function Find-SteamRoot {
     foreach ($key in 'HKCU:\Software\Valve\Steam', 'HKLM:\SOFTWARE\WOW6432Node\Valve\Steam') {
@@ -17,7 +17,7 @@ function Find-SteamRoot {
     return $null
 }
 
-function Find-Wardogs {
+function Find-Game {
     $steam = Find-SteamRoot
     if (-not $steam) { return $null }
     $vdf = Join-Path $steam 'steamapps\libraryfolders.vdf'
@@ -82,12 +82,12 @@ function Describe-Utoc([string]$path) {
     return "utoc v$($h[16]) flags=$flags encrypted=$([bool]($flags -band 2)) keyGuidZero=$guidZero"
 }
 
-$root = Find-Wardogs
-if (-not $root) { Write-Output 'WARDOGS NOT FOUND in any Steam library.'; exit 1 }
-Write-Output "Wardogs folder: $root"
-$acfVersion = Get-ChildItem -Path $root -Filter '*.exe' -Recurse -Depth 3 -ErrorAction SilentlyContinue |
+$root = Find-Game
+if (-not $root) { Write-Output "Steam app $AppId NOT FOUND in any Steam library."; exit 1 }
+Write-Output "Game folder: $root"
+$exes = Get-ChildItem -Path $root -Filter '*.exe' -Recurse -Depth 3 -ErrorAction SilentlyContinue |
     Select-Object -First 5 | ForEach-Object { "$($_.FullName.Substring($root.Length)) $($_.VersionInfo.FileVersion)" }
-Write-Output "Executables:"; $acfVersion | ForEach-Object { Write-Output "  $_" }
+Write-Output "Executables:"; $exes | ForEach-Object { Write-Output "  $_" }
 
 $files = Get-ChildItem -Path $root -Recurse -File -ErrorAction SilentlyContinue
 Write-Output "`nFile types (count, MB):"
@@ -107,7 +107,13 @@ foreach ($f in $files | Where-Object { $_.Extension -in '.pak', '.utoc' } | Sort
 }
 
 Write-Output "`nLoose audio and text (first 30 each):"
-foreach ($ext in '.wem', '.bnk', '.ogg', '.wav', '.bank', '.locres', '.json', '.csv') {
+Write-Output "`nLoose files outside Paks (by type):"
+$loose = $files | Where-Object { $_.FullName -notmatch '\\Paks\\' -and $_.Extension -notin '.dll', '.exe', '.pdb', '.sys' }
+$loose | Group-Object Extension | Sort-Object Count -Descending | Select-Object -First 20 | ForEach-Object {
+    Write-Output ("  {0,-10} {1,6}" -f $_.Name, $_.Count)
+}
+
+foreach ($ext in '.wem', '.bnk', '.ogg', '.wav', '.mp3', '.bank', '.mp4', '.bk2', '.webm', '.png', '.jpg', '.locres', '.json', '.csv') {
     $hits = $files | Where-Object { $_.Extension -eq $ext }
     if ($hits) {
         Write-Output "  $ext : $($hits.Count) files"
