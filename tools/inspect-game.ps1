@@ -41,7 +41,7 @@ function Find-Game {
 function Read-Tail([string]$path, [int]$count) {
     $fs = [System.IO.File]::OpenRead($path)
     try {
-        $n = [Math]::Min($count, $fs.Length)
+        $n = [int][Math]::Min([long]$count, $fs.Length)
         $fs.Seek(-$n, 'End') | Out-Null
         $buf = New-Object byte[] $n
         [void]$fs.Read($buf, 0, $n)
@@ -113,10 +113,25 @@ $loose | Group-Object Extension | Sort-Object Count -Descending | Select-Object 
     Write-Output ("  {0,-10} {1,6}" -f $_.Name, $_.Count)
 }
 
-foreach ($ext in '.wem', '.bnk', '.ogg', '.wav', '.mp3', '.bank', '.mp4', '.bk2', '.webm', '.png', '.jpg', '.locres', '.json', '.csv') {
+# Videos and loose assets are listed in full: they are what a mod can read without unlocking anything.
+$fullList = '.bk2', '.mp4', '.webm', '.uasset', '.wem', '.bnk', '.ogg', '.wav', '.mp3'
+foreach ($ext in $fullList + '.bank', '.png', '.jpg', '.locres', '.json', '.csv') {
     $hits = $files | Where-Object { $_.Extension -eq $ext }
     if ($hits) {
+        $limit = if ($fullList -contains $ext) { 2000 } else { 30 }
         Write-Output "  $ext : $($hits.Count) files"
-        $hits | Select-Object -First 30 | ForEach-Object { Write-Output "    $($_.FullName.Substring($root.Length))" }
+        $hits | Sort-Object FullName | Select-Object -First $limit | ForEach-Object {
+            Write-Output ("    {0} ({1} KB)" -f $_.FullName.Substring($root.Length), [Math]::Round($_.Length / 1KB))
+        }
     }
+}
+
+# First bytes of a few videos show their container version (KB2 = Bink 2) and audio tracks.
+Write-Output "`nVideo headers:"
+foreach ($v in $files | Where-Object { $_.Extension -eq '.bk2' } | Sort-Object Length | Select-Object -First 3) {
+    $h = Read-Head $v.FullName 48
+    $sig = [System.Text.Encoding]::ASCII.GetString($h, 0, 4)
+    $frames = [BitConverter]::ToUInt32($h, 8); $w = [BitConverter]::ToUInt32($h, 20); $hh = [BitConverter]::ToUInt32($h, 24)
+    $audio = [BitConverter]::ToUInt32($h, 40)
+    Write-Output ("  {0}: sig={1} frames={2} size={3}x{4} audioTracks={5}" -f $v.Name, $sig, $frames, $w, $hh, $audio)
 }
