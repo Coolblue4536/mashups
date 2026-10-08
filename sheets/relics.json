@@ -1,0 +1,8 @@
+{
+  "sheet": "relics",
+  "about": "Slay the Spire needs every character to start with a relic.",
+  "columns": ["id", "name", "tier", "effect", "amount", "art"],
+  "rows": [
+    {"id": "dog_tags", "name": "Dog Tags", "tier": "STARTER", "effect": "Whenever you win a combat, gain !A! extra War Funds.", "amount": 5, "art": "art_relic_tags"}
+  ]
+}

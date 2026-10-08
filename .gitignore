@@ -1,0 +1,4 @@
+target/
+lib/
+*.class
+desktop-1.0.jar

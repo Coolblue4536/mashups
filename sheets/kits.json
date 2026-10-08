@@ -1,0 +1,10 @@
+{
+  "sheet": "kits",
+  "about": "Role kits sold for War Funds. Buying one shows its cards already upgraded and you keep one. roleNameFrom is Wardogs' own name for that progression track when it has one.",
+  "columns": ["id", "nameFallback", "roleNameFrom", "price", "cards", "choose", "upgraded", "art"],
+  "rows": [
+    {"id": "medic",   "nameFallback": "Medic Kit",   "roleNameFrom": "wd_track_medic",   "price": 40, "cards": ["pp19", "enox", "resuscitator"], "choose": 1, "upgraded": true, "art": "art_kit_medic"},
+    {"id": "sapper",  "nameFallback": "Sapper Kit",  "roleNameFrom": "wd_track_sapper",  "price": 40, "cards": ["frag", "smoke", "c4"],          "choose": 1, "upgraded": true, "art": "art_kit_sapper"},
+    {"id": "assault", "nameFallback": "Assault Kit", "roleNameFrom": "wd_track_assault", "price": 50, "cards": ["m4", "galil", "m249", "fal"],  "choose": 1, "upgraded": true, "art": "art_kit_assault"}
+  ]
+}

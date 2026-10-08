@@ -1,0 +1,15 @@
+{
+  "sheet": "economy",
+  "about": "War Funds: Wardogs' 'earn cash in the fight, buy your loadout' rule. Separate from Spire gold.",
+  "columns": ["id", "value", "notes"],
+  "rows": [
+    {"id": "currency_name",     "value": "War Funds", "notes": "shown top-left as $N"},
+    {"id": "start_funds",       "value": 0,           "notes": "at run start"},
+    {"id": "pay_monster",       "value": 15,          "notes": "normal fight won"},
+    {"id": "pay_elite",         "value": 30,          "notes": "elite fight won"},
+    {"id": "pay_boss",          "value": 50,          "notes": "boss fight won"},
+    {"id": "shop_location",     "value": "rest_site", "notes": "a 'Requisition' option at rest sites; using it takes the rest site's one action"},
+    {"id": "shop_offers",       "value": ["medic", "sapper", "assault"], "notes": "kits.id"},
+    {"id": "act_scope",         "value": 1,           "notes": "first version is balanced and tested for Act 1; later acts still play"}
+  ]
+}
