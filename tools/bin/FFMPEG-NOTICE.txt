@@ -1,0 +1,7 @@
+ffmpeg.exe and ffprobe.exe are a minimal build of FFmpeg 7.1 (https://ffmpeg.org),
+licensed under the GNU LGPL 2.1 or later. Source: https://github.com/FFmpeg/FFmpeg/tree/n7.1
+with ffmpeg-kb2n.patch applied (lets the Bink demuxer open Bink 2 revision 'n' files).
+Built with: --disable-everything --enable-demuxer=bink,binka
+  --enable-decoder=binkaudio_rdft,binkaudio_dct --enable-encoder=pcm_s16le --enable-muxer=wav
+  --enable-protocol=file,pipe --enable-filter=aresample,anull,aformat,volumedetect,atrim
+  --target-os=mingw32 --arch=x86_64 --enable-small --enable-static

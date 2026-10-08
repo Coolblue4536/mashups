@@ -2,7 +2,7 @@
 # It never starts the game and never writes into its folder. Prints a text report.
 # Usage: powershell -ExecutionPolicy Bypass -File inspect-game.ps1 -AppId 2767030
 
-param([string]$AppId = '2767030')  # 2767030 = Marvel Rivals
+param([string]$AppId = '2767030', [switch]$FunctionsOnly)  # 2767030 = Marvel Rivals
 $ErrorActionPreference = 'Stop'
 
 function Find-SteamRoot {
@@ -82,6 +82,7 @@ function Describe-Utoc([string]$path) {
     return "utoc v$($h[16]) flags=$flags encrypted=$([bool]($flags -band 2)) keyGuidZero=$guidZero"
 }
 
+if ($FunctionsOnly) { return }
 $root = Find-Game
 if (-not $root) { Write-Output "Steam app $AppId NOT FOUND in any Steam library."; exit 1 }
 Write-Output "Game folder: $root"
