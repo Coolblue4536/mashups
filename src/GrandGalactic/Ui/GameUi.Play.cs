@@ -61,7 +61,7 @@ public sealed partial class GameUi
         _cam.Target = Vector2.Clamp(_cam.Target, sim.BoundsMin, sim.BoundsMax);
 
         if (_screen == Screen.Play) HandleMouse();
-        sim.TutorialOn = _settings.Tutorial;
+        sim.TutorialOn = TutorialShown;
         if (!_paused && _screen == Screen.Play) sim.Update(dt * _speed);
 
         foreach (var msg in sim.Messages) Toast(msg);
@@ -237,6 +237,7 @@ public sealed partial class GameUi
         // The table: each star system is an area, drawn on the Stacklands board texture (or plain space).
         Raylib.BeginScissorMode((int)view.X, (int)view.Y, (int)view.Width, (int)view.Height);
         Raylib.BeginMode2D(_cam);
+        _inWorld = true;
         var bg = Tex("sl_board_bg");
         var stars = new Random(7);
         for (int i = 0; i < 500; i++)
@@ -275,6 +276,7 @@ public sealed partial class GameUi
         foreach (var bt in b.Battles) DrawBattle(bt);
         foreach (var s in b.Stacks) if (s.Dragging) DrawStack(s);
         Raylib.EndMode2D();
+        _inWorld = false;
         Raylib.EndScissorMode();
 
         DrawTopBar();
@@ -493,10 +495,13 @@ public sealed partial class GameUi
     readonly HashSet<string> _tutorialSeen = new();
 
     /// <summary>The tutorial checklist: the current step, its hint, progress, and Skip / Hide.</summary>
+    /// <summary>The player's tutorial setting, except in --screenshot captures, which show the game without it.</summary>
+    bool TutorialShown => _settings.Tutorial && _shot == null;
+
     void DrawTutorial()
     {
         var sim = _sim!;
-        if (!_settings.Tutorial || _codex || _screen != Screen.Play) return;
+        if (!TutorialShown || _codex || _screen != Screen.Play) return;
         foreach (var t in Defs.Tutorial)
             if (sim.StepDone(t) && !sim.SkippedSteps.Contains(t.Id) && _tutorialSeen.Add(t.Id) && _clock > 1) Toast($"Tutorial: {t.Text} - done!");
         var step = sim.CurrentStep;

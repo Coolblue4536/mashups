@@ -20,9 +20,16 @@ public static class Demo
         On("research", "scientist");
         if (Find("minerals") != null && Find("construction_ship") is { } cs)
             for (int i = 0; i < 3 && Find("minerals") is { } m; i++) sim.StackOnto(m, cs);
-        // A raider in the capital, met by the fleet (Militarist start has a Corvette).
+        // A raider in the capital, met by the fleet (Militarist start has a Corvette), fitted the way a player would:
+        // the start's ship parts and its Admiral go on board first.
         var raider = sim.Spawn("pirate_raider", sim.Home.Center + new Vector2(450, 120), jitter: false);
-        if (Find("corvette") is { } fleet) sim.Attack(fleet, raider);
+        if (Find("corvette") is { } fleet)
+        {
+            foreach (var part in sim.StacksIn(sim.Home).Where(s => s.Cards.Count == 1 && s.Root.Def.Category == "component").ToList())
+                sim.Fit(part.Root, fleet.Root);
+            if (Find("admiral") is { } admiral) sim.AssignAdmiral(admiral.Root, fleet.Root);
+            sim.Attack(fleet, raider);
+        }
         sim.Messages.Clear();
     }
 }

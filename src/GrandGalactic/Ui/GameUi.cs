@@ -118,8 +118,14 @@ public sealed partial class GameUi
         _res = new AssetResolver(st, sl);
         if (_res.Font(Defs.Asset["sl_font"]) is { } ttf)
         {
-            _font = Raylib.LoadFontFromMemory(".ttf", ttf, 48, null!, 0);
-            Raylib.SetTextureFilter(_font.Texture, TextureFilter.Bilinear);
+            // Bake large, with mipmaps and trilinear filtering, so text stays clean at every size the UI and the
+            // zoomed board draw it. Latin-1 plus the punctuation the sheets and Stellaris names use.
+            var glyphs = Enumerable.Range(32, 224).Concat(new[] { 0x2013, 0x2014, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2026, 0x2192 }).ToArray();
+            _font = Raylib.LoadFontFromMemory(".ttf", ttf, 96, glyphs, glyphs.Length);
+            var tex = _font.Texture;
+            Raylib.GenTextureMipmaps(ref tex);
+            _font.Texture = tex;
+            Raylib.SetTextureFilter(_font.Texture, TextureFilter.Trilinear);
             _customFont = true;
         }
         if (_res.Sound(Defs.Asset["sl_music"]) is { } mus)
@@ -259,8 +265,15 @@ public sealed partial class GameUi
 
     // ---------- text helpers ----------
 
-    void Text(string s, float x, float y, float size, Color c) =>
-        Raylib.DrawTextEx(_font, s, new Vector2(x, y), size, _customFont ? 0 : size / 10f, c);
+    /// <summary>True between BeginMode2D and EndMode2D (board text scales with the camera).</summary>
+    bool _inWorld;
+
+    void Text(string s, float x, float y, float size, Color c)
+    {
+        // Screen text snaps to whole pixels so glyph edges stay sharp; board text moves smoothly with the camera.
+        var at = _inWorld ? new Vector2(x, y) : new Vector2(MathF.Round(x), MathF.Round(y));
+        Raylib.DrawTextEx(_font, s, at, size, _customFont ? 0 : size / 10f, c);
+    }
 
     Vector2 Measure(string s, float size) => Raylib.MeasureTextEx(_font, s, size, _customFont ? 0 : size / 10f);
 
