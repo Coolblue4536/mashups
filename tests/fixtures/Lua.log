@@ -1,0 +1,21 @@
+SA_Gameplay: SA_EVENT|LOADED|standard
+SA_Handoff: SA_EVENT|UI_LOADED
+events: SA_EVENT|SPACE|1|1
+events: SA_EVENT|SPACE|0|2
+events: SA|BEGIN|1
+events: SA|LEVEL|standard
+events: SA|CIV|1|1|2|Roman Empire|Roman|Trajan
+events: SA|CITY|1|Rome
+events: SA|CITY|1|Cumae pipe
+events: SA|CITY|1|Antium
+events: SA|CIV|2|0|1|Japanese Empire|Japanese|Hojo Tokimune
+events: SA|CITY|2|Kyōto
+events: SA|CIV|3|0|0|Scythian Empire|Scythian|Tomyris
+events: SA|TECH|TECH_ASTROLOGY
+events: SA|TECH|TECH_ROCKETRY
+events: SA|WONDER|BUILDING_PYRAMIDS|Pyramids|+25% Production toward districts.
+events: SA|WONDER|BUILDING_BIG_BEN|Big Ben|
+events: SA|WONDER|BUILDING_MACHU_PICCHU|Machu Picchu|
+events: SA|NATURAL|FEATURE_EVEREST|Mount Everest
+events: SA|NATURAL|FEATURE_PAITITI|Paititi
+events: SA|END|17

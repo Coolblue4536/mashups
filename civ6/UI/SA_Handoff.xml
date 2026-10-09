@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Stellar Ascension: Act 1 complete / space race lost popup. -->
+<Context Name="SA_Handoff">
+  <Box ID="Shade" Size="parent,parent" Color="0,0,0,170" ConsumeMouse="1">
+    <Box ID="Panel" Anchor="C,C" Size="640,300" Color="18,26,54,245">
+      <Label ID="Title" Anchor="C,T" Offset="0,28" Style="FontFlair22" FontStyle="Shadow" Color="255,224,150,255" String="" />
+      <Label ID="Body" Anchor="C,T" Offset="0,84" WrapWidth="560" Style="FontNormal16" Color="235,235,235,255" String="" />
+      <GridButton ID="OKButton" Anchor="C,B" Offset="0,28" Size="220,42" Style="MainButton" String="LOC_SA_POPUP_OK" />
+    </Box>
+  </Box>
+</Context>

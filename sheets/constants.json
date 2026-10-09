@@ -1,0 +1,51 @@
+{
+  "sheet": "constants",
+  "columns": {
+    "key": "name",
+    "value": "value",
+    "note": "why"
+  },
+  "verify": {},
+  "rows": [
+    {
+      "key": "trigger_projects",
+      "value": "PROJECT_LAUNCH_MOON_LANDING",
+      "note": "Act 1 ends when this project completes (base game and Gathering Storm both have it)"
+    },
+    {
+      "key": "max_rivals",
+      "value": 11,
+      "note": "rival civs carried into Stellaris"
+    },
+    {
+      "key": "max_rare_systems",
+      "value": 8,
+      "note": "natural wonders turned into rare systems"
+    },
+    {
+      "key": "rare_system_max_jumps",
+      "value": 8,
+      "note": "rare systems are placed within this many jumps of the first civ to reach space"
+    },
+    {
+      "key": "max_home_planet_names",
+      "value": 8,
+      "note": "city names used for planets in each home system"
+    },
+    {
+      "key": "civ_mod_id",
+      "value": "6d2b7d3e-5a1c-4c47-9f0e-6a4c51a2f7b1",
+      "note": "Civ VI mod GUID"
+    },
+    {
+      "key": "stellaris_mod_folder",
+      "value": "stellar_ascension",
+      "note": "folder under Documents/Paradox Interactive/Stellaris/mod"
+    },
+    {
+      "key": "log_prefix",
+      "value": "SA|",
+      "note": "handoff lines in Lua.log start with this after the context name"
+    }
+  ]
+}

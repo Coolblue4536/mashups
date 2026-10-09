@@ -1,0 +1,129 @@
+{
+  "sheet": "techs",
+  "columns": {
+    "civ_tech": "Civ VI TechnologyType (base game)",
+    "era": "Civ VI era, for players reading the tooltip",
+    "modifier": "id in modifiers sheet granted in Stellaris when the player researched this tech",
+    "title": "short name shown in the Civ VI tooltip"
+  },
+  "verify": {
+    "civ_tech": "civ6-in-game",
+    "modifier": "ref:modifiers.id"
+  },
+  "rows": [
+    {
+      "civ_tech": "TECH_ASTROLOGY",
+      "era": "Ancient",
+      "modifier": "sa_legacy_astrology",
+      "title": "Stargazers' Legacy"
+    },
+    {
+      "civ_tech": "TECH_WRITING",
+      "era": "Ancient",
+      "modifier": "sa_legacy_writing",
+      "title": "Written Record"
+    },
+    {
+      "civ_tech": "TECH_SHIPBUILDING",
+      "era": "Ancient",
+      "modifier": "sa_legacy_shipbuilding",
+      "title": "Shipwright Tradition"
+    },
+    {
+      "civ_tech": "TECH_MATHEMATICS",
+      "era": "Classical",
+      "modifier": "sa_legacy_mathematics",
+      "title": "Mathematical Heritage"
+    },
+    {
+      "civ_tech": "TECH_CELESTIAL_NAVIGATION",
+      "era": "Classical",
+      "modifier": "sa_legacy_celestial_navigation",
+      "title": "Navigators' Stars"
+    },
+    {
+      "civ_tech": "TECH_ENGINEERING",
+      "era": "Classical",
+      "modifier": "sa_legacy_engineering",
+      "title": "Builders' Legacy"
+    },
+    {
+      "civ_tech": "TECH_ASTRONOMY",
+      "era": "Renaissance",
+      "modifier": "sa_legacy_astronomy",
+      "title": "Observatory Charts"
+    },
+    {
+      "civ_tech": "TECH_SCIENTIFIC_THEORY",
+      "era": "Enlightenment",
+      "modifier": "sa_legacy_scientific_theory",
+      "title": "Scientific Method"
+    },
+    {
+      "civ_tech": "TECH_INDUSTRIALIZATION",
+      "era": "Industrial",
+      "modifier": "sa_legacy_industrialization",
+      "title": "Industrial Base"
+    },
+    {
+      "civ_tech": "TECH_STEEL",
+      "era": "Industrial",
+      "modifier": "sa_legacy_steel",
+      "title": "Steel Foundries"
+    },
+    {
+      "civ_tech": "TECH_ELECTRICITY",
+      "era": "Modern",
+      "modifier": "sa_legacy_electricity",
+      "title": "Electric Grid"
+    },
+    {
+      "civ_tech": "TECH_FLIGHT",
+      "era": "Modern",
+      "modifier": "sa_legacy_flight",
+      "title": "Age of Flight"
+    },
+    {
+      "civ_tech": "TECH_ROCKETRY",
+      "era": "Atomic",
+      "modifier": "sa_legacy_rocketry",
+      "title": "Rocket Yards"
+    },
+    {
+      "civ_tech": "TECH_COMPUTERS",
+      "era": "Atomic",
+      "modifier": "sa_legacy_computers",
+      "title": "Computing Revolution"
+    },
+    {
+      "civ_tech": "TECH_SATELLITES",
+      "era": "Information",
+      "modifier": "sa_legacy_satellites",
+      "title": "Orbital Network"
+    },
+    {
+      "civ_tech": "TECH_LASERS",
+      "era": "Information",
+      "modifier": "sa_legacy_lasers",
+      "title": "Directed Energy"
+    },
+    {
+      "civ_tech": "TECH_ROBOTICS",
+      "era": "Information",
+      "modifier": "sa_legacy_robotics",
+      "title": "Automated Industry"
+    },
+    {
+      "civ_tech": "TECH_NANOTECHNOLOGY",
+      "era": "Information",
+      "modifier": "sa_legacy_nanotechnology",
+      "title": "Nanofabrication"
+    },
+    {
+      "civ_tech": "TECH_NUCLEAR_FUSION",
+      "era": "Information",
+      "modifier": "sa_legacy_nuclear_fusion",
+      "title": "Fusion Power"
+    }
+  ]
+}

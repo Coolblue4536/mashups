@@ -1,0 +1,65 @@
+{
+  "sheet": "natural_wonders",
+  "columns": {
+    "civ_feature": "Civ VI natural wonder FeatureType; DEFAULT covers any other natural wonder",
+    "modifier": "id in modifiers sheet (country scope) held by whoever owns the rare system"
+  },
+  "verify": {
+    "civ_feature": "civ6-in-game",
+    "modifier": "ref:modifiers.id"
+  },
+  "rows": [
+    {
+      "civ_feature": "FEATURE_CRATER_LAKE",
+      "modifier": "sa_natural_research"
+    },
+    {
+      "civ_feature": "FEATURE_DEAD_SEA",
+      "modifier": "sa_natural_unity"
+    },
+    {
+      "civ_feature": "FEATURE_EVEREST",
+      "modifier": "sa_natural_minerals"
+    },
+    {
+      "civ_feature": "FEATURE_GALAPAGOS",
+      "modifier": "sa_natural_research"
+    },
+    {
+      "civ_feature": "FEATURE_KILIMANJARO",
+      "modifier": "sa_natural_food"
+    },
+    {
+      "civ_feature": "FEATURE_PANTANAL",
+      "modifier": "sa_natural_food"
+    },
+    {
+      "civ_feature": "FEATURE_PIOPIOTAHI",
+      "modifier": "sa_natural_unity"
+    },
+    {
+      "civ_feature": "FEATURE_TORRES_DEL_PAINE",
+      "modifier": "sa_natural_minerals"
+    },
+    {
+      "civ_feature": "FEATURE_TSINGY",
+      "modifier": "sa_natural_minerals"
+    },
+    {
+      "civ_feature": "FEATURE_YOSEMITE",
+      "modifier": "sa_natural_energy"
+    },
+    {
+      "civ_feature": "FEATURE_CLIFFS_DOVER",
+      "modifier": "sa_natural_unity"
+    },
+    {
+      "civ_feature": "FEATURE_BARRIER_REEF",
+      "modifier": "sa_natural_food"
+    },
+    {
+      "civ_feature": "DEFAULT",
+      "modifier": "sa_natural_energy"
+    }
+  ]
+}

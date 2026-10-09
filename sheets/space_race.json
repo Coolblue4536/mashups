@@ -1,0 +1,41 @@
+{
+  "sheet": "space_race",
+  "columns": {
+    "level": "value stored in the Civ VI game setup option",
+    "label": "name in the setup dropdown",
+    "description": "setup dropdown tooltip",
+    "civ_defeat_if_beaten": "true: a rival finishing the trigger project first ends your Civ VI game as a loss",
+    "rival_lead_modifiers": "modifier ids given to every rival that reached space before you (or none)",
+    "player_first_modifiers": "modifier ids given to you when you reached space first (or none)"
+  },
+  "verify": {
+    "rival_lead_modifiers": "refs:modifiers.id",
+    "player_first_modifiers": "refs:modifiers.id"
+  },
+  "rows": [
+    {
+      "level": "relaxed",
+      "label": "Relaxed",
+      "description": "Losing the space race costs you the rare star systems, nothing more.",
+      "civ_defeat_if_beaten": false,
+      "rival_lead_modifiers": "none",
+      "player_first_modifiers": "sa_space_race_victor"
+    },
+    {
+      "level": "standard",
+      "label": "Standard",
+      "description": "Rivals who reach space before you also start with stronger industry and fleets.",
+      "civ_defeat_if_beaten": false,
+      "rival_lead_modifiers": "sa_space_race_leader sa_space_race_leader_fleet",
+      "player_first_modifiers": "sa_space_race_victor"
+    },
+    {
+      "level": "ruthless",
+      "label": "Ruthless",
+      "description": "If a rival reaches space first, you lose. Only the winner of the race goes on to the stars.",
+      "civ_defeat_if_beaten": true,
+      "rival_lead_modifiers": "sa_space_race_leader sa_space_race_leader_fleet",
+      "player_first_modifiers": "sa_space_race_victor"
+    }
+  ]
+}

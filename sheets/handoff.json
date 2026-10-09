@@ -1,0 +1,66 @@
+{
+  "sheet": "handoff",
+  "columns": {
+    "record": "first field after SA|",
+    "fields": "pipe-separated fields after the record name",
+    "civ_source": "where the Civ VI UI script reads it",
+    "stellaris_use": "what the launcher builds from it"
+  },
+  "verify": {},
+  "rows": [
+    {
+      "record": "BEGIN",
+      "fields": "version",
+      "civ_source": "constant",
+      "stellaris_use": "starts a handoff block"
+    },
+    {
+      "record": "LEVEL",
+      "fields": "level",
+      "civ_source": "GameConfiguration.GetValue(SA_SPACE_RACE)",
+      "stellaris_use": "ref:space_race.level row"
+    },
+    {
+      "record": "CIV",
+      "fields": "slot|is_player|space_order|name|adjective|leader",
+      "civ_source": "PlayerConfigurations + Game:GetProperty(SA_SpaceOrder)",
+      "stellaris_use": "one prescripted empire per civ"
+    },
+    {
+      "record": "CITY",
+      "fields": "slot|name",
+      "civ_source": "Player:GetCities(), capital first, then by population",
+      "stellaris_use": "homeworld + home system planet names"
+    },
+    {
+      "record": "TECH",
+      "fields": "civ_tech",
+      "civ_source": "Player:GetTechs():HasTech for techs sheet rows",
+      "stellaris_use": "ref:techs.civ_tech -> legacy modifiers"
+    },
+    {
+      "record": "WONDER",
+      "fields": "civ_building|name|description",
+      "civ_source": "wonders in the player's cities, Locale.Lookup",
+      "stellaris_use": "ref:wonders.civ_building -> homeworld wonder feature"
+    },
+    {
+      "record": "NATURAL",
+      "fields": "civ_feature|name",
+      "civ_source": "Map plots with a NaturalWonder feature, Locale.Lookup",
+      "stellaris_use": "ref:natural_wonders.civ_feature -> rare system"
+    },
+    {
+      "record": "DEFEAT",
+      "fields": "winner_name",
+      "civ_source": "Ruthless: a rival reached space first",
+      "stellaris_use": "no Act 2; launcher stops"
+    },
+    {
+      "record": "END",
+      "fields": "count",
+      "civ_source": "constant",
+      "stellaris_use": "ends the block; launcher generates the Stellaris mod"
+    }
+  ]
+}

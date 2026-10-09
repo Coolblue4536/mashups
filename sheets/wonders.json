@@ -1,0 +1,129 @@
+{
+  "sheet": "wonders",
+  "columns": {
+    "civ_building": "Civ VI world wonder BuildingType; DEFAULT covers any other wonder (DLC, expansions, other mods)",
+    "modifier": "id in modifiers sheet (planet scope) applied by the wonder's feature on your homeworld"
+  },
+  "verify": {
+    "civ_building": "civ6-in-game",
+    "modifier": "ref:modifiers.id"
+  },
+  "rows": [
+    {
+      "civ_building": "BUILDING_PYRAMIDS",
+      "modifier": "sa_wonder_industry"
+    },
+    {
+      "civ_building": "BUILDING_STONEHENGE",
+      "modifier": "sa_wonder_faith"
+    },
+    {
+      "civ_building": "BUILDING_HANGING_GARDENS",
+      "modifier": "sa_wonder_growth"
+    },
+    {
+      "civ_building": "BUILDING_ORACLE",
+      "modifier": "sa_wonder_faith"
+    },
+    {
+      "civ_building": "BUILDING_GREAT_LIGHTHOUSE",
+      "modifier": "sa_wonder_industry"
+    },
+    {
+      "civ_building": "BUILDING_COLOSSUS",
+      "modifier": "sa_wonder_industry"
+    },
+    {
+      "civ_building": "BUILDING_PETRA",
+      "modifier": "sa_wonder_growth"
+    },
+    {
+      "civ_building": "BUILDING_COLOSSEUM",
+      "modifier": "sa_wonder_culture"
+    },
+    {
+      "civ_building": "BUILDING_GREAT_LIBRARY",
+      "modifier": "sa_wonder_science"
+    },
+    {
+      "civ_building": "BUILDING_MAHABODHI_TEMPLE",
+      "modifier": "sa_wonder_faith"
+    },
+    {
+      "civ_building": "BUILDING_TERRACOTTA_ARMY",
+      "modifier": "sa_wonder_military"
+    },
+    {
+      "civ_building": "BUILDING_HAGIA_SOPHIA",
+      "modifier": "sa_wonder_faith"
+    },
+    {
+      "civ_building": "BUILDING_ALHAMBRA",
+      "modifier": "sa_wonder_military"
+    },
+    {
+      "civ_building": "BUILDING_CHICHEN_ITZA",
+      "modifier": "sa_wonder_industry"
+    },
+    {
+      "civ_building": "BUILDING_MONT_ST_MICHEL",
+      "modifier": "sa_wonder_faith"
+    },
+    {
+      "civ_building": "BUILDING_VENETIAN_ARSENAL",
+      "modifier": "sa_wonder_military"
+    },
+    {
+      "civ_building": "BUILDING_FORBIDDEN_CITY",
+      "modifier": "sa_wonder_culture"
+    },
+    {
+      "civ_building": "BUILDING_POTALA_PALACE",
+      "modifier": "sa_wonder_faith"
+    },
+    {
+      "civ_building": "BUILDING_BIG_BEN",
+      "modifier": "sa_wonder_culture"
+    },
+    {
+      "civ_building": "BUILDING_BOLSHOI_THEATRE",
+      "modifier": "sa_wonder_culture"
+    },
+    {
+      "civ_building": "BUILDING_HERMITAGE",
+      "modifier": "sa_wonder_culture"
+    },
+    {
+      "civ_building": "BUILDING_OXFORD_UNIVERSITY",
+      "modifier": "sa_wonder_science"
+    },
+    {
+      "civ_building": "BUILDING_RUHR_VALLEY",
+      "modifier": "sa_wonder_industry"
+    },
+    {
+      "civ_building": "BUILDING_BROADWAY",
+      "modifier": "sa_wonder_culture"
+    },
+    {
+      "civ_building": "BUILDING_CRISTO_REDENTOR",
+      "modifier": "sa_wonder_faith"
+    },
+    {
+      "civ_building": "BUILDING_EIFFEL_TOWER",
+      "modifier": "sa_wonder_culture"
+    },
+    {
+      "civ_building": "BUILDING_ESTADIO_DO_MARACANA",
+      "modifier": "sa_wonder_culture"
+    },
+    {
+      "civ_building": "BUILDING_SYDNEY_OPERA_HOUSE",
+      "modifier": "sa_wonder_culture"
+    },
+    {
+      "civ_building": "DEFAULT",
+      "modifier": "sa_wonder_culture"
+    }
+  ]
+}

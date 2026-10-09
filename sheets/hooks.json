@@ -1,0 +1,90 @@
+{
+  "sheet": "hooks",
+  "columns": {
+    "id": "hook name",
+    "game": "civilization-vi, stellaris or launcher",
+    "mechanism": "engine hook used",
+    "file": "generated file that implements it",
+    "purpose": "what it does"
+  },
+  "verify": {},
+  "rows": [
+    {
+      "id": "civ_setup_option",
+      "game": "civilization-vi",
+      "mechanism": "FrontEnd Parameters + DomainValues",
+      "file": "Config/SA_Config.sql",
+      "purpose": "Space Race dropdown in Advanced Setup"
+    },
+    {
+      "id": "civ_tech_tooltips",
+      "game": "civilization-vi",
+      "mechanism": "Technologies.Description + LocalizedText",
+      "file": "Data/SA_Gameplay.sql, Text/SA_Text.xml",
+      "purpose": "each legacy tech names its Stellaris bonus"
+    },
+    {
+      "id": "civ_space_order",
+      "game": "civilization-vi",
+      "mechanism": "Events.CityProjectCompleted + Game:SetProperty (gameplay script)",
+      "file": "Scripts/SA_Gameplay.lua",
+      "purpose": "remembers who reached space, in order, in the save"
+    },
+    {
+      "id": "civ_ruthless_defeat",
+      "game": "civilization-vi",
+      "mechanism": "Game.SetWinningTeam (gameplay script)",
+      "file": "Scripts/SA_Gameplay.lua",
+      "purpose": "Ruthless: rival first to space wins"
+    },
+    {
+      "id": "civ_handoff_dump",
+      "game": "civilization-vi",
+      "mechanism": "Events.CityProjectCompleted (UI script) + print to Lua.log",
+      "file": "UI/SA_Handoff.lua",
+      "purpose": "writes the handoff block when you reach space"
+    },
+    {
+      "id": "civ_handoff_popup",
+      "game": "civilization-vi",
+      "mechanism": "InGame UI context",
+      "file": "UI/SA_Handoff.xml",
+      "purpose": "tells you Act 1 is over and to exit to start Act 2"
+    },
+    {
+      "id": "launcher_watch",
+      "game": "launcher",
+      "mechanism": "tail My Games/Sid Meier's Civilization VI/Logs/Lua.log",
+      "file": "launcher/handoff.go",
+      "purpose": "reads the handoff block"
+    },
+    {
+      "id": "stellaris_mod",
+      "game": "stellaris",
+      "mechanism": "Documents/Paradox Interactive/Stellaris/mod + dlc_load.json",
+      "file": "launcher/stellaris.go",
+      "purpose": "writes and enables the generated Stellaris mod"
+    },
+    {
+      "id": "stellaris_empires",
+      "game": "stellaris",
+      "mechanism": "prescripted_countries from the player's own human template",
+      "file": "prescripted_countries/sa_countries.txt",
+      "purpose": "your civ and every rival as Stellaris empires"
+    },
+    {
+      "id": "stellaris_game_start",
+      "game": "stellaris",
+      "mechanism": "on_game_start_country + on_game_start events",
+      "file": "events/sa_events.txt",
+      "purpose": "names planets, grants legacy bonuses and wonders, claims rare systems"
+    },
+    {
+      "id": "stellaris_yearly",
+      "game": "stellaris",
+      "mechanism": "on_yearly_pulse_country",
+      "file": "events/sa_events.txt",
+      "purpose": "rare system bonus follows whoever owns the system"
+    }
+  ]
+}

@@ -1,0 +1,281 @@
+{
+  "sheet": "modifiers",
+  "columns": {
+    "id": "static modifier key the mod defines",
+    "scope": "country or planet",
+    "stellaris_modifier": "Stellaris modifier key",
+    "value": "number",
+    "name": "name shown in Stellaris",
+    "effect_text": "what it does, in words"
+  },
+  "verify": {
+    "stellaris_modifier": "stellaris-modifier-list",
+    "scope": "enum:country,planet"
+  },
+  "rows": [
+    {
+      "id": "sa_legacy_astrology",
+      "scope": "country",
+      "stellaris_modifier": "country_unity_produces_mult",
+      "value": 0.05,
+      "name": "Stargazers' Legacy",
+      "effect_text": "+5% Unity"
+    },
+    {
+      "id": "sa_legacy_writing",
+      "scope": "country",
+      "stellaris_modifier": "country_society_research_produces_mult",
+      "value": 0.05,
+      "name": "Written Record",
+      "effect_text": "+5% Society Research"
+    },
+    {
+      "id": "sa_legacy_shipbuilding",
+      "scope": "country",
+      "stellaris_modifier": "country_naval_cap_add",
+      "value": 4,
+      "name": "Shipwright Tradition",
+      "effect_text": "+4 Naval Capacity"
+    },
+    {
+      "id": "sa_legacy_mathematics",
+      "scope": "country",
+      "stellaris_modifier": "country_physics_research_produces_mult",
+      "value": 0.05,
+      "name": "Mathematical Heritage",
+      "effect_text": "+5% Physics Research"
+    },
+    {
+      "id": "sa_legacy_celestial_navigation",
+      "scope": "country",
+      "stellaris_modifier": "ship_sensor_range_add",
+      "value": 1,
+      "name": "Navigators' Stars",
+      "effect_text": "+1 Ship Sensor Range"
+    },
+    {
+      "id": "sa_legacy_engineering",
+      "scope": "country",
+      "stellaris_modifier": "country_engineering_research_produces_mult",
+      "value": 0.05,
+      "name": "Builders' Legacy",
+      "effect_text": "+5% Engineering Research"
+    },
+    {
+      "id": "sa_legacy_astronomy",
+      "scope": "country",
+      "stellaris_modifier": "ship_anomaly_research_speed_mult",
+      "value": 0.15,
+      "name": "Observatory Charts",
+      "effect_text": "+15% Anomaly Research Speed"
+    },
+    {
+      "id": "sa_legacy_scientific_theory",
+      "scope": "country",
+      "stellaris_modifier": "country_society_tech_research_speed",
+      "value": 0.1,
+      "name": "Scientific Method",
+      "effect_text": "+10% Society Research Speed"
+    },
+    {
+      "id": "sa_legacy_industrialization",
+      "scope": "country",
+      "stellaris_modifier": "country_minerals_produces_mult",
+      "value": 0.05,
+      "name": "Industrial Base",
+      "effect_text": "+5% Minerals"
+    },
+    {
+      "id": "sa_legacy_steel",
+      "scope": "country",
+      "stellaris_modifier": "ship_armor_mult",
+      "value": 0.1,
+      "name": "Steel Foundries",
+      "effect_text": "+10% Ship Armor"
+    },
+    {
+      "id": "sa_legacy_electricity",
+      "scope": "country",
+      "stellaris_modifier": "country_energy_produces_mult",
+      "value": 0.05,
+      "name": "Electric Grid",
+      "effect_text": "+5% Energy"
+    },
+    {
+      "id": "sa_legacy_flight",
+      "scope": "country",
+      "stellaris_modifier": "ship_speed_mult",
+      "value": 0.05,
+      "name": "Age of Flight",
+      "effect_text": "+5% Ship Speed"
+    },
+    {
+      "id": "sa_legacy_rocketry",
+      "scope": "country",
+      "stellaris_modifier": "starbase_shipyard_build_speed_mult",
+      "value": 0.15,
+      "name": "Rocket Yards",
+      "effect_text": "+15% Shipyard Build Speed"
+    },
+    {
+      "id": "sa_legacy_computers",
+      "scope": "country",
+      "stellaris_modifier": "country_engineering_tech_research_speed",
+      "value": 0.1,
+      "name": "Computing Revolution",
+      "effect_text": "+10% Engineering Research Speed"
+    },
+    {
+      "id": "sa_legacy_satellites",
+      "scope": "country",
+      "stellaris_modifier": "planet_sensor_range_add",
+      "value": 1,
+      "name": "Orbital Network",
+      "effect_text": "+1 Planet Sensor Range"
+    },
+    {
+      "id": "sa_legacy_lasers",
+      "scope": "country",
+      "stellaris_modifier": "ship_fire_rate_mult",
+      "value": 0.05,
+      "name": "Directed Energy",
+      "effect_text": "+5% Ship Fire Rate"
+    },
+    {
+      "id": "sa_legacy_robotics",
+      "scope": "country",
+      "stellaris_modifier": "country_alloys_produces_mult",
+      "value": 0.05,
+      "name": "Automated Industry",
+      "effect_text": "+5% Alloys"
+    },
+    {
+      "id": "sa_legacy_nanotechnology",
+      "scope": "country",
+      "stellaris_modifier": "ship_hull_mult",
+      "value": 0.05,
+      "name": "Nanofabrication",
+      "effect_text": "+5% Ship Hull"
+    },
+    {
+      "id": "sa_legacy_nuclear_fusion",
+      "scope": "country",
+      "stellaris_modifier": "ship_shield_mult",
+      "value": 0.1,
+      "name": "Fusion Power",
+      "effect_text": "+10% Ship Shields"
+    },
+    {
+      "id": "sa_wonder_science",
+      "scope": "planet",
+      "stellaris_modifier": "planet_jobs_physics_research_produces_mult",
+      "value": 0.1,
+      "name": "Wonder of Learning",
+      "effect_text": "+10% Physics Research from jobs on this planet"
+    },
+    {
+      "id": "sa_wonder_culture",
+      "scope": "planet",
+      "stellaris_modifier": "planet_stability_add",
+      "value": 5,
+      "name": "Wonder of Culture",
+      "effect_text": "+5 Stability"
+    },
+    {
+      "id": "sa_wonder_faith",
+      "scope": "planet",
+      "stellaris_modifier": "planet_amenities_add",
+      "value": 5,
+      "name": "Wonder of Faith",
+      "effect_text": "+5 Amenities"
+    },
+    {
+      "id": "sa_wonder_industry",
+      "scope": "planet",
+      "stellaris_modifier": "planet_building_build_speed_mult",
+      "value": 0.25,
+      "name": "Wonder of Industry",
+      "effect_text": "+25% Building Speed"
+    },
+    {
+      "id": "sa_wonder_military",
+      "scope": "planet",
+      "stellaris_modifier": "planet_army_build_speed_mult",
+      "value": 0.5,
+      "name": "Wonder of War",
+      "effect_text": "+50% Army Build Speed"
+    },
+    {
+      "id": "sa_wonder_growth",
+      "scope": "planet",
+      "stellaris_modifier": "planet_colony_development_speed_mult",
+      "value": 0.25,
+      "name": "Wonder of Plenty",
+      "effect_text": "+25% Development Speed"
+    },
+    {
+      "id": "sa_natural_energy",
+      "scope": "country",
+      "stellaris_modifier": "country_energy_produces_mult",
+      "value": 0.05,
+      "name": "Natural Wonder: Energy",
+      "effect_text": "+5% Energy while you own this system"
+    },
+    {
+      "id": "sa_natural_minerals",
+      "scope": "country",
+      "stellaris_modifier": "country_minerals_produces_mult",
+      "value": 0.05,
+      "name": "Natural Wonder: Minerals",
+      "effect_text": "+5% Minerals while you own this system"
+    },
+    {
+      "id": "sa_natural_research",
+      "scope": "country",
+      "stellaris_modifier": "country_physics_research_produces_mult",
+      "value": 0.05,
+      "name": "Natural Wonder: Research",
+      "effect_text": "+5% Physics Research while you own this system"
+    },
+    {
+      "id": "sa_natural_unity",
+      "scope": "country",
+      "stellaris_modifier": "country_unity_produces_mult",
+      "value": 0.05,
+      "name": "Natural Wonder: Unity",
+      "effect_text": "+5% Unity while you own this system"
+    },
+    {
+      "id": "sa_natural_food",
+      "scope": "country",
+      "stellaris_modifier": "country_food_produces_mult",
+      "value": 0.05,
+      "name": "Natural Wonder: Plenty",
+      "effect_text": "+5% Food while you own this system"
+    },
+    {
+      "id": "sa_space_race_leader",
+      "scope": "country",
+      "stellaris_modifier": "country_alloys_produces_mult",
+      "value": 0.15,
+      "name": "Won the Race to Space",
+      "effect_text": "+15% Alloys"
+    },
+    {
+      "id": "sa_space_race_leader_fleet",
+      "scope": "country",
+      "stellaris_modifier": "country_naval_cap_add",
+      "value": 10,
+      "name": "Space Race Fleet",
+      "effect_text": "+10 Naval Capacity"
+    },
+    {
+      "id": "sa_space_race_victor",
+      "scope": "country",
+      "stellaris_modifier": "country_physics_research_produces_mult",
+      "value": 0.1,
+      "name": "First Among the Stars",
+      "effect_text": "+10% Physics Research"
+    }
+  ]
+}
