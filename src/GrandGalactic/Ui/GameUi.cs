@@ -92,6 +92,7 @@ public sealed partial class GameUi
             }
         }
         if (_music is { } m) Raylib.UnloadMusicStream(m);
+        if (_musicData != IntPtr.Zero) Marshal.FreeHGlobal(_musicData);
         Raylib.CloseAudioDevice();
         Raylib.CloseWindow();
     }
@@ -128,15 +129,25 @@ public sealed partial class GameUi
             Raylib.SetTextureFilter(_font.Texture, TextureFilter.Trilinear);
             _customFont = true;
         }
-        if (_res.Sound(Defs.Asset["sl_music"]) is { } mus)
-        {
-            var music = Raylib.LoadMusicStreamFromMemory("." + mus.ext, mus.data);
-            Raylib.SetMusicVolume(music, _settings.MusicVolume);
-            Raylib.PlayMusicStream(music);
-            _music = music;
-        }
+        if (_res.Sound(Defs.Asset["sl_music"]) is { } mus) LoadMusic(mus.data, mus.ext);
         _screen = Screen.Empire;
         AutoStart();
+    }
+
+    /// <summary>The music file's bytes in unmanaged memory: raylib streams from them for as long as the music plays,
+    /// so they must never move or be collected (a managed array can be, which crashed the game).</summary>
+    IntPtr _musicData;
+
+    unsafe void LoadMusic(byte[] data, string ext)
+    {
+        _musicData = Marshal.AllocHGlobal(data.Length);
+        Marshal.Copy(data, 0, _musicData, data.Length);
+        var type = System.Text.Encoding.ASCII.GetBytes("." + ext + "\0");
+        Music music;
+        fixed (byte* t = type) music = Raylib.LoadMusicStreamFromMemory((sbyte*)t, (byte*)_musicData, data.Length);
+        Raylib.SetMusicVolume(music, _settings.MusicVolume);
+        Raylib.PlayMusicStream(music);
+        _music = music;
     }
 
     string? _loadError;

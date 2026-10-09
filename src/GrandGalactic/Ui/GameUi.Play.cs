@@ -217,10 +217,13 @@ public sealed partial class GameUi
     IEnumerable<(PackDef, Rectangle)> PackRects()
     {
         float x = Raylib.GetScreenWidth() - RightPanel + 12, y = TopBar + 40;
-        foreach (var p in _sim!.AvailablePacks)
+        var packs = _sim!.AvailablePacks.ToList();
+        // Rows shrink on short windows so every pack stays above the Market.
+        float room = MarketRect().Y - 12 - y, h = Math.Clamp(room / Math.Max(1, packs.Count) - 8, 52, 80);
+        foreach (var p in packs)
         {
-            yield return (p, new Rectangle(x, y, RightPanel - 24, 74));
-            y += 82;
+            yield return (p, new Rectangle(x, y, RightPanel - 24, h));
+            y += h + 8;
         }
     }
 
@@ -488,11 +491,20 @@ public sealed partial class GameUi
         {
             bool hover = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), r) && _drag != null;
             Raylib.DrawRectangleRounded(r, 0.12f, 6, hover ? new Color(80, 110, 200, 255) : new Color(36, 42, 74, 255));
-            DrawBooster(new Rectangle(r.X + 7, r.Y + 4, 50, r.Height - 8), Hex(p.Color), Tex(p.Art), hover);
+            DrawBooster(new Rectangle(r.X + 6, r.Y + 3, 60, r.Height - 6), Hex(p.Color), Tex(p.Art), hover);
             float ts = 20;
-            while (ts > 14 && Measure(p.Name, ts).X > r.Width - 76) ts -= 0.5f;
-            Text(p.Name, r.X + 66, r.Y + 10, ts, Color.RayWhite);
-            Text($"{sim.PackCost(p)} Energy, {p.Draws} cards", r.X + 66, r.Y + 40, 15, new Color(240, 210, 120, 255));
+            while (ts > 13 && Measure(p.Name, ts).X > r.Width - 82) ts -= 0.5f;
+            if (r.Height >= 72)
+            {
+                Text(p.Name, r.X + 74, r.Y + 13, ts, Color.RayWhite);
+                Text($"{sim.PackCost(p)} Energy", r.X + 74, r.Y + 41, 15, new Color(240, 210, 120, 255));
+                Text($"{p.Draws} cards", r.X + 74, r.Y + 58, 14, new Color(200, 205, 230, 255));
+            }
+            else
+            {
+                Text(p.Name, r.X + 74, r.Y + 6, ts, Color.RayWhite);
+                Text($"{sim.PackCost(p)} Energy, {p.Draws} cards", r.X + 74, r.Y + r.Height - 22, 14, new Color(240, 210, 120, 255));
+            }
         }
         var m = MarketRect();
         bool mh = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), m) && _drag != null;
