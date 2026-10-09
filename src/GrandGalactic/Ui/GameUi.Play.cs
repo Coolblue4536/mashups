@@ -347,7 +347,8 @@ public sealed partial class GameUi
                 float bs = art.Width * 0.46f;
                 var br = new Rectangle(art.X + art.Width - bs - 4, art.Y + art.Height - bs - 4, bs, bs);
                 Raylib.DrawRectangleRounded(new Rectangle(br.X - 2, br.Y - 2, br.Width + 4, br.Height + 4), 0.2f, 6, new Color(10, 12, 24, 235));
-                DrawCover(badge, br, Color.White);
+                if (_iconTex.Contains(c.Def.Art)) DrawFit(badge, new Rectangle(br.X + 3, br.Y + 3, br.Width - 6, br.Height - 6), Color.White);
+                else DrawCover(badge, br, Color.White);
                 Raylib.DrawRectangleRoundedLinesEx(new Rectangle(br.X - 2, br.Y - 2, br.Width + 4, br.Height + 4), 0.2f, 6, 2, Shade(col, 1.2f));
             }
         }
