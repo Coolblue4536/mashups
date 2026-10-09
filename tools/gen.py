@@ -21,7 +21,7 @@ SPEC = {
     "cards": ("CardDef", "Cards", ["id", "name_loc", "name", "category", "tags", "art", "value", "hp", "attack", "attack_cd",
                                    "food_upkeep", "energy_upkeep", "boost_tag", "boost_mult", "yield", "yield_time",
                                    "colonize_with", "desc"], {}),
-    "recipes": ("RecipeDef", "Recipes", ["id", "station", "station_keep", "inputs", "requires_flag", "requires_tech", "time", "tag",
+    "recipes": ("RecipeDef", "Recipes", ["id", "station", "station_keep", "inputs", "requires_flag", "requires_system", "requires_tech", "time", "tag",
                                          "outputs", "effect", "desc"],
                 {"inputs": ("RecipeInput", ["card", "n", "keep"]),
                  "outputs": ("Outcome", ["weight", "give"]),

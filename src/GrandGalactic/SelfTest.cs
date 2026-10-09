@@ -54,7 +54,12 @@ public static class SelfTest
             foreach (var t in Defs.Cards.Where(c => c.Category == "tech")) s.Techs.Add(t.Id);
             var ids = new List<string> { Resolve(r.Station) };
             foreach (var i in r.Inputs) for (int k = 0; k < i.N; k++) ids.Add(Resolve(i.Card));
-            var st = Build(s, ids, new Vector2(800, 600));
+            // Recipes that need an unclaimed system run in a freshly surveyed one.
+            var at = r.RequiresSystem == "unclaimed" ? s.AddSystem(s.RollSystemType()).Center : new Vector2(800, 600);
+            if (r.RequiresSystem == "unclaimed")
+                foreach (var h in s.Table.Stacks.Where(x => x.HasHostile && s.SystemAt(Sim.CardCenter(x))?.Index > 0).ToList())
+                    foreach (var c in h.Cards.ToList()) s.Remove(c);
+            var st = Build(s, ids, at);
             var outIds = r.Outputs.SelectMany(o => o.Give).Select(g => g.Card == "station.yield" ? Defs.Card[Resolve(r.Station)].Yield : g.Card).ToHashSet();
             int before = s.AllCards.Count(c => outIds.Contains(c.Def.Id)), boards = s.Systems.Count;
             for (int i = 0; i < 2400 && !s.Discovered.Contains(r.Id); i++) s.Update(0.05f);
@@ -63,6 +68,7 @@ public static class SelfTest
             {
                 "open_board:random" or "open_board:guardian" => s.Systems.Count == boards + 1,
                 "set_flag:claimed" => s.AllCards.Any(c => c.Def.Id == Resolve(r.Station) && c.Claimed),
+                "claim_system" => s.SystemAt(at)?.Claimed == true,
                 _ => true,
             };
             bool produced = r.Outputs.Length == 0 || s.AllCards.Count(c => outIds.Contains(c.Def.Id)) > before - (outIds.Contains(Resolve(r.Station)) && !r.StationKeep ? 1 : 0) || outIds.Count == 0;
@@ -128,23 +134,72 @@ public static class SelfTest
                 for (int k = 0; k < 400 && sci.Cards.Count > 1; k++) run2.Update(0.05f);
             }
             var names = run2.Systems.Skip(1).Select(x => x.Name).ToList();
-            int guardians = Defs.Systems.Count(x => x.Kind == "guardian");
             bool apart = run2.Systems.All(a => run2.Systems.All(b => a == b || !a.Contains(b.Center)));
-            Check(run2.Systems.Count == Defs.Rules.MaxSystems - guardians && names.Distinct().Count() == names.Count && apart,
-                $"40 surveys add {run2.Systems.Count - 1} system areas to the one table, none overlapping (cap {Defs.Rules.MaxSystems}, {guardians} kept for guardians), all names unique");
+            Check(run2.Systems.Count == 41 && names.Distinct().Count() == names.Count && apart,
+                $"surveying is unlimited: 40 surveys add {run2.Systems.Count - 1} systems, none overlapping, all names unique");
         }
 
-        Log.Info("Self-test: market and travel");
+        Log.Info("Self-test: claiming systems");
+        {
+            var s = Fresh();
+            Check(s.Home.Claimed && s.ClaimedCount == 1, "you start owning only your capital");
+            // A colony ship can't settle a planet in a system you don't own.
+            var far = s.AddSystem(s.RollSystemType());
+            var col = Build(s, new[] { "desert_world", "colony_ship" }, far.Center);
+            for (int i = 0; i < 600; i++) s.Update(0.05f);
+            Check(!s.Discovered.Contains("c_colonize"), "colonising needs the system claimed first");
+            // Hostiles in a system block its claim.
+            var amoeba = s.Spawn("space_amoeba", far.Origin + new Vector2(1200, 700), jitter: false);
+            var claim = Build(s, new[] { "yellow_star", "construction_ship", "influence", "influence" }, far.Origin + new Vector2(200, 650));
+            for (int i = 0; i < 20; i++) s.Update(0.05f); // long enough to try, short of the amoeba's first attack
+            Check(!far.Claimed && s.Messages.Any(m => m.Contains("Clear the hostiles")), "a system with hostiles in it can't be claimed (and the game says why)");
+            foreach (var c in amoeba.Stack?.Cards.ToList() ?? new List<Card>()) s.Remove(c);
+            claim.Dirty = true;
+            for (int i = 0; i < 600 && !far.Claimed; i++) s.Update(0.05f);
+            for (int i = 0; i < 600 && !s.Discovered.Contains("c_colonize"); i++) { col.Dirty = true; s.Update(0.05f); }
+            Check(far.Claimed && s.Discovered.Contains("c_colonize"), "Construction Ship + 2 Influence on its star claims it; then colonising works");
+            // The claim limit.
+            int tries = 0;
+            while (s.ClaimedCount < Defs.Rules.ClaimLimit && tries++ < 20)
+            {
+                var z = s.AddSystem(s.RollSystemType());
+                foreach (var h in s.StacksIn(z).Where(x => x.HasHostile).ToList()) foreach (var c in h.Cards.ToList()) s.Remove(c);
+                Build(s, new[] { "yellow_star", "construction_ship", "influence", "influence" }, z.Origin + new Vector2(200, 650));
+                for (int i = 0; i < 600 && !z.Claimed; i++) s.Update(0.05f);
+            }
+            var over = s.AddSystem(s.RollSystemType());
+            foreach (var h in s.StacksIn(over).Where(x => x.HasHostile).ToList()) foreach (var c in h.Cards.ToList()) s.Remove(c);
+            s.Messages.Clear();
+            Build(s, new[] { "yellow_star", "construction_ship", "influence", "influence" }, over.Origin + new Vector2(200, 650));
+            for (int i = 0; i < 600; i++) s.Update(0.05f);
+            Check(s.ClaimedCount == Defs.Rules.ClaimLimit && !over.Claimed && s.Messages.Any(m => m.Contains("Claim limit")),
+                $"claim limit: you can own {Defs.Rules.ClaimLimit} systems; the next claim is refused with a message");
+        }
+
+        Log.Info("Self-test: travel between systems");
+        {
+            var s = Fresh();
+            var near = s.AddSystem(s.RollSystemType());   // next to the capital
+            var pop = Build(s, new[] { "pop" }, s.Home.Center);
+            Check(!s.StartTravel(pop, near.Center), "a Pop can't cross to another system without a ship");
+            var fleet = Build(s, new[] { "corvette", "pop" }, s.Home.Center + new Vector2(200, 0));
+            Check(s.StartTravel(fleet, near.Center), "a stack with a ship sets off for another system");
+            float t = 0;
+            while (fleet.Traveling && t < 120) { s.Update(0.05f); t += 0.05f; }
+            Check(!fleet.Traveling && s.SystemAt(Sim.CardCenter(fleet)) == near && Math.Abs(t - Defs.Rules.TravelSecondsPerJump) < 0.5f,
+                $"it arrives after {t:0.0}s (one step = {Defs.Rules.TravelSecondsPerJump}s)");
+            for (int i = 0; i < 9; i++) s.AddSystem(s.RollSystemType());
+            var far = s.Systems.Last();
+            Check(s.TravelSeconds(s.Home, far) == 2 * Defs.Rules.TravelSecondsPerJump, $"a system two steps out takes {s.TravelSeconds(s.Home, far)}s");
+        }
+
+        Log.Info("Self-test: market");
         {
             var s = Fresh();
             var st = Build(s, new[] { "alloys", "alloys", "precursor_artifact" }, new Vector2(400, 400));
             int got = s.Sell(st);
             Check(got == 18 && s.AllCards.Count(c => c.Def.Id == "energy") == 18, "selling 2 Alloys + Artifact gives 18 Energy");
             var other = s.AddSystem(s.RollSystemType());
-            var pop = Build(s, new[] { "pop" }, new Vector2(300, 300));
-            pop.Pos = other.Center;
-            s.Update(0.05f);
-            Check(s.SystemAt(Sim.CardCenter(pop)) == other, "a Pop can be dragged straight into another star system on the same table");
             var raider = s.Spawn("pirate_raider", other.Center + new Vector2(200, 0), jitter: false);
             var homePop = Build(s, new[] { "pop" }, s.Home.Center);
             for (int i = 0; i < 400; i++) s.Update(0.05f);

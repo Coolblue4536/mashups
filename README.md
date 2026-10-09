@@ -28,8 +28,12 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
 - **Research.** Stack Research on a Scientist to unlock Corvettes, Destroyers, Cruisers, Battleships,
   Titans, Colonization, Robotic Workers and Terrestrial Sculpting.
 - **One table for your whole empire.** Every star system you find is added as a new area of the same
-  table, around your capital. Drag cards straight from one system to another. Zoom out (Z) to see
-  everything at once.
+  table, around your capital. Zoom out (Z) to see everything at once.
+- **Survey freely, claim carefully.** You can survey as many systems as you like, but you can only own 5,
+  counting your capital. To claim a system, clear out its hostiles, then stack a Construction Ship and 2
+  Influence on its star. Planets can only be colonised, outposted and worked in systems you own.
+- **Ships travel.** Moving cards to another system takes a ship in the stack, and the trip takes time:
+  8 seconds per step across the table. Pops and cargo ride along with the ship.
 - **Explore.** A Science Ship on an Uncharted System adds a new, randomly rolled star system to the table.
   It might be a yellow star, red dwarf, blue giant, binary pair, asteroid belt, nebula, black hole,
   neutron star or pulsar, with anywhere from 0 to 5 planets, plus anomalies, derelicts, space amoebas,
@@ -56,6 +60,7 @@ It's single-player only.
 | Action | How |
 |---|---|
 | Pick up a card and everything on top of it | Left-drag |
+| Send a fleet to another system | Drag a stack with a ship into that system |
 | Stack | Drop onto another card |
 | Fight | Drop ships onto a hostile card or a battle |
 | Buy a pack | Drop Energy Credits onto a pack on the right |

@@ -32,7 +32,7 @@ public sealed class Sim
     public string EndReason = "";
     public bool RiftOpen, BossArrived;
     public int CrisisMoon;
-    int _uid, _stackId, _guardianOpened;
+    int _uid, _stackId, _guardianOpened, _nameRound;
     readonly List<string> _unusedNames = new(Defs.Rules.SystemNames);
 
     public StarSystem Home => Systems[0];
@@ -71,9 +71,23 @@ public sealed class Sim
 
     // ---------- cards and stacks ----------
 
-    /// <summary>Spiral of area slots around the capital: right, below, left, above, then the corners and further out.</summary>
-    static readonly (int x, int y)[] Slots =
-        { (0, 0), (1, 0), (0, 1), (-1, 0), (0, -1), (1, 1), (-1, 1), (-1, -1), (1, -1), (2, 0), (-2, 0), (0, 2), (0, -2), (2, 1), (-2, 1), (2, -1) };
+    /// <summary>Area slots spiral outward from the capital, ring by ring, nearest first.</summary>
+    static readonly List<(int x, int y)> Slots = new() { (0, 0) };
+    static int _ringsBuilt;
+
+    static (int x, int y) SlotAt(int n)
+    {
+        while (Slots.Count <= n)
+        {
+            int ring = ++_ringsBuilt;
+            var r = new List<(int x, int y)>();
+            for (int x = -ring; x <= ring; x++)
+                for (int y = -ring; y <= ring; y++)
+                    if (Math.Max(Math.Abs(x), Math.Abs(y)) == ring) r.Add((x, y));
+            Slots.AddRange(r.OrderBy(p => Math.Abs(p.x) + Math.Abs(p.y)).ThenBy(p => Math.Atan2(p.y, p.x)));
+        }
+        return Slots[n];
+    }
 
     /// <summary>Add a star system as a new area of the table. Random rows roll their planets and extras and get a random name.</summary>
     public StarSystem AddSystem(SystemDef sys)
@@ -81,13 +95,19 @@ public sealed class Sim
         string name = sys.Name;
         if (sys.Kind == "random")
         {
+            if (_unusedNames.Count == 0)
+            {
+                _nameRound++;
+                _unusedNames.AddRange(Defs.Rules.SystemNames.Select(n => $"{n} {new[] { "II", "III", "IV", "V", "VI" }[Math.Min(_nameRound - 1, 4)]}"));
+            }
             int pick = Rng.Next(_unusedNames.Count);
             name = _unusedNames[pick];
             _unusedNames.RemoveAt(pick);
         }
-        var slot = Slots[Math.Min(Systems.Count, Slots.Length - 1)];
+        var slot = SlotAt(Systems.Count);
         var origin = new Vector2(slot.x * (SysW + SysGap), slot.y * (SysH + SysGap));
-        var z = new StarSystem { Index = Systems.Count, Sys = sys, Name = name, Kind = sys.Kind == "random" ? sys.Name : "", Origin = origin, Size = new Vector2(SysW, SysH) };
+        var z = new StarSystem { Index = Systems.Count, Sys = sys, Name = name, Kind = sys.Kind == "random" ? sys.Name : "", Origin = origin,
+                                 Size = new Vector2(SysW, SysH), Slot = slot, Claimed = sys.Kind == "home" };
         Systems.Add(z);
         BoundsMin = Vector2.Min(Systems.Count == 1 ? origin : BoundsMin, origin);
         BoundsMax = Vector2.Max(Systems.Count == 1 ? origin + z.Size : BoundsMax, origin + z.Size);
@@ -115,7 +135,67 @@ public sealed class Sim
 
     public static Vector2 CardCenter(Stack s) => s.Pos + new Vector2(CardW / 2, CardH / 2);
 
-    public IEnumerable<Stack> StacksIn(StarSystem z) => Table.Stacks.Where(s => z.Contains(CardCenter(s)));
+    public IEnumerable<Stack> StacksIn(StarSystem z) => Table.Stacks.Where(s => !s.Traveling && z.Contains(CardCenter(s)));
+
+    // ---------- claiming systems ----------
+
+    public int ClaimedCount => Systems.Count(z => z.Claimed);
+
+    /// <summary>Why a system can't be claimed right now, or null when it can.</summary>
+    public string? ClaimBlock(StarSystem z)
+    {
+        if (z.Claimed) return $"{z.Name} is already yours.";
+        if (ClaimedCount >= Defs.Rules.ClaimLimit)
+            return $"Claim limit reached: you own {ClaimedCount}/{Defs.Rules.ClaimLimit} systems.";
+        if (StacksIn(z).Any(s => s.HasHostile) || Table.Battles.Any(b => z.Contains(b.Pos)))
+            return $"Clear the hostiles out of {z.Name} before claiming it.";
+        return null;
+    }
+
+    /// <summary>When a stack looks like a claim attempt that can't happen, say why (once per change to the stack).</summary>
+    void ExplainBlockedClaim(Stack s)
+    {
+        if (!s.Cards.Any(c => c.Def.Category == "star") || !s.Cards.Any(c => c.Def.Id == "construction_ship")) return;
+        if (SystemAt(CardCenter(s)) is { } z && ClaimBlock(z) is { } why && !z.Claimed) Messages.Add(why);
+    }
+
+    // ---------- travel between systems ----------
+
+    public static bool HasShip(Stack s) => s.Cards.Any(c => c.Def.HasTag("ship"));
+
+    public float TravelSeconds(StarSystem a, StarSystem b) =>
+        Math.Max(1, Math.Max(Math.Abs(a.Slot.X - b.Slot.X), Math.Abs(a.Slot.Y - b.Slot.Y))) * Defs.Rules.TravelSecondsPerJump;
+
+    /// <summary>Send a stack (it must hold a ship) from one star system to a spot in another; it arrives after the travel time.</summary>
+    public bool StartTravel(Stack s, Vector2 to)
+    {
+        var from = SystemAt(CardCenter(s));
+        var dest = SystemAt(to + new Vector2(CardW / 2, CardH / 2));
+        if (from == null || dest == null || from == dest || !HasShip(s)) return false;
+        s.TravelFrom = s.Pos;
+        s.TravelTo = Clamp(to);
+        s.TravelT = 0;
+        s.TravelDur = TravelSeconds(from, dest);
+        s.Active = null;
+        s.Progress = 0;
+        return true;
+    }
+
+    void TickTravel(float dt)
+    {
+        foreach (var s in Table.Stacks.Where(s => s.Traveling).ToList())
+        {
+            s.TravelT += dt;
+            float k = Math.Clamp(s.TravelT / s.TravelDur, 0, 1);
+            s.Pos = Vector2.Lerp(s.TravelFrom, s.TravelTo, k);
+            if (k >= 1)
+            {
+                s.TravelDur = 0;
+                s.Dirty = true;
+                if (SystemAt(CardCenter(s)) is { } z) Messages.Add($"Arrived at {z.Name}.");
+            }
+        }
+    }
 
     /// <summary>Roll a random system type by weight (what a survey finds).</summary>
     public SystemDef RollSystemType() => Roll(Defs.Systems.Where(s => s.Kind == "random").Select(s => (s, s.Weight)));
@@ -208,6 +288,12 @@ public sealed class Sim
         foreach (var r in Defs.Recipes)
         {
             if (r.RequiresTech != "none" && !Techs.Contains(r.RequiresTech)) continue;
+            if (r.RequiresSystem != "any")
+            {
+                var z = SystemAt(CardCenter(s));
+                if (z == null || z.Claimed != (r.RequiresSystem == "claimed")) continue;
+                if (r.Effect == "claim_system" && ClaimBlock(z) != null) continue;
+            }
             foreach (var st in s.Cards)
             {
                 if (!StationOk(r, st)) continue;
@@ -252,10 +338,12 @@ public sealed class Sim
     {
         foreach (var s in Table.Stacks.ToList())
         {
+            if (s.Traveling) continue;
             if (s.Dirty)
             {
                 s.Dirty = false;
                 var m = FindMatch(s);
+                if (m == null) ExplainBlockedClaim(s);
                 if (m == null || m.Value.Recipe != s.Active || m.Value.Station != s.ActiveStation)
                 {
                     s.Active = m?.Recipe;
@@ -298,6 +386,13 @@ public sealed class Sim
         }
         switch (r.Effect)
         {
+            case "claim_system":
+                if (SystemAt(CardCenter(s)) is { } claimed)
+                {
+                    claimed.Claimed = true;
+                    Messages.Add($"{claimed.Name} is now yours ({ClaimedCount}/{Defs.Rules.ClaimLimit} systems). Colonise its planets!");
+                }
+                break;
             case "set_flag:claimed":
                 st.Claimed = true;
                 Messages.Add($"{Name(st.Def.Id)} is now part of your empire.");
@@ -314,9 +409,7 @@ public sealed class Sim
         SystemDef? sys = kind == "guardian"
             ? Defs.Systems.Where(x => x.Kind == "guardian").Skip(_guardianOpened).FirstOrDefault()
             : RollSystemType();
-        // Guardian systems always fit; random ones stop at the cap (leaving room for unopened guardians).
-        int reserved = kind == "guardian" ? 0 : Defs.Systems.Count(x => x.Kind == "guardian") - _guardianOpened;
-        if (sys == null || Systems.Count + reserved >= Defs.Rules.MaxSystems)
+        if (sys == null)
         {
             Messages.Add("The survey found only empty space - and a little salvage.");
             for (int i = 0; i < 4; i++) Spawn("energy", pos);
@@ -400,7 +493,7 @@ public sealed class Sim
             Table.Battles.Add(battle);
             // Starbases and idle warships in the same star system rally to the fight.
             var here = SystemAt(pos + new Vector2(CardW / 2, CardH / 2));
-            foreach (var s in Table.Stacks.Where(s => here != null && here.Contains(CardCenter(s))).ToList())
+            foreach (var s in Table.Stacks.Where(s => !s.Traveling && here != null && here.Contains(CardCenter(s))).ToList())
                 foreach (var c in s.Cards.ToList())
                     if (c.Def.Id == "starbase" || (c.Def.HasTag("warship") && s.Active == null && !s.Dragging))
                     {
@@ -496,7 +589,7 @@ public sealed class Sim
             // Hostiles only go after cards in their own star system (or, in the gaps, anything close by).
             var me = CardCenter(c.Stack!);
             var mine = SystemAt(me);
-            var targets = Table.Stacks.Where(s => !s.Dragging && s.Cards.Any(Attackable)
+            var targets = Table.Stacks.Where(s => !s.Dragging && !s.Traveling && s.Cards.Any(Attackable)
                 && (mine != null ? mine.Contains(CardCenter(s)) : Vector2.Distance(CardCenter(s), me) < 900)).ToList();
             if (targets.Count == 0) continue;
             // Raiders go for your defenders first (warships, starbases), then whatever is closest.
@@ -579,6 +672,7 @@ public sealed class Sim
         if (State != RunState.Playing) return;
         MoonTime += dt;
         if (MoonTime >= MoonSeconds) { MoonTime -= MoonSeconds; EndMoon(); }
+        TickTravel(dt);
         TickRecipes(dt);
         if (State != RunState.Playing) return;
         TickBattles(dt);
@@ -596,7 +690,7 @@ public sealed class Sim
             for (int j = i + 1; j < list.Count; j++)
             {
                 Stack a = list[i], c = list[j];
-                if (a.Dragging || c.Dragging) continue;
+                if (a.Dragging || c.Dragging || a.Traveling || c.Traveling) continue;
                 float ox = MathF.Min(a.Pos.X + CardW, c.Pos.X + CardW) - MathF.Max(a.Pos.X, c.Pos.X);
                 float oy = MathF.Min(a.Pos.Y + StackHeight(a), c.Pos.Y + StackHeight(c)) - MathF.Max(a.Pos.Y, c.Pos.Y);
                 if (ox <= 0 || oy <= 0) continue;

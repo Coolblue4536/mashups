@@ -27,6 +27,10 @@ public sealed class Stack
     public float Progress;
     public float Duration;
     public bool Dirty = true;
+    // Travel between star systems: a ship carries the stack from TravelFrom to TravelTo over TravelDur seconds.
+    public Vector2 TravelFrom, TravelTo;
+    public float TravelT, TravelDur;
+    public bool Traveling => TravelDur > 0;
 
     public Card Root => Cards[0];
     public bool HasHostile => Cards.Any(c => c.Def.IsHostile);
@@ -58,6 +62,10 @@ public sealed class StarSystem
     public string Kind = "";
     public Vector2 Origin;
     public Vector2 Size;
+    /// <summary>Grid slot on the table (capital at 0,0); travel time counts steps between slots.</summary>
+    public (int X, int Y) Slot;
+    /// <summary>Owned by the player: planets here can be colonised and worked. Limited by rules.claim_limit.</summary>
+    public bool Claimed;
 
     public Vector2 Center => Origin + Size / 2;
     public bool Contains(Vector2 p) => p.X >= Origin.X && p.Y >= Origin.Y && p.X < Origin.X + Size.X && p.Y < Origin.Y + Size.Y;

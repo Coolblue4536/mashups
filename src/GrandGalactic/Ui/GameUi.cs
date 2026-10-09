@@ -23,7 +23,7 @@ public sealed partial class GameUi
     float? _camZoomGoal;
     Camera2D _cam;
     Stack? _drag;
-    Vector2 _dragOffset;
+    Vector2 _dragOffset, _dragFrom;
     bool _paused, _codex;
     float _speed = 1f, _clock;
     readonly List<(string text, float t)> _toasts = new();
@@ -145,6 +145,9 @@ public sealed partial class GameUi
         if (_dev && _shot != null) // layout test: a few surveyed systems, zoomed out
         {
             for (int i = 0; i < 4; i++) _sim!.AddSystem(_sim.RollSystemType());
+            _sim!.Systems[2].Claimed = true;
+            var fleet = _sim.StacksIn(_sim.Home).FirstOrDefault(x => Sim.HasShip(x));
+            if (fleet != null) _sim.StartTravel(fleet, _sim.Systems[1].Center);
             _sim!.NewSystems.Clear();
             _cam.Zoom = 0.2f;
             _cam.Target = (_sim.BoundsMin + _sim.BoundsMax) / 2;

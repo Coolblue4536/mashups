@@ -91,6 +91,10 @@ def main(argv):
                 errors.append(f"{w}.inputs: n must be >= 1")
         if r["requires_tech"] != "none" and r["requires_tech"] not in techs:
             errors.append(f"{w}.requires_tech: '{r['requires_tech']}' is not a tech card")
+        if r["requires_system"] not in ("any", "claimed", "unclaimed"):
+            errors.append(f"{w}.requires_system: must be any, claimed or unclaimed")
+        if r["effect"] == "claim_system" and r["requires_system"] != "unclaimed":
+            errors.append(f"{w}: claim_system recipes must require an unclaimed system")
         if r["requires_flag"] not in ("none", "claimed", "unclaimed"):
             errors.append(f"{w}.requires_flag: unknown flag '{r['requires_flag']}'")
         if r["time"] == -1 and not any(g["card"] == "station.yield" for o in r["outputs"] for g in o["give"]):
@@ -109,7 +113,7 @@ def main(argv):
                     card_ref(f"{w}.outputs", g["card"])
                     obtainable[g["card"]] += 1
         eff = r["effect"]
-        if not (eff == "none" or eff in ("open_board:random", "open_board:guardian", "set_flag:claimed")):
+        if not (eff == "none" or eff in ("open_board:random", "open_board:guardian", "set_flag:claimed", "claim_system")):
             errors.append(f"{w}.effect: unknown effect '{eff}'")
         sig = (st, tuple(sorted((i["card"], i["n"]) for i in r["inputs"])))
         if sig in sigs:
@@ -209,10 +213,12 @@ def main(argv):
         errors.append("rules.default_difficulty: not a difficulties row")
     if rules.get("default_moon_length") not in moons:
         errors.append("rules.default_moon_length: not a moon_lengths row")
-    if len(rules.get("system_names", [])) < rules.get("max_systems", 0):
-        errors.append("rules.system_names: need at least max_systems names")
+    if len(rules.get("system_names", [])) < 10:
+        errors.append("rules.system_names: give at least 10 names")
+    if rules.get("claim_limit", 0) < 1:
+        errors.append("rules.claim_limit: must be at least 1 (the capital)")
     for need in ("start_cards", "start_workers", "enemy_aggro_seconds", "max_stack", "default_difficulty", "default_moon_length",
-                 "system_names", "max_systems"):
+                 "system_names", "claim_limit", "travel_seconds_per_jump"):
         if need not in rules:
             errors.append(f"rules: missing rule '{need}'")
     for c in rules.get("start_cards", []):
