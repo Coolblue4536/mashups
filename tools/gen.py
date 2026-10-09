@@ -45,6 +45,7 @@ SPEC = {
                      "act2_moon", "crisis_moon", "boss_delay_moons", "rift_spawn_mult", "pack_cost_mult", "bonus_cards", "desc"],
                      {"bonus_cards": ("Amount", ["card", "n"])}),
     "moon_lengths": ("MoonLengthDef", "MoonLengths", ["id", "name", "seconds", "desc"], {}),
+    "tutorial": ("TutorialStep", "Tutorial", ["id", "text", "hint", "done_when"], {}),
     "asset_refs": ("AssetRefDef", "AssetRefs", ["id", "game", "kind", "lookup", "used_by", "verified", "note"], {}),
     "game_systems": ("GameSystemDef", "GameSystems", ["id", "game", "what", "source", "method", "impl", "verified"], {}),
 }

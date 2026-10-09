@@ -72,6 +72,10 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
 - **Act 3, Crisis (from moon 16).** A random endgame crisis comes through a rift on your capital board:
   the Prethoryn Scourge, the Unbidden or the Contingency. Destroy its leader to win.
 - **Difficulty and moon length.** Pick Ensign, Captain, Admiral or Grand Admiral (enemy strength, raids, pack prices and when each act starts), and a moon length of 60, 90, 120 or 180 seconds.
+- **Tutorial.** A 16-step checklist in the corner walks a new player through it all: work the
+  Homeworld, buy a pack, grow Food, build a Shipyard, research, survey, study a star, travel, claim,
+  colonise, build and fit a warship, assign an Admiral, win a battle and reach Act 2. Steps tick off in
+  any order. You can skip a step, or hide the tutorial; switch it back on from the empire screen.
 - **Blueprint book (Tab).** Every recipe in the game, sorted into tabs: Build, Ships & Parts, Research,
   Work, and Explore & Claim. Each entry shows its cards, what it makes and how long it takes. Locked
   blueprints say which technology unlocks them. Hover any card to see what it's used in, and finishing a

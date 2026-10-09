@@ -376,6 +376,26 @@ public static partial class Defs
         new MoonLengthDef("relaxed", "Relaxed", 180, "180 seconds per moon. Plenty of time between feedings."),
     };
 
+    public static readonly TutorialStep[] Tutorial =
+    {
+        new TutorialStep("work", "Put a Pop to work on your Homeworld.", "Drag a Pop onto the Homeworld card. A green bar fills and Energy Credits pop out.", "recipe:w_yield"),
+        new TutorialStep("book", "Open the Blueprint book.", "Press Tab. Every recipe is in there, so you never need to remember one. Press Tab again to close it.", "flag:opened_book"),
+        new TutorialStep("pack", "Buy a booster pack.", "Drag Energy Credits onto a pack on the right (stack several first). New cards appear next to your stack.", "flag:pack_bought"),
+        new TutorialStep("food", "Grow some Food.", "Stack a Pop on the Agriculture District. Every Pop eats 2 Food at the end of each moon - watch the bar at the top.", "made:food"),
+        new TutorialStep("shipyard", "Build a Shipyard.", "Stack 6 Minerals on your Construction Ship.", "has:shipyard"),
+        new TutorialStep("research", "Research a technology.", "Get a Scientist (Research pack, or Research Lab + Pop + 2 Research), then stack Research on them. The Research tab of the Blueprint book shows every option.", "flag:researched"),
+        new TutorialStep("survey", "Survey a new star system.", "Stack your Science Ship on an Uncharted System. A new system appears beside your capital.", "recipe:x_survey"),
+        new TutorialStep("star", "Study a star.", "Drag a Science Ship onto any star card. Black holes give Dark Matter, nebulae Exotic Gases, most stars Research.", "recipe:x_observe"),
+        new TutorialStep("travel", "Send a ship to another system.", "Drag a stack that holds a ship into another system. Pops and cargo ride along; the trip takes time.", "flag:traveled"),
+        new TutorialStep("claim", "Claim a system.", "In a system with no hostiles, stack a Construction Ship and 2 Influence on its star. You can own 5 systems.", "claimed:2"),
+        new TutorialStep("colonise", "Colonise a planet.", "Research Colonization, build a Colony Ship at the Shipyard, then drop it on a habitable planet in a system you own.", "recipe:c_colonize"),
+        new TutorialStep("warship", "Build a warship.", "Research Corvettes, then Shipyard + 2 Alloys. Alloys come from an Alloy Foundry worked by a Pop.", "has_tag:warship"),
+        new TutorialStep("fit", "Fit a ship component.", "Research a weapon or shield (Research tab), build it at the Shipyard, then drop it on a warship.", "flag:fitted"),
+        new TutorialStep("admiral", "Put an Admiral in command.", "Get an Admiral (Military pack, or Military Academy + Pop + 2 Alloys) and drop them on a warship.", "flag:admiral"),
+        new TutorialStep("battle", "Win a battle.", "Drop your warships on a monster or raider. Lasers beat armour, kinetic guns beat shields, torpedoes fly past shields.", "flag:battle_won"),
+        new TutorialStep("guardians", "Reach Act 2: the Guardians.", "Keep growing. Three Guardian Signals will appear - survey them to find the guardians and their treasure.", "act:2"),
+    };
+
     public static readonly AssetRefDef[] AssetRefs =
     {
         new AssetRefDef("st_portrait_player", "stellaris", "image", new string[] { "portrait:player" }, "people cards", false, "The species portrait the player picked on the empire screen (parsed from gfx/portraits/portraits/*.txt)."),

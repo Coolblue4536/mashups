@@ -18,7 +18,7 @@ public sealed partial class GameUi
         var sim = _sim;
 
         if (Raylib.IsKeyPressed(KeyboardKey.Space)) _paused = !_paused;
-        if (Raylib.IsKeyPressed(KeyboardKey.Tab)) _codex = !_codex;
+        if (Raylib.IsKeyPressed(KeyboardKey.Tab)) { _codex = !_codex; sim.Flags.Add("opened_book"); }
         if (Raylib.IsKeyPressed(KeyboardKey.One)) _speed = 1;
         if (Raylib.IsKeyPressed(KeyboardKey.Two)) _speed = 2;
         if (Raylib.IsKeyPressed(KeyboardKey.Three)) _speed = 4;
@@ -279,6 +279,7 @@ public sealed partial class GameUi
         DrawTopBar();
         DrawRightPanel();
         DrawTooltip();
+        DrawTutorial();
         DrawToasts();
         if (_codex) DrawCodex();
         if (_paused) Text("PAUSED (Space)", view.Width / 2 - 100, TopBar + 14, 30, Color.Yellow);
@@ -486,6 +487,28 @@ public sealed partial class GameUi
         if (e.Desc.Contains('=') || e.Desc.Contains(':') || e.Outputs.Length == 0) return e.Desc;
         string Give(Outcome o) => string.Join(" + ", o.Give.Select(g => (g.N > 1 ? $"{g.N} " : "") + (g.Card == "station.yield" ? "its yield" : _res.CardName(g.Card))));
         return e.Desc + " = " + (e.Outputs.Length == 1 ? Give(e.Outputs[0]) : "one of: " + string.Join(" / ", e.Outputs.Select(Give)));
+    }
+
+    readonly HashSet<string> _tutorialSeen = new();
+
+    /// <summary>The tutorial checklist: the current step, its hint, progress, and Skip / Hide.</summary>
+    void DrawTutorial()
+    {
+        var sim = _sim!;
+        if (!_settings.Tutorial || _codex || _screen != Screen.Play) return;
+        foreach (var t in Defs.Tutorial)
+            if (sim.StepDone(t) && !sim.SkippedSteps.Contains(t.Id) && _tutorialSeen.Add(t.Id) && _clock > 1) Toast($"Tutorial: {t.Text} - done!");
+        var step = sim.CurrentStep;
+        if (step == null) return;
+        int done = Defs.Tutorial.Count(sim.StepDone), n = Array.IndexOf(Defs.Tutorial, step) + 1;
+        var r = new Rectangle(16, TopBar + 12, 430, 150);
+        Raylib.DrawRectangleRounded(r, 0.08f, 6, new Color(12, 16, 38, 235));
+        Raylib.DrawRectangleRoundedLinesEx(r, 0.08f, 6, 2, new Color(240, 200, 90, 200));
+        Text($"Tutorial  {done}/{Defs.Tutorial.Length}", r.X + 14, r.Y + 10, 18, new Color(240, 200, 90, 255));
+        Text(step.Text, r.X + 14, r.Y + 34, 21, Color.RayWhite);
+        Wrapped(step.Hint, r.X + 14, r.Y + 62, r.Width - 28, 16, Color.LightGray, 3);
+        if (Button(new Rectangle(r.X + r.Width - 150, r.Y + 8, 66, 24), "Skip", false, 15)) sim.SkippedSteps.Add(step.Id);
+        if (Button(new Rectangle(r.X + r.Width - 78, r.Y + 8, 64, 24), "Hide", false, 15)) { _settings.Tutorial = false; _settings.Save(); Toast("Tutorial hidden. Turn it back on from the empire screen."); }
     }
 
     int _bookTab;

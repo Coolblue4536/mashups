@@ -401,6 +401,11 @@ public sealed partial class GameUi
             if (hover && Raylib.IsMouseButtonPressed(MouseButton.Left)) _ethic = e;
             ey += 116;
         }
+        if (Button(new Rectangle(ex + 280, ey + 20, 200, 44), _settings.Tutorial ? "Tutorial: On" : "Tutorial: Off", _settings.Tutorial, 19))
+        {
+            _settings.Tutorial = !_settings.Tutorial;
+            _settings.Save();
+        }
         bool ready = _portrait >= 0 || ports.Count == 0;
         if (Button(new Rectangle(ex, ey + 10, 260, 64), ready ? "Begin" : "Pick a species", false, 30) && ready) StartRun();
         Text($"Stellaris: {_stellarisPath ?? "-"}", ex, sh - 58, 16, Color.Gray);

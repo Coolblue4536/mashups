@@ -4,7 +4,7 @@ from pathlib import Path
 
 PATH = Path(__file__).resolve().parent.parent / "sheets" / "design.json"
 ORDER = ["rules", "difficulties", "moon_lengths", "ethics", "categories", "cards", "components", "recipes", "packs", "loot",
-         "systems", "crises", "asset_refs", "game_systems"]
+         "systems", "crises", "tutorial", "asset_refs", "game_systems"]
 
 
 def load():

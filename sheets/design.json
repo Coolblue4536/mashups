@@ -449,6 +449,28 @@
         {"id": "save_settings", "game": "mashup", "what": "Remember paths and audio volume", "source": "%LOCALAPPDATA%/GrandGalactic/settings.json", "method": "System.Text.Json", "impl": "Settings", "verified": false},
         {"id": "log", "game": "mashup", "what": "Run log", "source": "%LOCALAPPDATA%/GrandGalactic/logs/latest.log", "method": "append lines; asset misses logged by asset_refs id", "impl": "Log", "verified": false}
       ]
+    },
+    "tutorial": {
+      "about": "The first-run tutorial: a checklist shown in the corner of the table. Steps can be done in any order; the panel shows the first one not yet done. done_when: recipe:<id> (made at least once), made:<card> (a recipe produced it), has:<card> (one exists), has_tag:<tag>, flag:<pack_bought|opened_book|researched|traveled|fitted|admiral|battle_won|sold>, claimed:<n> (systems owned), act:<n>.",
+      "columns": ["id", "text", "hint", "done_when"],
+      "rows": [
+        {"id": "work", "text": "Put a Pop to work on your Homeworld.", "hint": "Drag a Pop onto the Homeworld card. A green bar fills and Energy Credits pop out.", "done_when": "recipe:w_yield"},
+        {"id": "book", "text": "Open the Blueprint book.", "hint": "Press Tab. Every recipe is in there, so you never need to remember one. Press Tab again to close it.", "done_when": "flag:opened_book"},
+        {"id": "pack", "text": "Buy a booster pack.", "hint": "Drag Energy Credits onto a pack on the right (stack several first). New cards appear next to your stack.", "done_when": "flag:pack_bought"},
+        {"id": "food", "text": "Grow some Food.", "hint": "Stack a Pop on the Agriculture District. Every Pop eats 2 Food at the end of each moon - watch the bar at the top.", "done_when": "made:food"},
+        {"id": "shipyard", "text": "Build a Shipyard.", "hint": "Stack 6 Minerals on your Construction Ship.", "done_when": "has:shipyard"},
+        {"id": "research", "text": "Research a technology.", "hint": "Get a Scientist (Research pack, or Research Lab + Pop + 2 Research), then stack Research on them. The Research tab of the Blueprint book shows every option.", "done_when": "flag:researched"},
+        {"id": "survey", "text": "Survey a new star system.", "hint": "Stack your Science Ship on an Uncharted System. A new system appears beside your capital.", "done_when": "recipe:x_survey"},
+        {"id": "star", "text": "Study a star.", "hint": "Drag a Science Ship onto any star card. Black holes give Dark Matter, nebulae Exotic Gases, most stars Research.", "done_when": "recipe:x_observe"},
+        {"id": "travel", "text": "Send a ship to another system.", "hint": "Drag a stack that holds a ship into another system. Pops and cargo ride along; the trip takes time.", "done_when": "flag:traveled"},
+        {"id": "claim", "text": "Claim a system.", "hint": "In a system with no hostiles, stack a Construction Ship and 2 Influence on its star. You can own 5 systems.", "done_when": "claimed:2"},
+        {"id": "colonise", "text": "Colonise a planet.", "hint": "Research Colonization, build a Colony Ship at the Shipyard, then drop it on a habitable planet in a system you own.", "done_when": "recipe:c_colonize"},
+        {"id": "warship", "text": "Build a warship.", "hint": "Research Corvettes, then Shipyard + 2 Alloys. Alloys come from an Alloy Foundry worked by a Pop.", "done_when": "has_tag:warship"},
+        {"id": "fit", "text": "Fit a ship component.", "hint": "Research a weapon or shield (Research tab), build it at the Shipyard, then drop it on a warship.", "done_when": "flag:fitted"},
+        {"id": "admiral", "text": "Put an Admiral in command.", "hint": "Get an Admiral (Military pack, or Military Academy + Pop + 2 Alloys) and drop them on a warship.", "done_when": "flag:admiral"},
+        {"id": "battle", "text": "Win a battle.", "hint": "Drop your warships on a monster or raider. Lasers beat armour, kinetic guns beat shields, torpedoes fly past shields.", "done_when": "flag:battle_won"},
+        {"id": "guardians", "text": "Reach Act 2: the Guardians.", "hint": "Keep growing. Three Guardian Signals will appear - survey them to find the guardians and their treasure.", "done_when": "act:2"}
+      ]
     }
   }
 }

@@ -228,6 +228,15 @@ def main(argv):
     obtainable["guardian_signal"] += 1  # act 2 event (rules.act2_moon)
     obtainable["pirate_raider"] += 1    # raids (difficulties.raid_every_moons)
 
+    flags = {"pack_bought", "opened_book", "researched", "traveled", "fitted", "admiral", "battle_won", "sold"}
+    recipe_ids = {r["id"] for r in sheets["recipes"]["rows"]}
+    for t in sheets.get("tutorial", {}).get("rows", []):
+        kind, _, arg = t["done_when"].partition(":")
+        w = f"tutorial.{t['id']}.done_when"
+        ok = {"recipe": lambda a: a in recipe_ids, "made": lambda a: a in cards, "has": lambda a: a in cards, "has_tag": lambda a: a in tags,
+              "flag": lambda a: a in flags, "claimed": lambda a: a.isdigit(), "act": lambda a: a in ("1", "2", "3")}.get(kind)
+        if ok is None or not ok(arg):
+            errors.append(f"{w}: '{t['done_when']}' is not a valid condition")
     tabs = rules.get("blueprint_tabs", [])
     for r in sheets["recipes"]["rows"]:
         if not any(r["id"].startswith(p) for t in tabs for p in t["prefixes"]):

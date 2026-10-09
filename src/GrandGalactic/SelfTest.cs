@@ -157,6 +157,24 @@ public static class SelfTest
                 "hovering a card lists the blueprints it is used in");
         }
 
+        Log.Info("Self-test: tutorial");
+        {
+            var s = new Sim(Defs.Ethics[0], 3);
+            Check(s.CurrentStep?.Id == Defs.Tutorial[0].Id, $"a new run starts on tutorial step 1: {Defs.Tutorial[0].Text}");
+            var pop = s.StacksIn(s.Home).First(x => x.Root.Def.Id == s.Ethic.WorkerCard);
+            var hw = s.StacksIn(s.Home).First(x => x.Root.Def.Id == "homeworld");
+            s.StackOnto(pop, hw);
+            for (int i = 0; i < 300 && !s.Discovered.Contains("w_yield"); i++) s.Update(0.05f);
+            Check(s.StepDone(Defs.Tutorial[0]) && s.CurrentStep?.Id == Defs.Tutorial[1].Id, "putting a Pop on the Homeworld completes step 1 and moves on");
+            s.SkippedSteps.Add(Defs.Tutorial[1].Id);
+            Check(s.CurrentStep?.Id == Defs.Tutorial[2].Id, "Skip moves past a step");
+            var e = s.StacksIn(s.Home).Where(x => x.Root.Def.Id == "energy").ToList();
+            var first = e[0];
+            foreach (var x in e.Skip(1)) s.StackOnto(x, first);
+            s.BuyPack(first, Defs.Packs[0], s.Home.Center);
+            Check(s.Flags.Contains("pack_bought") && s.StepDone(Defs.Tutorial.First(t => t.Id == "pack")), "buying a pack ticks the pack step");
+        }
+
         Log.Info("Self-test: claiming systems");
         {
             var s = Fresh();

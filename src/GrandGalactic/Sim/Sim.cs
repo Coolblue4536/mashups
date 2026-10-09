@@ -19,6 +19,11 @@ public sealed class Sim
     public readonly List<StarSystem> Systems = new();
     public readonly HashSet<string> Techs = new();
     public readonly HashSet<string> Discovered = new();
+    /// <summary>Milestones the tutorial checks (pack_bought, researched, traveled, fitted, admiral, battle_won, sold, opened_book).</summary>
+    public readonly HashSet<string> Flags = new();
+    /// <summary>Card ids a recipe has produced at least once.</summary>
+    public readonly HashSet<string> Made = new();
+    public readonly HashSet<string> SkippedSteps = new();
     public readonly List<string> Messages = new();
     public readonly List<SimEvent> Events = new();
     public readonly Func<string, string> Name;
@@ -193,6 +198,7 @@ public sealed class Sim
                 s.TravelDur = 0;
                 s.Dirty = true;
                 if (SystemAt(CardCenter(s)) is { } z) Messages.Add($"Arrived at {z.Name}.");
+                Flags.Add("traveled");
             }
         }
     }
@@ -384,6 +390,8 @@ public sealed class Sim
                 for (int i = 0; i < g.N; i++)
                 {
                     bool newTech = Defs.Card[id].Category == "tech" && !Techs.Contains(id);
+                    Made.Add(id);
+                    if (newTech) Flags.Add("researched");
                     Spawn(id, outPos + new Vector2(0, i * 12));
                     if (newTech)
                     {
@@ -447,6 +455,29 @@ public sealed class Sim
         return list[^1].item;
     }
 
+    // ---------- tutorial ----------
+
+    public bool StepDone(TutorialStep t)
+    {
+        if (SkippedSteps.Contains(t.Id)) return true;
+        int c = t.DoneWhen.IndexOf(':');
+        string kind = t.DoneWhen[..c], arg = t.DoneWhen[(c + 1)..];
+        return kind switch
+        {
+            "recipe" => Discovered.Contains(arg),
+            "made" => Made.Contains(arg),
+            "has" => AllCards.Any(x => x.Def.Id == arg),
+            "has_tag" => AllCards.Any(x => x.Def.HasTag(arg)),
+            "flag" => Flags.Contains(arg),
+            "claimed" => ClaimedCount >= int.Parse(arg),
+            "act" => Act >= int.Parse(arg),
+            _ => false,
+        };
+    }
+
+    /// <summary>The first tutorial step not done yet (steps can be done in any order), or null when all are done.</summary>
+    public TutorialStep? CurrentStep => Defs.Tutorial.FirstOrDefault(t => !StepDone(t));
+
     // ---------- blueprints ----------
 
     public enum BlueprintState { Made, Known, Locked }
@@ -477,6 +508,7 @@ public sealed class Sim
     {
         if (pack.UnlockAct > Act || moving.Cards.Any(c => c.Def.Id != "energy") || moving.Cards.Count < PackCost(pack)) return false;
         foreach (var c in moving.Cards.Take(PackCost(pack)).ToList()) Remove(c);
+        Flags.Add("pack_bought");
         OpenPack(pack, spawnAt, free: false);
         return true;
     }
@@ -500,7 +532,7 @@ public sealed class Sim
             Remove(c);
         }
         for (int i = 0; i < total; i++) Spawn("energy", pos + new Vector2(0, -CardH - 20));
-        if (total > 0) Events.Add(SimEvent.Sell);
+        if (total > 0) { Events.Add(SimEvent.Sell); Flags.Add("sold"); }
         return total;
     }
 
@@ -541,6 +573,7 @@ public sealed class Sim
         host.MaxArmor += comp.Armor; host.Armor += comp.Armor;
         host.MaxHp += comp.Hull; host.Hp += comp.Hull;
         Recalc(host);
+        Flags.Add("fitted");
         if (host.Stack != null) host.Stack.Dirty = true;
         Events.Add(SimEvent.Done);
         return null;
@@ -554,6 +587,7 @@ public sealed class Sim
         if (ship.Admiral != null) return $"That {Name(ship.Def.Id)} already has an admiral.";
         Remove(admiral);
         ship.Admiral = admiral;
+        Flags.Add("admiral");
         if (ship.Stack != null) ship.Stack.Dirty = true;
         Events.Add(SimEvent.Done);
         return null;
@@ -704,6 +738,7 @@ public sealed class Sim
     void EndBattle(Battle bt)
     {
         Table.Battles.Remove(bt);
+        if (bt.Hostiles.Count == 0 && bt.Players.Count > 0) Flags.Add("battle_won");
         int i = 0;
         foreach (var c in bt.Players.Concat(bt.Hostiles).ToList())
         {
