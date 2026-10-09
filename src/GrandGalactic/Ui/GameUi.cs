@@ -147,7 +147,16 @@ public sealed partial class GameUi
         _ethic = Defs.Ethics.FirstOrDefault(e => e.Id == _autoEthic) ?? Defs.Ethics[0];
         _portrait = _res.St?.Portraits.Count > 0 ? 0 : -1;
         StartRun();
-        if (_shot != null) Demo.Setup(_sim!);
+        if (_shot != null)
+        {
+            Demo.Setup(_sim!);
+            // Close enough to read the cards, centred on the battle (or the capital), without the start-up message.
+            _sim!.Update(0.05f); // one tick so the layout has placed everything
+            var bt = _sim.Table.Battles.FirstOrDefault();
+            _cam.Zoom = 0.9f;
+            _cam.Target = bt != null ? Sim.BattleArea(bt) is var a ? a.Pos + a.Size / 2 - new Vector2(380, 30) : default : _sim.Home.Center;
+            _toasts.Clear();
+        }
         if (_dev && _shot != null) // layout test: a few surveyed systems, zoomed out
         {
             for (int i = 0; i < 4; i++) _sim!.AddSystem(_sim.RollSystemType());
@@ -188,7 +197,8 @@ public sealed partial class GameUi
         _settings.Difficulty = _diff.Id;
         _settings.MoonLength = _moon.Id;
         _settings.Save();
-        _sim = new Sim(_ethic, Environment.TickCount, id => _res.CardName(id), _diff, _moon);
+        // --screenshot runs use a fixed seed, so the capture is the same every time.
+        _sim = new Sim(_ethic, _shot != null ? 1 : Environment.TickCount, id => _res.CardName(id), _diff, _moon);
         _camGoal = null;
         _camZoomGoal = null;
         _cam = new Camera2D { Zoom = 0.62f, Target = _sim.Home.Center };
