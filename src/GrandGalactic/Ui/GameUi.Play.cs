@@ -437,20 +437,62 @@ public sealed partial class GameUi
         Raylib.DrawRectangleRec(new Rectangle(bar.X, bar.Y, bar.Width * sim.MoonTime / sim.MoonSeconds, bar.Height), new Color(240, 210, 120, 255));
     }
 
+    static Color Shade(Color c, float k) =>
+        new((byte)Math.Clamp(c.R * k, 0, 255), (byte)Math.Clamp(c.G * k, 0, 255), (byte)Math.Clamp(c.B * k, 0, 255), c.A);
+
+    /// <summary>A booster pack: a foil wrapper in the pack's colour with crimped zig-zag ends, a seal stripe, a shine,
+    /// and the pack's picture in a window on the front.</summary>
+    static void DrawBooster(Rectangle r, Color col, Texture2D? art, bool lifted)
+    {
+        float tooth = 5, crimp = 9;
+        if (lifted) r = new Rectangle(r.X, r.Y - 3, r.Width, r.Height);
+        var ink = new Color(25, 22, 30, 255);
+        // shadow
+        Raylib.DrawRectangle((int)(r.X + 3), (int)(r.Y + tooth + 3), (int)r.Width, (int)(r.Height - 2 * tooth), new Color(0, 0, 0, 90));
+        // wrapper body with a light-to-dark gradient
+        var body = new Rectangle(r.X, r.Y + tooth, r.Width, r.Height - 2 * tooth);
+        Raylib.DrawRectangleGradientV((int)body.X, (int)body.Y, (int)body.Width, (int)body.Height, Shade(col, 1.25f), Shade(col, 0.8f));
+        // crimped ends: a darker band with seal lines and zig-zag teeth
+        var band = Shade(col, 0.62f);
+        foreach (float y in new[] { body.Y, body.Y + body.Height - crimp })
+        {
+            Raylib.DrawRectangle((int)body.X, (int)y, (int)body.Width, (int)crimp, band);
+            for (float x = body.X + 3; x < body.X + body.Width - 1; x += 3)
+                Raylib.DrawLine((int)x, (int)y + 1, (int)x, (int)(y + crimp - 1), Shade(col, 0.45f));
+        }
+        for (float x = body.X; x < body.X + body.Width - 0.5f; x += tooth * 2)
+        {
+            float w = MathF.Min(tooth * 2, body.X + body.Width - x);
+            Raylib.DrawTriangle(new Vector2(x + w / 2, r.Y), new Vector2(x, body.Y + 0.5f), new Vector2(x + w, body.Y + 0.5f), band);
+            Raylib.DrawTriangle(new Vector2(x, body.Y + body.Height - 0.5f), new Vector2(x + w / 2, r.Y + r.Height), new Vector2(x + w, body.Y + body.Height - 0.5f), band);
+        }
+        // picture window
+        var win = new Rectangle(body.X + 5, body.Y + crimp + 4, body.Width - 10, body.Height - 2 * crimp - 8);
+        Raylib.DrawRectangleRounded(win, 0.2f, 6, new Color(14, 18, 34, 255));
+        if (art is { } t) DrawCover(t, new Rectangle(win.X + 1, win.Y + 1, win.Width - 2, win.Height - 2), Color.White);
+        Raylib.DrawRectangleRoundedLinesEx(win, 0.2f, 6, 2, Shade(col, 1.45f));
+        // foil shine across the wrapper
+        Raylib.DrawTriangle(new Vector2(body.X + body.Width * 0.15f, body.Y), new Vector2(body.X, body.Y + body.Height * 0.45f), new Vector2(body.X + body.Width * 0.38f, body.Y), new Color(255, 255, 255, 55));
+        Raylib.DrawTriangle(new Vector2(body.X + body.Width * 0.38f, body.Y), new Vector2(body.X, body.Y + body.Height * 0.45f), new Vector2(body.X, body.Y + body.Height * 0.62f), new Color(255, 255, 255, 30));
+        // hand-drawn style outline, like the Stacklands cards
+        Raylib.DrawRectangleLinesEx(body, 2, ink);
+    }
+
     void DrawRightPanel()
     {
         var sim = _sim!;
         int sw = Raylib.GetScreenWidth(), sh = Raylib.GetScreenHeight();
         Raylib.DrawRectangle(sw - RightPanel, TopBar, RightPanel, sh - TopBar, new Color(14, 16, 34, 245));
         Text("Packs - drop Energy", sw - RightPanel + 12, TopBar + 10, 19, Color.LightGray);
-        var art = Tex("sl_pack_art");
         foreach (var (p, r) in PackRects())
         {
             bool hover = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), r) && _drag != null;
             Raylib.DrawRectangleRounded(r, 0.12f, 6, hover ? new Color(80, 110, 200, 255) : new Color(36, 42, 74, 255));
-            if (art is { } a) DrawFit(a, new Rectangle(r.X + 4, r.Y + 4, 54, r.Height - 8), Color.White);
-            Text(p.Name, r.X + 64, r.Y + 8, 21, Color.RayWhite);
-            Text($"{sim.PackCost(p)} Energy, {p.Draws} cards", r.X + 64, r.Y + 38, 15, new Color(240, 210, 120, 255));
+            DrawBooster(new Rectangle(r.X + 7, r.Y + 4, 50, r.Height - 8), Hex(p.Color), Tex(p.Art), hover);
+            float ts = 20;
+            while (ts > 14 && Measure(p.Name, ts).X > r.Width - 76) ts -= 0.5f;
+            Text(p.Name, r.X + 66, r.Y + 10, ts, Color.RayWhite);
+            Text($"{sim.PackCost(p)} Energy, {p.Draws} cards", r.X + 66, r.Y + 40, 15, new Color(240, 210, 120, 255));
         }
         var m = MarketRect();
         bool mh = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), m) && _drag != null;

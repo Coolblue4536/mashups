@@ -33,7 +33,7 @@ public sealed record RecipeDef(string Id, string Station, bool StationKeep, Reci
 
 public sealed record LootDef(string Card, Amount[] Drops);
 public sealed record PackEntry(string Card, int Weight);
-public sealed record PackDef(string Id, string Name, int Cost, int Draws, int UnlockAct, string Art, PackEntry[] Contents, string Desc);
+public sealed record PackDef(string Id, string Name, int Cost, int Draws, int UnlockAct, string Art, string Color, PackEntry[] Contents, string Desc);
 
 public sealed record EthicDef(string Id, string NameLoc, string Name, string Art, string WorkerCard, Amount[] BonusCards,
     string[] StartTechs, string FreePack, string Desc);

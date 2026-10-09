@@ -5,6 +5,7 @@ Lists every unfilled cell, every cross-sheet reference that does not resolve, re
 collide, cards nobody can obtain, and every row still marked unverified.
 Exit code 1 when anything blocks a build; --release also blocks on unverified rows.
 """
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -133,6 +134,8 @@ def main(argv):
 
     for r in sheets["packs"]["rows"]:
         asset_ref(f"packs.{r['id']}.art", r["art"])
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", r.get("color", "")):
+            errors.append(f"packs.{r['id']}.color: must be #RRGGBB")
         for e in r["contents"]:
             card_ref(f"packs.{r['id']}.contents", e["card"])
             obtainable[e["card"]] += 1

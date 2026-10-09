@@ -32,7 +32,7 @@ SPEC = {
                  "outputs": ("Outcome", ["weight", "give"]),
                  "give": ("Amount", ["card", "n"])}),
     "loot": ("LootDef", "Loot", ["card", "drops"], {"drops": ("Amount", ["card", "n"])}),
-    "packs": ("PackDef", "Packs", ["id", "name", "cost", "draws", "unlock_act", "art", "contents", "desc"],
+    "packs": ("PackDef", "Packs", ["id", "name", "cost", "draws", "unlock_act", "art", "color", "contents", "desc"],
               {"contents": ("PackEntry", ["card", "weight"])}),
     "ethics": ("EthicDef", "Ethics", ["id", "name_loc", "name", "art", "worker_card", "bonus_cards", "start_techs", "free_pack", "desc"],
                {"bonus_cards": ("Amount", ["card", "n"])}),
