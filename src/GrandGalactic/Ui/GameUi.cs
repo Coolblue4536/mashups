@@ -167,6 +167,15 @@ public sealed partial class GameUi
             var bt = _sim.Table.Battles.FirstOrDefault();
             _cam.Zoom = 0.9f;
             _cam.Target = bt != null ? Sim.BattleArea(bt) is var a ? a.Pos + a.Size / 2 - new Vector2(380, 30) : default : _sim.Home.Center;
+            if (Environment.GetEnvironmentVariable("GG_SHOT_TECH") == "1") // test aid: a row of tech cards to look at their art
+            {
+                var at = _sim.Home.Origin + new Vector2(700, 760);
+                foreach (var id in new[] { "tech_corvettes", "tech_red_laser", "tech_mass_driver", "tech_space_torpedoes", "tech_deflector",
+                                           "tech_nanocomposite_armor", "tech_afterburners", "tech_robotics", "tech_terraforming", "tech_battleships" })
+                    _sim.Spawn(id, at, jitter: false);
+                _sim.Update(0.05f);
+                _cam.Target = at + new Vector2(0, -40);
+            }
             _toasts.Clear();
         }
         if (_dev && _shot != null) // layout test: a few surveyed systems, zoomed out

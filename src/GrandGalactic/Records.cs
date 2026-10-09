@@ -4,7 +4,8 @@ namespace GrandGalactic;
 
 public sealed record CategoryDef(string Id, string Label, string Color, string FrameRef, bool Draggable, bool IsCombatantDefault);
 
-public sealed record CardDef(string Id, string NameLoc, string Name, string Category, string[] Tags, string Art, int Value,
+/// <summary>Scene: an optional painting shown behind the card's art (the art becomes a badge), or "none".</summary>
+public sealed record CardDef(string Id, string NameLoc, string Name, string Category, string[] Tags, string Art, string Scene, int Value,
     int Hp, int Attack, float AttackCd, float Shield, float Armor, float ShieldRegen, float HullRegen, float Evasion, int Slots, string Weapon,
     int FoodUpkeep, int EnergyUpkeep, string BoostTag, float BoostMult, string Yield,
     float YieldTime, string ColonizeWith, string Desc)

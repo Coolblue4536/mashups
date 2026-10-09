@@ -247,8 +247,8 @@ public sealed class Sim
     public Vector2 Clamp(Vector2 p) => new(Math.Clamp(p.X, BoundsMin.X, BoundsMax.X - CardW), Math.Clamp(p.Y, BoundsMin.Y, BoundsMax.Y - CardH));
 
     /// <summary>Keep a card inside one star system (or the table, when it isn't in one).</summary>
-    public Vector2 ClampIn(Vector2 p, StarSystem? z) => z == null ? Clamp(p)
-        : new(Math.Clamp(p.X, z.Origin.X, z.Origin.X + z.Size.X - CardW), Math.Clamp(p.Y, z.Origin.Y, z.Origin.Y + z.Size.Y - CardH));
+    public Vector2 ClampIn(Vector2 p, StarSystem? z, float height = CardH) => z == null ? Clamp(p)
+        : new(Math.Clamp(p.X, z.Origin.X, z.Origin.X + z.Size.X - CardW), Math.Clamp(p.Y, z.Origin.Y, MathF.Max(z.Origin.Y, z.Origin.Y + z.Size.Y - height)));
 
     void Add(Stack s, Card c)
     {
@@ -901,7 +901,12 @@ public sealed class Sim
     /// <summary>A system's name and kind are written in its top-left corner; cards keep clear of it.</summary>
     public static (Vector2 Pos, Vector2 Size) TitleArea(StarSystem z) => (z.Origin, new Vector2(560, 130));
 
-    public static (Vector2 Pos, Vector2 Size) StackArea(Stack s) => (s.Pos - new Vector2(0, BarRoom), new Vector2(CardW, StackHeight(s) + BarRoom));
+    /// <summary>A stack's footprint: its cards, plus room above for the progress bar while it is working.</summary>
+    public static (Vector2 Pos, Vector2 Size) StackArea(Stack s)
+    {
+        float top = s.Active != null ? BarRoom : 4;
+        return (s.Pos - new Vector2(0, top), new Vector2(CardW, StackHeight(s) + top));
+    }
 
     public static bool Hit((Vector2 Pos, Vector2 Size) a, (Vector2 Pos, Vector2 Size) b, float gap) =>
         a.Pos.X < b.Pos.X + b.Size.X + gap && b.Pos.X < a.Pos.X + a.Size.X + gap && a.Pos.Y < b.Pos.Y + b.Size.Y + gap && b.Pos.Y < a.Pos.Y + a.Size.Y + gap;
@@ -939,7 +944,7 @@ public sealed class Sim
         spots.Sort((a, b) => a.d.CompareTo(b.d));
         foreach (var (_, p) in spots)
         {
-            var area = (p - new Vector2(0, BarRoom), new Vector2(CardW, height + BarRoom));
+            var area = (p - new Vector2(0, 4), new Vector2(CardW, height + 4));
             bool free = true;
             foreach (var o in taken) if (Hit(area, o, Gap)) { free = false; break; }
             if (free) return p;
@@ -951,18 +956,25 @@ public sealed class Sim
     void Place(Stack s, StarSystem z, Vector2 want)
     {
         if (FreeSpot(z, want, StackHeight(s), s) is { } p) { s.Pos = p; return; }
-        if (s.Cards.Count == 1 && s.Root.Def.Category == "resource")
-        {
-            var pile = StacksIn(z).Where(o => o != s && !o.Dragging && o.Active == null && o.Cards.Count < Defs.Rules.MaxStack && o.Cards.All(c => c.Def.Id == s.Root.Def.Id))
-                .OrderBy(o => Vector2.DistanceSquared(o.Pos, want)).FirstOrDefault();
-            if (pile != null)
-            {
-                foreach (var c in s.Cards.ToList()) { s.Cards.Remove(c); Add(pile, c); }
-                Table.Stacks.Remove(s);
-                return;
-            }
-        }
-        s.Pos = ClampIn(want, z); // nowhere free at all: the push-apart pass does what it can
+        if (TryPile(s, z, want)) return;
+        s.Pos = ClampIn(want, z, StackHeight(s)); // nowhere free at all: the push-apart pass does what it can
+    }
+
+    /// <summary>In a full system, a loose pile of one resource joins a pile of the same resource, and technologies
+    /// (inert unlock records) gather into one pile, so nothing has to overlap. True when s was merged away.</summary>
+    bool TryPile(Stack s, StarSystem z, Vector2 near)
+    {
+        if (s.Dragging || s.Active != null || s.HasHostile || s.Cards.Count == 0) return false;
+        bool tech = s.Cards.All(c => c.Def.Category == "tech");
+        bool resource = s.Cards.All(c => c.Def.Category == "resource" && c.Def.Id == s.Root.Def.Id);
+        if (!tech && !resource) return false;
+        var pile = StacksIn(z).Where(o => o != s && !o.Dragging && o.Active == null && o.Cards.Count + s.Cards.Count <= Defs.Rules.MaxStack
+                                          && (tech ? o.Cards.All(c => c.Def.Category == "tech") : o.Cards.All(c => c.Def.Id == s.Root.Def.Id)))
+            .OrderBy(o => Vector2.DistanceSquared(o.Pos, near)).FirstOrDefault();
+        if (pile == null) return false;
+        foreach (var c in s.Cards.ToList()) { s.Cards.Remove(c); Add(pile, c); }
+        Table.Stacks.Remove(s);
+        return true;
     }
 
     /// <summary>Every tick: battles stay inside their system and clear of each other, cards are pushed out of battles and
@@ -990,12 +1002,13 @@ public sealed class Sim
             if (group.Count == 0) continue;
             var fixedAreas = FixedAreas(z).ToList();
             var stuck = new bool[group.Count];
+            foreach (var s in group) s.Pos = ClampIn(s.Pos, z, StackHeight(s)); // piles grow downwards: keep them inside
             for (int i = 0; i < group.Count; i++)
                 foreach (var area in fixedAreas)
                 {
                     var m = PushOut(group[i], StackArea(group[i]), area, z);
                     if (m == Vector2.Zero) continue;
-                    group[i].Pos = ClampIn(group[i].Pos + m, z);
+                    group[i].Pos = ClampIn(group[i].Pos + m, z, StackHeight(group[i]));
                     stuck[i] = true;
                 }
             for (int i = 0; i < group.Count; i++)
@@ -1005,8 +1018,8 @@ public sealed class Sim
                     var m = PushOut(a, StackArea(a), StackArea(c), z);
                     if (m == Vector2.Zero) continue;
                     // A crowded system must not push its cards over the border into the next one.
-                    a.Pos = ClampIn(a.Pos + m * (k / 2 + 0.01f), z);
-                    c.Pos = ClampIn(c.Pos - m * (k / 2 + 0.01f), z);
+                    a.Pos = ClampIn(a.Pos + m * (k / 2 + 0.01f), z, StackHeight(a));
+                    c.Pos = ClampIn(c.Pos - m * (k / 2 + 0.01f), z, StackHeight(c));
                     stuck[i] = stuck[j] = true;
                 }
             // Pushing can jam a card between others and a battle. A card still pushed after a moment jumps to the
@@ -1017,7 +1030,7 @@ public sealed class Sim
                 s.Jam = stuck[i] ? s.Jam + dt : s.Jam < 0 ? MathF.Min(0, s.Jam + dt) : 0;
                 if (s.Jam < 0.5f) continue;
                 if (FreeSpot(z, s.Pos, StackHeight(s), s) is { } p) { s.Pos = p; s.Jam = 0; }
-                else s.Jam = -3f;
+                else if (!TryPile(s, z, s.Pos)) s.Jam = -3f;
             }
         }
     }

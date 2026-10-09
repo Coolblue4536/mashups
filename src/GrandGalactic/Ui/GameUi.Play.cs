@@ -338,7 +338,20 @@ public sealed partial class GameUi
         // Art window: a rounded pane of space with the picture inside. Wide pictures fill it; icons sit with a margin.
         var art = new Rectangle(r.X + 9, r.Y + 28, r.Width - 18, r.Height - 60);
         Raylib.DrawRectangleRounded(art, 0.12f, 6, new Color(16, 20, 38, 255));
-        if (Tex(c.Def.Art) is { } t)
+        if (c.Def.Scene != "none" && Tex(c.Def.Scene) is { } scene)
+        {
+            // A painted scene for the card's kind of thing, with its own icon as a framed badge in the corner.
+            DrawCover(scene, art, Color.White);
+            if (Tex(c.Def.Art) is { } badge)
+            {
+                float bs = art.Width * 0.46f;
+                var br = new Rectangle(art.X + art.Width - bs - 4, art.Y + art.Height - bs - 4, bs, bs);
+                Raylib.DrawRectangleRounded(new Rectangle(br.X - 2, br.Y - 2, br.Width + 4, br.Height + 4), 0.2f, 6, new Color(10, 12, 24, 235));
+                DrawCover(badge, br, Color.White);
+                Raylib.DrawRectangleRoundedLinesEx(new Rectangle(br.X - 2, br.Y - 2, br.Width + 4, br.Height + 4), 0.2f, 6, 2, Shade(col, 1.2f));
+            }
+        }
+        else if (Tex(c.Def.Art) is { } t)
         {
             if (_iconTex.Contains(c.Def.Art)) DrawFit(t, new Rectangle(art.X + 7, art.Y + 7, art.Width - 14, art.Height - 14), Color.White);
             else DrawCover(t, art, Color.White);

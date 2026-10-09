@@ -218,6 +218,27 @@ public static class SelfTest
             Check(bad.Count == 0, $"{stacks.Count} stacks and the battle in the capital overlap nothing {string.Join("; ", bad)}");
         }
 
+        {
+            // A capital filled past capacity still overlaps nothing: resources and technologies gather into piles.
+            var s = Fresh();
+            var ids = new[] { "minerals", "food", "alloys", "research", "unity", "energy", "consumer_goods" };
+            for (int i = 0; i < 70; i++) s.Spawn(ids[i % ids.Length], s.Home.Center);
+            foreach (var t in new[] { "tech_red_laser", "tech_mass_driver", "tech_deflector", "tech_space_torpedoes", "tech_robotics", "tech_terraforming",
+                                      "tech_afterburners", "tech_nanocomposite_armor", "tech_blue_laser", "tech_railgun" })
+                s.Spawn(t, s.Home.Center);
+            for (int i = 0; i < 6; i++) s.Spawn("pop", s.Home.Center);
+            for (int i = 0; i < 120; i++) s.Update(0.05f);
+            var stacks = s.Table.Stacks.Where(x => !x.Traveling && s.SystemAt(Sim.CardCenter(x)) == s.Home).ToList();
+            int overlaps = 0;
+            for (int i = 0; i < stacks.Count; i++)
+                for (int j = i + 1; j < stacks.Count; j++)
+                    if (Sim.Hit(Sim.StackArea(stacks[i]), Sim.StackArea(stacks[j]), 0)) overlaps++;
+            int cards = s.AllCards.Count(c => ids.Contains(c.Def.Id) || c.Def.Category == "tech" || c.Def.Id == "pop");
+            Check(overlaps == 0 && cards >= 70 + 10 + 6, $"an over-full capital overlaps nothing ({stacks.Count} stacks, {overlaps} overlaps, no cards lost)");
+            int outside = stacks.Count(x => x.Pos.Y + Sim.StackHeight(x) > s.Home.Origin.Y + s.Home.Size.Y + 0.5f || x.Pos.X + Sim.CardW > s.Home.Origin.X + s.Home.Size.X + 0.5f);
+            Check(outside == 0, $"even tall piles stay inside the capital's border ({outside} hang over)");
+        }
+
         Log.Info("Self-test: claiming systems");
         {
             var s = Fresh();

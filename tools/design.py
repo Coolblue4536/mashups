@@ -36,7 +36,7 @@ def expand(sections):
     import copy
     s = copy.deepcopy(sections)
     values = {c["id"]: c["value"] for c in s["cards"]["rows"]}
-    blank = {"hp": 0, "attack": 0, "attack_cd": 0, "shield": 0, "armor": 0, "shield_regen": 0, "hull_regen": 0, "evasion": 0, "slots": 0,
+    blank = {"scene": "none", "hp": 0, "attack": 0, "attack_cd": 0, "shield": 0, "armor": 0, "shield_regen": 0, "hull_regen": 0, "evasion": 0, "slots": 0,
              "weapon": "none", "food_upkeep": 0, "energy_upkeep": 0, "boost_tag": "none", "boost_mult": 1.0, "yield": "none",
              "yield_time": 0, "colonize_with": "none"}
     for c in s.get("components", {}).get("rows", []):
@@ -46,7 +46,7 @@ def expand(sections):
                                       tags=["component", c["kind"]], art="st_comp_" + cid,
                                       value=max(1, sum(values.get(b["card"], 1) * b["n"] for b in c["build_cost"]) // 2), desc=c["desc"]))
         s["cards"]["rows"].append(dict(blank, id=tech, name_loc=c["tech_name_loc"], name=c["tech_name"], category="tech",
-                                      tags=["tech"], art="st_tech_" + cid, value=3, desc=f"Shipyard + {cost} = {c['name']}."))
+                                      tags=["tech"], art="st_tech_" + cid, scene=c.get("tech_scene", "none"), value=3, desc=f"Shipyard + {cost} = {c['name']}."))
         n = sum(i["n"] for i in c["research_inputs"] if i["card"] == "research")
         studied = [i["card"] for i in c["research_inputs"] if i["keep"]]
         s["recipes"]["rows"].append({"id": "r_" + cid, "station": "scientist", "station_keep": True, "inputs": c["research_inputs"],

@@ -19,7 +19,7 @@ FLOATS = {"chance", "shield", "armor", "shield_regen", "hull_regen", "armor_rege
 # sheet -> (record type, collection name, columns in constructor order, nested list element types)
 SPEC = {
     "categories": ("CategoryDef", "Categories", ["id", "label", "color", "frame_ref", "draggable", "is_combatant_default"], {}),
-    "cards": ("CardDef", "Cards", ["id", "name_loc", "name", "category", "tags", "art", "value", "hp", "attack", "attack_cd",
+    "cards": ("CardDef", "Cards", ["id", "name_loc", "name", "category", "tags", "art", "scene", "value", "hp", "attack", "attack_cd",
                                    "shield", "armor", "shield_regen", "hull_regen", "evasion", "slots", "weapon",
                                    "food_upkeep", "energy_upkeep", "boost_tag", "boost_mult", "yield", "yield_time",
                                    "colonize_with", "desc"], {}),

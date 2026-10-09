@@ -59,6 +59,8 @@ def main(argv):
         if c["category"] not in cats:
             errors.append(f"{w}.category: '{c['category']}' not in categories")
         asset_ref(f"{w}.art", c["art"])
+        if c.get("scene", "none") != "none":
+            asset_ref(f"{w}.scene", c["scene"])
         if c["yield"] != "none":
             card_ref(f"{w}.yield", c["yield"])
             if c["yield_time"] <= 0:
