@@ -196,6 +196,27 @@ public static class SelfTest
             int outside = s.Table.Stacks.Count(x => x.Root.Def.Id == "energy" && s.SystemAt(Sim.CardCenter(x)) != s.Home);
             Check(outside == 0, $"70 Energy piled in the capital stay in the capital ({outside} pushed out)");
         }
+        {
+            // Cards dumped in one spot, plus a battle, spread out until nothing overlaps anything.
+            var s = Fresh();
+            foreach (var id in new[] { "minerals", "food", "alloys", "research", "unity", "minerals", "food", "energy", "alloys", "research" })
+                for (int i = 0; i < 2; i++) s.Spawn(id, s.Home.Center);
+            var raider = s.Spawn("pirate_raider", s.Home.Center, jitter: false);
+            s.Attack(s.Spawn("corvette", s.Home.Center).Stack!, raider);
+            for (int i = 0; i < 40; i++) s.Update(0.05f); // 2 s: settled, battle still on
+            Check(s.Table.Battles.Count == 1, "the battle is still being fought for the overlap check");
+            var stacks = s.Table.Stacks.Where(x => !x.Traveling && s.SystemAt(Sim.CardCenter(x)) == s.Home).ToList();
+            var bad = new List<string>();
+            for (int i = 0; i < stacks.Count; i++)
+                for (int j = i + 1; j < stacks.Count; j++)
+                    if (Sim.Hit(Sim.StackArea(stacks[i]), Sim.StackArea(stacks[j]), 0)) bad.Add($"{stacks[i].Root.Def.Id}@{stacks[i].Pos} vs {stacks[j].Root.Def.Id}@{stacks[j].Pos}");
+            foreach (var x in stacks)
+            {
+                if (Sim.Hit(Sim.StackArea(x), Sim.TitleArea(s.Home), 0)) bad.Add($"{x.Root.Def.Id}@{x.Pos} vs title");
+                foreach (var bt in s.Table.Battles) if (Sim.Hit(Sim.StackArea(x), Sim.BattleArea(bt), 0)) bad.Add($"{x.Root.Def.Id}@{x.Pos} vs battle {Sim.BattleArea(bt)}");
+            }
+            Check(bad.Count == 0, $"{stacks.Count} stacks and the battle in the capital overlap nothing {string.Join("; ", bad)}");
+        }
 
         Log.Info("Self-test: claiming systems");
         {
@@ -437,8 +458,10 @@ public static class SelfTest
             int seed = 0;
             Sim s;
             do s = new Sim(Defs.Ethics[0], ++seed, null, diff, Defs.MoonLengths[0]); while (s.Crisis != crisis);
-            for (int i = 0; i < 400; i++) s.Spawn("food", new Vector2(100, 1400));
-            for (int i = 0; i < 40; i++) s.Spawn("corvette", new Vector2(2400, 1400)); // a big home guard so the run survives to the boss
+            // Food for the whole run in full piles, and a big home guard so the run survives to the boss, laid out on the
+            // capital board like a player would.
+            for (int i = 0; i < 25; i++) Build(s, Enumerable.Repeat("food", Defs.Rules.MaxStack), s.Home.Origin + new Vector2(60 + (i % 9) * 150, 620 + (i / 9) * 110));
+            for (int i = 0; i < 4; i++) Build(s, Enumerable.Repeat("corvette", 10), s.Home.Origin + new Vector2(80 + i * 160, 160));
             int act2 = 0, rift = 0, boss = 0;
             float t = 0;
             while (s.Moon <= diff.CrisisMoon + diff.BossDelayMoons + 1 && s.State == RunState.Playing && t < 4000)

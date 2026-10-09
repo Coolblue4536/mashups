@@ -42,6 +42,8 @@ public sealed class Stack
     public float Progress;
     public float Duration;
     public bool Dirty = true;
+    /// <summary>How long the stack has been stuck overlapping something; past a moment it jumps to a free spot.</summary>
+    public float Jam;
     // Travel between star systems: a ship carries the stack from TravelFrom to TravelTo over TravelDur seconds.
     public Vector2 TravelFrom, TravelTo;
     public float TravelT, TravelDur;
@@ -54,6 +56,8 @@ public sealed class Stack
 public sealed class Battle
 {
     public Vector2 Pos;
+    /// <summary>The star system the battle is fought in; its area stays inside it.</summary>
+    public StarSystem? System;
     public readonly List<Card> Players = new();
     public readonly List<Card> Hostiles = new();
 }

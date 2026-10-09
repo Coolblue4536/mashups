@@ -197,7 +197,11 @@ public sealed class Sim
             {
                 s.TravelDur = 0;
                 s.Dirty = true;
-                if (SystemAt(CardCenter(s)) is { } z) Messages.Add($"Arrived at {z.Name}.");
+                if (SystemAt(CardCenter(s)) is { } z)
+                {
+                    Messages.Add($"Arrived at {z.Name}.");
+                    if (FreeSpot(z, s.Pos, StackHeight(s), s) is { } p) s.Pos = p;
+                }
                 Flags.Add("traveled");
             }
         }
@@ -225,9 +229,11 @@ public sealed class Sim
     {
         var c = NewCard(id);
         var home = SystemAt(pos + new Vector2(CardW / 2, CardH / 2));
-        var s = NewStack(pos + (jitter ? new Vector2(Rng.Next(-40, 41), Rng.Next(-40, 41)) : Vector2.Zero));
-        if (home != null) s.Pos = ClampIn(s.Pos, home); // jitter never moves a new card into the next system
+        var want = pos + (jitter ? new Vector2(Rng.Next(-40, 41), Rng.Next(-40, 41)) : Vector2.Zero);
+        var s = NewStack(want);
         Add(s, c);
+        // New cards land on a free spot in their own system, never on top of other cards.
+        if (home != null) Place(s, home, ClampIn(want, home));
         return c;
     }
 
@@ -662,13 +668,13 @@ public sealed class Sim
         if (battle == null)
         {
             var pos = hostile.Stack?.Pos ?? Home.Center;
+            var here = SystemAt(pos + new Vector2(CardW / 2, CardH / 2));
             Remove(hostile);
-            battle = new Battle { Pos = pos };
+            battle = new Battle { Pos = pos, System = here };
             battle.Hostiles.Add(hostile);
             hostile.Battle = battle;
             Table.Battles.Add(battle);
             // Starbases and idle warships in the same star system rally to the fight.
-            var here = SystemAt(pos + new Vector2(CardW / 2, CardH / 2));
             foreach (var s in Table.Stacks.Where(s => !s.Traveling && here != null && here.Contains(CardCenter(s))).ToList())
                 foreach (var c in s.Cards.ToList())
                     if (c.Def.Id == "starbase" || (c.Def.HasTag("warship") && s.Active == null && !s.Dragging))
@@ -751,6 +757,7 @@ public sealed class Sim
             c.Battle = null;
             var s = NewStack(bt.Pos + new Vector2((i % 4) * (CardW + 16), (i / 4) * (CardH + 16)));
             Add(s, c);
+            if (bt.System != null) Place(s, bt.System, s.Pos);
             i++;
         }
     }
@@ -874,28 +881,144 @@ public sealed class Sim
         TickBattles(dt);
         if (State != RunState.Playing) return;
         TickHostiles(dt);
-        Separate(dt);
+        Layout(dt);
     }
 
     public static float StackHeight(Stack s) => CardH + StackStep * (s.Cards.Count - 1);
 
-    void Separate(float dt)
+    // ---------- layout: nothing overlaps ----------
+
+    /// <summary>Space kept between cards, and the room above a stack for its progress bar.</summary>
+    public const float Gap = 14, BarRoom = 22;
+
+    /// <summary>The table area a battle takes: its banner and its two rows of cards.</summary>
+    public static (Vector2 Pos, Vector2 Size) BattleArea(Battle bt)
     {
-        var list = Table.Stacks;
-        for (int i = 0; i < list.Count; i++)
-            for (int j = i + 1; j < list.Count; j++)
+        int n = Math.Max(bt.Players.Count, bt.Hostiles.Count);
+        return (bt.Pos - new Vector2(20, 40), new Vector2(Math.Max(2, n) * (CardW + 12) + 30, CardH * 2 + 90));
+    }
+
+    /// <summary>A system's name and kind are written in its top-left corner; cards keep clear of it.</summary>
+    public static (Vector2 Pos, Vector2 Size) TitleArea(StarSystem z) => (z.Origin, new Vector2(560, 130));
+
+    public static (Vector2 Pos, Vector2 Size) StackArea(Stack s) => (s.Pos - new Vector2(0, BarRoom), new Vector2(CardW, StackHeight(s) + BarRoom));
+
+    public static bool Hit((Vector2 Pos, Vector2 Size) a, (Vector2 Pos, Vector2 Size) b, float gap) =>
+        a.Pos.X < b.Pos.X + b.Size.X + gap && b.Pos.X < a.Pos.X + a.Size.X + gap && a.Pos.Y < b.Pos.Y + b.Size.Y + gap && b.Pos.Y < a.Pos.Y + a.Size.Y + gap;
+
+    bool Inside(Stack s, Vector2 pos, StarSystem z) =>
+        pos.X >= z.Origin.X && pos.X <= z.Origin.X + z.Size.X - CardW && pos.Y - BarRoom >= z.Origin.Y && pos.Y + StackHeight(s) <= z.Origin.Y + z.Size.Y;
+
+    /// <summary>The smallest move that takes area a clear of area b (with the gap), preferring moves that keep the stack in its system.</summary>
+    Vector2 PushOut(Stack s, (Vector2 Pos, Vector2 Size) a, (Vector2 Pos, Vector2 Size) b, StarSystem z)
+    {
+        if (!Hit(a, b, Gap)) return Vector2.Zero;
+        var moves = new[]
+        {
+            new Vector2(b.Pos.X - Gap - (a.Pos.X + a.Size.X), 0), new Vector2(b.Pos.X + b.Size.X + Gap - a.Pos.X, 0),
+            new Vector2(0, b.Pos.Y - Gap - (a.Pos.Y + a.Size.Y)), new Vector2(0, b.Pos.Y + b.Size.Y + Gap - a.Pos.Y),
+        }.OrderBy(m => m.LengthSquared()).ToList();
+        return moves.FirstOrDefault(m => Inside(s, s.Pos + m, z), moves[0]);
+    }
+
+    IEnumerable<(Vector2 Pos, Vector2 Size)> FixedAreas(StarSystem z) =>
+        Table.Battles.Where(b => b.System == z).Select(BattleArea).Append(TitleArea(z));
+
+    /// <summary>The free spot nearest to <paramref name="want"/> inside z for a stack of this height, or null when z is full.</summary>
+    public Vector2? FreeSpot(StarSystem z, Vector2 want, float height, Stack? except = null)
+    {
+        var taken = new List<(Vector2 Pos, Vector2 Size)>();
+        foreach (var s in Table.Stacks)
+            if (s != except && !s.Traveling && !s.Dragging && z.Contains(CardCenter(s))) taken.Add(StackArea(s));
+        taken.AddRange(FixedAreas(z));
+        // Candidate spots on a fine grid, nearest first; the first one that fits wins.
+        var spots = new List<(float d, Vector2 p)>();
+        for (float y = z.Origin.Y + BarRoom; y <= z.Origin.Y + z.Size.Y - height; y += (CardH + Gap) / 4)
+            for (float x = z.Origin.X; x <= z.Origin.X + z.Size.X - CardW; x += (CardW + Gap) / 3)
+                spots.Add((Vector2.DistanceSquared(new Vector2(x, y), want), new Vector2(x, y)));
+        spots.Sort((a, b) => a.d.CompareTo(b.d));
+        foreach (var (_, p) in spots)
+        {
+            var area = (p - new Vector2(0, BarRoom), new Vector2(CardW, height + BarRoom));
+            bool free = true;
+            foreach (var o in taken) if (Hit(area, o, Gap)) { free = false; break; }
+            if (free) return p;
+        }
+        return null;
+    }
+
+    /// <summary>Put a new or arriving stack where it overlaps nothing. In a full system a resource joins a matching pile.</summary>
+    void Place(Stack s, StarSystem z, Vector2 want)
+    {
+        if (FreeSpot(z, want, StackHeight(s), s) is { } p) { s.Pos = p; return; }
+        if (s.Cards.Count == 1 && s.Root.Def.Category == "resource")
+        {
+            var pile = StacksIn(z).Where(o => o != s && !o.Dragging && o.Active == null && o.Cards.Count < Defs.Rules.MaxStack && o.Cards.All(c => c.Def.Id == s.Root.Def.Id))
+                .OrderBy(o => Vector2.DistanceSquared(o.Pos, want)).FirstOrDefault();
+            if (pile != null)
             {
-                Stack a = list[i], c = list[j];
-                if (a.Dragging || c.Dragging || a.Traveling || c.Traveling) continue;
-                float ox = MathF.Min(a.Pos.X + CardW, c.Pos.X + CardW) - MathF.Max(a.Pos.X, c.Pos.X);
-                float oy = MathF.Min(a.Pos.Y + StackHeight(a), c.Pos.Y + StackHeight(c)) - MathF.Max(a.Pos.Y, c.Pos.Y);
-                if (ox <= 0 || oy <= 0) continue;
-                var d = (c.Pos - a.Pos);
-                if (d.LengthSquared() < 1) d = new Vector2(1, 0.3f);
-                var push = Vector2.Normalize(d) * MathF.Min(ox, 60) * MathF.Min(1, dt * 6);
-                // A crowded system must not push its cards over the border into the next one.
-                a.Pos = ClampIn(a.Pos - push / 2, SystemAt(CardCenter(a)));
-                c.Pos = ClampIn(c.Pos + push / 2, SystemAt(CardCenter(c)));
+                foreach (var c in s.Cards.ToList()) { s.Cards.Remove(c); Add(pile, c); }
+                Table.Stacks.Remove(s);
+                return;
             }
+        }
+        s.Pos = ClampIn(want, z); // nowhere free at all: the push-apart pass does what it can
+    }
+
+    /// <summary>Every tick: battles stay inside their system and clear of each other, cards are pushed out of battles and
+    /// system titles, and stacks push each other apart until none overlap.</summary>
+    void Layout(float dt)
+    {
+        for (int i = 0; i < Table.Battles.Count; i++)
+        {
+            var b = Table.Battles[i];
+            if (b.System is not { } z) continue;
+            var (bp, bs) = BattleArea(b);
+            for (int j = 0; j < i; j++)
+                if (Table.Battles[j].System == z && BattleArea(Table.Battles[j]) is var o && Hit((bp, bs), o, Gap))
+                    bp.Y = o.Pos.Y + o.Size.Y + Gap;
+            bp = new Vector2(Math.Clamp(bp.X, z.Origin.X, MathF.Max(z.Origin.X, z.Origin.X + z.Size.X - bs.X)),
+                             Math.Clamp(bp.Y, z.Origin.Y, MathF.Max(z.Origin.Y, z.Origin.Y + z.Size.Y - bs.Y)));
+            b.Pos = bp + new Vector2(20, 40);
+        }
+        float k = MathF.Min(1, dt * 12);
+        foreach (var z in Systems)
+        {
+            var group = new List<Stack>();
+            foreach (var s in Table.Stacks)
+                if (!s.Dragging && !s.Traveling && z.Contains(CardCenter(s))) group.Add(s);
+            if (group.Count == 0) continue;
+            var fixedAreas = FixedAreas(z).ToList();
+            var stuck = new bool[group.Count];
+            for (int i = 0; i < group.Count; i++)
+                foreach (var area in fixedAreas)
+                {
+                    var m = PushOut(group[i], StackArea(group[i]), area, z);
+                    if (m == Vector2.Zero) continue;
+                    group[i].Pos = ClampIn(group[i].Pos + m, z);
+                    stuck[i] = true;
+                }
+            for (int i = 0; i < group.Count; i++)
+                for (int j = i + 1; j < group.Count; j++)
+                {
+                    Stack a = group[i], c = group[j];
+                    var m = PushOut(a, StackArea(a), StackArea(c), z);
+                    if (m == Vector2.Zero) continue;
+                    // A crowded system must not push its cards over the border into the next one.
+                    a.Pos = ClampIn(a.Pos + m * (k / 2 + 0.01f), z);
+                    c.Pos = ClampIn(c.Pos - m * (k / 2 + 0.01f), z);
+                    stuck[i] = stuck[j] = true;
+                }
+            // Pushing can jam a card between others and a battle. A card still pushed after a moment jumps to the
+            // nearest free spot; in a full system it waits a while before looking again.
+            for (int i = 0; i < group.Count; i++)
+            {
+                var s = group[i];
+                s.Jam = stuck[i] ? s.Jam + dt : s.Jam < 0 ? MathF.Min(0, s.Jam + dt) : 0;
+                if (s.Jam < 0.5f) continue;
+                if (FreeSpot(z, s.Pos, StackHeight(s), s) is { } p) { s.Pos = p; s.Jam = 0; }
+                else s.Jam = -3f;
+            }
+        }
     }
 }

@@ -18,10 +18,24 @@ public sealed class AssetResolver
         if (Misses.Add(a.Id)) Log.Info($"asset miss: {a.Id} ({a.Game} {a.Kind}; tried {string.Join(", ", a.Lookup)})");
     }
 
+    /// <summary>"file:gfx/x.dds@0.4,0,0.35,1" crops the picture to that part (fractions of its width and height),
+    /// e.g. the ship out of a wide event picture.</summary>
+    static (string lookup, float[]? crop) SplitCrop(string l)
+    {
+        int at = l.LastIndexOf('@');
+        if (at < 0) return (l, null);
+        var f = l[(at + 1)..].Split(',').Select(v => float.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x) ? x : -1).ToArray();
+        return f.Length == 4 && f.All(x => x >= 0 && x <= 1) ? (l[..at], f) : (l, null);
+    }
+
+    static ImageData Cropped(ImageData img, float[]? f) =>
+        f == null ? img : img.Crop((int)(f[0] * img.W), (int)(f[1] * img.H), Math.Max(1, (int)(f[2] * img.W)), Math.Max(1, (int)(f[3] * img.H)));
+
     public ImageData? Image(AssetRefDef a)
     {
-        foreach (var l in a.Lookup)
+        foreach (var full in a.Lookup)
         {
+            var (l, crop) = SplitCrop(full);
             if (a.Game == "stellaris" && St != null)
             {
                 if (l == "portrait:player")
@@ -31,14 +45,14 @@ public sealed class AssetResolver
                 }
                 if (St.Lookup(l) is { } hit && ImageData.FromFile(hit.path, hit.frames, hit.frame) is { } img)
                 {
-                    Hit(a, $"{l} → {Rel(hit.path)}" + (hit.frames > 1 ? $" (frame {hit.frame} of {hit.frames})" : ""));
-                    return img;
+                    Hit(a, $"{full} → {Rel(hit.path)}" + (hit.frames > 1 ? $" (frame {hit.frame} of {hit.frames})" : "") + (crop != null ? " (cropped)" : ""));
+                    return Cropped(img, crop);
                 }
             }
             if (a.Game == "stacklands" && Sl != null && Sl.LookupImage(l) is { } sh && sh.load() is { } simg)
             {
-                Hit(a, $"{l} → {sh.asset.Type} '{sh.asset.Name}' {simg.W}x{simg.H}");
-                return simg;
+                Hit(a, $"{full} → {sh.asset.Type} '{sh.asset.Name}' {simg.W}x{simg.H}");
+                return Cropped(simg, crop);
             }
         }
         Miss(a);

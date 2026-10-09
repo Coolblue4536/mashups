@@ -15,8 +15,11 @@ public sealed class ImageData
             ImageData? img = ext == ".dds" ? FromDds(path) : FromRaylib(path);
             if (img != null && frames > 1)
             {
-                int w = img.W / frames;
-                img = img.Crop(w * (Math.Clamp(frame, 1, frames) - 1), 0, w, img.H);
+                // Strips aren't always an exact multiple of their frame count: place each frame by rounding, not by
+                // multiplying a truncated width, or later frames drift.
+                int f = Math.Clamp(frame, 1, frames);
+                int x0 = (int)Math.Round(img.W * (f - 1) / (double)frames), x1 = (int)Math.Round(img.W * f / (double)frames);
+                img = img.Crop(x0, 0, x1 - x0, img.H);
             }
             return img;
         }

@@ -14,6 +14,8 @@ public sealed class StellarisData
     public readonly Dictionary<string, string> Loc = new(StringComparer.Ordinal);
     public readonly Dictionary<string, SpriteInfo> Sprites = new(StringComparer.OrdinalIgnoreCase);
     public readonly Dictionary<string, string> PlanetIcons = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>The bigger planet icon (icon_large), sharper on cards.</summary>
+    public readonly Dictionary<string, string> PlanetIconsLarge = new(StringComparer.OrdinalIgnoreCase);
     public readonly List<PortraitInfo> Portraits = new();
     /// <summary>Lower-case path relative to the install (forward slashes) → real path, for every image under gfx/.</summary>
     public readonly Dictionary<string, string> Files = new();
@@ -114,7 +116,10 @@ public sealed class StellarisData
         foreach (var f in Directory.EnumerateFiles(dir, "*.txt"))
             foreach (var n in CwNode.ParseFile(f).Kids)
                 if (n.Key != null && n.Key.StartsWith("pc_") && n.Get("icon") is { } icon)
+                {
                     PlanetIcons[n.Key] = icon;
+                    if (n.Get("icon_large") is { } large) PlanetIconsLarge[n.Key] = large;
+                }
     }
 
     void LoadPortraits()
@@ -148,7 +153,8 @@ public sealed class StellarisData
             case "sprite":
                 return SpriteFile(arg);
             case "planetclass":
-                return PlanetIcons.TryGetValue(arg, out var icon) ? SpriteFile(icon) : null;
+                return (PlanetIconsLarge.TryGetValue(arg, out var large) ? SpriteFile(large) : null)
+                    ?? (PlanetIcons.TryGetValue(arg, out var icon) ? SpriteFile(icon) : null);
             case "find":
             {
                 var needle = arg.ToLowerInvariant();

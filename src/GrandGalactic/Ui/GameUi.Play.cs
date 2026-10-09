@@ -96,8 +96,8 @@ public sealed partial class GameUi
 
     static Rectangle BattleRect(Battle bt)
     {
-        int n = Math.Max(bt.Players.Count, bt.Hostiles.Count);
-        return new Rectangle(bt.Pos.X - 20, bt.Pos.Y - 40, Math.Max(2, n) * (Sim.CardW + 12) + 30, Sim.CardH * 2 + 90);
+        var (p, s) = Sim.BattleArea(bt);
+        return new Rectangle(p.X, p.Y, s.X, s.Y);
     }
 
     void HandleMouse()
@@ -301,56 +301,92 @@ public sealed partial class GameUi
         }
     }
 
+    static readonly Color Ink = new(34, 30, 40, 255);
+
+    /// <summary>Fills the box with the picture, cropping its edges, so wide event pictures fill the art window.</summary>
+    static void DrawCover(Texture2D t, Rectangle box, Color tint)
+    {
+        float s = Math.Max(box.Width / t.Width, box.Height / t.Height);
+        float sw = box.Width / s, sh = box.Height / s;
+        Raylib.DrawTexturePro(t, new Rectangle((t.Width - sw) / 2, (t.Height - sh) / 2, sw, sh), box, Vector2.Zero, 0, tint);
+    }
+
     void DrawCard(Card c, Rectangle r, bool lifted)
     {
         var cat = Defs.Category[c.Def.Category];
         var col = Hex(cat.Color);
-        if (lifted) Raylib.DrawRectangleRounded(new Rectangle(r.X + 8, r.Y + 10, r.Width, r.Height), 0.08f, 6, new Color(0, 0, 0, 90));
+        // A soft shadow under every card (deeper while held), then the Stacklands frame in the category colour.
+        float lift = lifted ? 9 : 3;
+        Raylib.DrawRectangleRounded(new Rectangle(r.X + lift * 0.6f, r.Y + lift, r.Width, r.Height), 0.1f, 6, new Color(0, 0, 0, lifted ? 90 : 55));
         if (Tex(cat.FrameRef) is { } frame)
             Raylib.DrawTexturePro(frame, new Rectangle(0, 0, frame.Width, frame.Height), r, Vector2.Zero, 0, col);
         else
         {
             Raylib.DrawRectangleRounded(r, 0.08f, 6, col);
-            Raylib.DrawRectangleRoundedLinesEx(r, 0.08f, 6, 3, new Color(30, 30, 40, 255));
+            Raylib.DrawRectangleRoundedLinesEx(r, 0.08f, 6, 3, Ink);
         }
-        var art = new Rectangle(r.X + 12, r.Y + 34, r.Width - 24, r.Height - 64);
-        Raylib.DrawRectangleRec(art, new Color(10, 12, 26, 230));
-        if (Tex(c.Def.Art) is { } t) DrawFit(t, art, Color.White);
+
+        // Title.
         var name = _res.CardName(c.Def.Id);
-        float size = 17;
-        while (size > 11 && Measure(name, size).X > r.Width - 14) size -= 1;
-        Text(name, r.X + 8, r.Y + 8, size, new Color(25, 25, 35, 255));
-        // footer: value, or for fighting cards their shield / armour / hull bars
+        float size = 16;
+        while (size > 10 && Measure(name, size).X > r.Width - 18) size -= 0.5f;
+        Text(name, r.X + 9, r.Y + 8 + (16 - size) / 2, size, Ink);
+
+        // Art window: a rounded pane of space with the picture inside. Wide pictures fill it; icons sit with a margin.
+        var art = new Rectangle(r.X + 9, r.Y + 28, r.Width - 18, r.Height - 60);
+        Raylib.DrawRectangleRounded(art, 0.12f, 6, new Color(16, 20, 38, 255));
+        if (Tex(c.Def.Art) is { } t)
+        {
+            float aspect = (float)t.Width / t.Height, box = art.Width / art.Height;
+            if (aspect > box * 1.35f || aspect < box / 1.35f || (t.Width >= 120 && t.Height >= 120)) DrawCover(t, art, Color.White);
+            else DrawFit(t, new Rectangle(art.X + 6, art.Y + 6, art.Width - 12, art.Height - 12), Color.White);
+        }
+        Raylib.DrawRectangleRoundedLinesEx(art, 0.12f, 6, 2, new Color(col.R / 3, col.G / 3, col.B / 3, 200));
+
+        // Footer: hull and bars for fighting cards, else the value; planets say whether they are yours.
+        float fy = r.Y + r.Height - 27;
         bool fighter = c.MaxHp > 0 && (c.Def.Attack > 0 || c.MaxShield > 0 || c.MaxArmor > 0 || c.Def.IsHostile || c.Def.Slots > 0);
         if (fighter)
         {
-            float bx = r.X + 8, bw = r.Width - 16, by = r.Y + r.Height - 27;
+            float bx = r.X + 34, bw = r.Width - 44;
             void Bar(float y, float v, float max, Color fill)
             {
-                Raylib.DrawRectangleRec(new Rectangle(bx, y, bw, 6), new Color(0, 0, 0, 150));
-                if (max > 0) Raylib.DrawRectangleRec(new Rectangle(bx, y, bw * Math.Clamp(v / max, 0, 1), 6), fill);
+                Raylib.DrawRectangleRounded(new Rectangle(bx, y, bw, 5), 1f, 4, new Color(0, 0, 0, 110));
+                if (max > 0 && v > 0) Raylib.DrawRectangleRounded(new Rectangle(bx, y, Math.Max(5, bw * Math.Clamp(v / max, 0, 1)), 5), 1f, 4, fill);
             }
-            if (c.MaxShield > 0) Bar(by - 16, c.Shield, c.MaxShield, new Color(90, 170, 255, 255));
-            if (c.MaxArmor > 0) Bar(by - 8, c.Armor, c.MaxArmor, new Color(230, 190, 90, 255));
             float hk = c.Hp / Math.Max(1, c.MaxHp);
-            Bar(by, c.Hp, c.MaxHp, hk > 0.5f ? new Color(90, 220, 110, 255) : hk > 0.25f ? new Color(240, 170, 60, 255) : new Color(230, 60, 60, 255));
-            Text($"{MathF.Ceiling(c.Hp)}", bx + bw - Measure($"{MathF.Ceiling(c.Hp)}", 13).X, by + 7, 13, new Color(30, 30, 40, 255));
-            // fitted parts as small icons, and the admiral's star
-            for (int i = 0; i < c.Parts.Count; i++)
+            int bars = (c.MaxShield > 0 ? 1 : 0) + (c.MaxArmor > 0 ? 1 : 0) + 1;
+            float y0 = fy + 13 - bars * 4;
+            if (c.MaxShield > 0) { Bar(y0, c.Shield, c.MaxShield, new Color(90, 170, 255, 255)); y0 += 8; }
+            if (c.MaxArmor > 0) { Bar(y0, c.Armor, c.MaxArmor, new Color(235, 190, 90, 255)); y0 += 8; }
+            Bar(y0, c.Hp, c.MaxHp, hk > 0.5f ? new Color(90, 210, 110, 255) : hk > 0.25f ? new Color(240, 170, 60, 255) : new Color(230, 70, 60, 255));
+            if (Tex("sl_heart") is { } heart) DrawFit(heart, new Rectangle(r.X + 8, fy + 2, 22, 22), new Color(225, 70, 80, 255));
+            var hp = $"{MathF.Ceiling(c.Hp)}";
+            Text(hp, r.X + 19 - Measure(hp, 11).X / 2, fy + 7, 11, Color.RayWhite);
+            // Fitted parts as small icons along the top of the art, free slots as empty pips; the admiral as a gold tag.
+            for (int i = 0; i < Math.Max(c.Parts.Count, c.Def.Slots); i++)
             {
-                var ir = new Rectangle(r.X + 10 + i * 21, r.Y + 34, 19, 19);
-                Raylib.DrawRectangleRec(ir, new Color(20, 30, 60, 230));
-                if (Tex("st_comp_" + c.Parts[i].Id) is { } pt) DrawFit(pt, ir, Color.White);
-                else Text(c.Parts[i].Name[..1], ir.X + 5, ir.Y + 2, 15, Color.RayWhite);
+                var ir = new Rectangle(art.X + 4 + i * 22, art.Y + 4, 20, 20);
+                Raylib.DrawRectangleRounded(ir, 0.3f, 4, new Color(10, 14, 30, 220));
+                if (i < c.Parts.Count && Tex("st_comp_" + c.Parts[i].Id) is { } pt) DrawFit(pt, ir, Color.White);
+                else if (i >= c.Parts.Count) Raylib.DrawRectangleRoundedLinesEx(ir, 0.3f, 4, 1, new Color(150, 170, 220, 160));
             }
-            if (c.Def.Slots > 0) Text($"slots {c.Parts.Count}/{c.Def.Slots}", r.X + 10, r.Y + 56, 12, new Color(220, 230, 255, 220));
-            if (c.Admiral != null) Text("* Admiral", r.X + 10, r.Y + r.Height - 62, 14, new Color(255, 215, 90, 255));
+            if (c.Admiral != null)
+            {
+                var tag = new Rectangle(art.X + 4, art.Y + art.Height - 20, Measure("Admiral", 12).X + 10, 16);
+                Raylib.DrawRectangleRounded(tag, 0.5f, 4, new Color(30, 24, 8, 220));
+                Text("Admiral", tag.X + 5, tag.Y + 2, 12, new Color(255, 215, 100, 255));
+            }
         }
-        else if (c.Def.Value > 0) Text($"${c.Def.Value}", r.X + 8, r.Y + r.Height - 26, 18, new Color(40, 40, 50, 255));
+        else if (c.Def.Value > 0)
+        {
+            if (Tex("sl_coin") is { } coin) DrawFit(coin, new Rectangle(r.X + 8, fy + 2, 20, 20), Color.White);
+            Text($"{c.Def.Value}", r.X + 31, fy + 4, 16, Ink);
+        }
         if (c.Def.IsPlanet && c.Def.ColonizeWith != "none")
         {
             var tag = c.Claimed ? "Colonised" : "Unclaimed";
-            Text(tag, r.X + r.Width / 2 - Measure(tag, 14).X / 2, r.Y + r.Height - 24, 14, c.Claimed ? new Color(10, 90, 30, 255) : new Color(90, 60, 10, 255));
+            Text(tag, r.X + r.Width - 10 - Measure(tag, 12).X, fy + 6, 12, c.Claimed ? new Color(20, 100, 40, 255) : new Color(110, 70, 20, 255));
         }
     }
 
