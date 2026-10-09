@@ -1,0 +1,1203 @@
+{
+ "sheet": "asset_refs",
+ "about": "Every picture, sound and font the game shows, and where it comes from in the player's own copy of each game. lookup is tried in order; the first hit wins. verified flips to true once the probe run on a real install confirms the hit (tools/apply_probe.py).",
+ "columns": [
+  "id",
+  "game",
+  "kind",
+  "lookup",
+  "used_by",
+  "verified",
+  "note"
+ ],
+ "rows": [
+  {
+   "id": "st_portrait_player",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "portrait:player"
+   ],
+   "used_by": "people cards",
+   "verified": false,
+   "note": "The species portrait the player picked on the empire screen (parsed from gfx/portraits/portraits/*.txt)."
+  },
+  {
+   "id": "st_res_energy",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/resources/energy.dds",
+    "sprite:GFX_resource_energy",
+    "find:resources/energy"
+   ],
+   "used_by": "energy card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_res_minerals",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/resources/minerals.dds",
+    "sprite:GFX_resource_minerals",
+    "find:resources/minerals"
+   ],
+   "used_by": "minerals card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_res_food",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/resources/food.dds",
+    "sprite:GFX_resource_food",
+    "find:resources/food"
+   ],
+   "used_by": "food card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_res_alloys",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/resources/alloys.dds",
+    "sprite:GFX_resource_alloys",
+    "find:resources/alloys"
+   ],
+   "used_by": "alloys card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_res_consumer_goods",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/resources/consumer_goods.dds",
+    "sprite:GFX_resource_consumer_goods",
+    "find:resources/consumer_goods"
+   ],
+   "used_by": "consumer_goods card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_res_unity",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/resources/unity.dds",
+    "sprite:GFX_resource_unity",
+    "find:resources/unity"
+   ],
+   "used_by": "unity card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_res_influence",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/resources/influence.dds",
+    "sprite:GFX_resource_influence",
+    "find:resources/influence"
+   ],
+   "used_by": "influence card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_res_exotic_gases",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/resources/exotic_gases.dds",
+    "sprite:GFX_resource_exotic_gases",
+    "find:resources/exotic_gases"
+   ],
+   "used_by": "exotic_gases card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_res_rare_crystals",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/resources/rare_crystals.dds",
+    "sprite:GFX_resource_rare_crystals",
+    "find:resources/rare_crystals"
+   ],
+   "used_by": "rare_crystals card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_res_volatile_motes",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/resources/volatile_motes.dds",
+    "sprite:GFX_resource_volatile_motes",
+    "find:resources/volatile_motes"
+   ],
+   "used_by": "volatile_motes card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_res_zro",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/resources/sr_zro.dds",
+    "sprite:GFX_resource_sr_zro",
+    "find:resources/sr_zro"
+   ],
+   "used_by": "zro card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_res_dark_matter",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/resources/sr_dark_matter.dds",
+    "sprite:GFX_resource_sr_dark_matter",
+    "find:resources/sr_dark_matter"
+   ],
+   "used_by": "dark_matter card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_res_living_metal",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/resources/sr_living_metal.dds",
+    "sprite:GFX_resource_sr_living_metal",
+    "find:resources/sr_living_metal"
+   ],
+   "used_by": "living_metal card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_res_research",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/resources/physics_research.dds",
+    "sprite:GFX_resource_physics_research",
+    "find:physics_research"
+   ],
+   "used_by": "research card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_continental",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_continental",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_continental.dds",
+    "find:planet_type_continental"
+   ],
+   "used_by": "pc_continental planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_desert",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_desert",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_desert.dds",
+    "find:planet_type_desert"
+   ],
+   "used_by": "pc_desert planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_arid",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_arid",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_arid.dds",
+    "find:planet_type_arid"
+   ],
+   "used_by": "pc_arid planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_savannah",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_savannah",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_savannah.dds",
+    "find:planet_type_savannah"
+   ],
+   "used_by": "pc_savannah planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_ocean",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_ocean",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_ocean.dds",
+    "find:planet_type_ocean"
+   ],
+   "used_by": "pc_ocean planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_tropical",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_tropical",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_tropical.dds",
+    "find:planet_type_tropical"
+   ],
+   "used_by": "pc_tropical planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_arctic",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_arctic",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_arctic.dds",
+    "find:planet_type_arctic"
+   ],
+   "used_by": "pc_arctic planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_tundra",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_tundra",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_tundra.dds",
+    "find:planet_type_tundra"
+   ],
+   "used_by": "pc_tundra planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_alpine",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_alpine",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_alpine.dds",
+    "find:planet_type_alpine"
+   ],
+   "used_by": "pc_alpine planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_nuked",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_nuked",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_nuked.dds",
+    "find:planet_type_nuked"
+   ],
+   "used_by": "pc_nuked planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_gaia",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_gaia",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_gaia.dds",
+    "find:planet_type_gaia"
+   ],
+   "used_by": "pc_gaia planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_gas_giant",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_gas_giant",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_gas_giant.dds",
+    "find:planet_type_gas_giant"
+   ],
+   "used_by": "pc_gas_giant planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_asteroid",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_asteroid",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_asteroid.dds",
+    "find:planet_type_asteroid"
+   ],
+   "used_by": "pc_asteroid planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_barren",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_barren",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_barren.dds",
+    "find:planet_type_barren"
+   ],
+   "used_by": "pc_barren planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_molten",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_molten",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_molten.dds",
+    "find:planet_type_molten"
+   ],
+   "used_by": "pc_molten planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_frozen",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_frozen",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_frozen.dds",
+    "find:planet_type_frozen"
+   ],
+   "used_by": "pc_frozen planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_pc_toxic",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "planetclass:pc_toxic",
+    "file:gfx/interface/icons/planet_type_icons/planet_type_toxic.dds",
+    "find:planet_type_toxic"
+   ],
+   "used_by": "pc_toxic planet card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_dist_generator",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/districts/district_generator.dds",
+    "find:district_generator"
+   ],
+   "used_by": "generator district card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_dist_mining",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/districts/district_mining.dds",
+    "find:district_mining"
+   ],
+   "used_by": "mining district card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_dist_farming",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/districts/district_farming.dds",
+    "find:district_farming"
+   ],
+   "used_by": "farming district card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_dist_city",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/districts/district_city.dds",
+    "find:district_city"
+   ],
+   "used_by": "city district card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_bld_research_lab",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/buildings/building_research_lab_1.dds",
+    "find:building_research_lab_1"
+   ],
+   "used_by": "research_lab card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_bld_foundry",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/buildings/building_foundry_1.dds",
+    "find:building_foundry_1"
+   ],
+   "used_by": "foundry card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_bld_factory",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/buildings/building_factory_1.dds",
+    "find:building_factory_1"
+   ],
+   "used_by": "factory card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_bld_temple",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/buildings/building_temple.dds",
+    "find:building_temple"
+   ],
+   "used_by": "temple card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_bld_robot_assembly",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/buildings/building_robot_assembly_plant.dds",
+    "find:building_robot_assembly_plant"
+   ],
+   "used_by": "robot_assembly card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_bld_military_academy",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/buildings/building_military_academy.dds",
+    "find:building_military_academy"
+   ],
+   "used_by": "military_academy card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_bld_shipyard",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/buildings/building_starbase_shipyard.dds",
+    "find:shipyard"
+   ],
+   "used_by": "shipyard card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_bld_starbase",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:starbase_level",
+    "find:starbase"
+   ],
+   "used_by": "starbase card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_ship_science",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "sprite:GFX_ship_class_icon_science",
+    "find:ship_class_icon_science",
+    "find:science"
+   ],
+   "used_by": "science ship card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_ship_construction",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "sprite:GFX_ship_class_icon_constructor",
+    "find:ship_class_icon_constructor",
+    "find:constructor"
+   ],
+   "used_by": "construction ship card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_ship_colony",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "sprite:GFX_ship_class_icon_colonizer",
+    "find:ship_class_icon_colonizer",
+    "find:colonizer"
+   ],
+   "used_by": "colony ship card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_ship_corvette",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "sprite:GFX_ship_class_icon_corvette",
+    "find:ship_class_icon_corvette",
+    "find:corvette"
+   ],
+   "used_by": "corvette ship card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_ship_destroyer",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "sprite:GFX_ship_class_icon_destroyer",
+    "find:ship_class_icon_destroyer",
+    "find:destroyer"
+   ],
+   "used_by": "destroyer ship card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_ship_cruiser",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "sprite:GFX_ship_class_icon_cruiser",
+    "find:ship_class_icon_cruiser",
+    "find:cruiser"
+   ],
+   "used_by": "cruiser ship card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_ship_battleship",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "sprite:GFX_ship_class_icon_battleship",
+    "find:ship_class_icon_battleship",
+    "find:battleship"
+   ],
+   "used_by": "battleship ship card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_ship_titan",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "sprite:GFX_ship_class_icon_titan",
+    "find:ship_class_icon_titan",
+    "find:titan"
+   ],
+   "used_by": "titan ship card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_exp_uncharted",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:event_pictures/space_dead_star",
+    "find:evt_star",
+    "find:galaxy"
+   ],
+   "used_by": "uncharted system card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_exp_signal",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:evt_unknown_ships",
+    "find:event_pictures/space_",
+    "find:signal"
+   ],
+   "used_by": "guardian signal and crisis rift cards",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_exp_anomaly",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "sprite:GFX_anomaly",
+    "find:anomaly"
+   ],
+   "used_by": "anomaly card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_exp_derelict",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:derelict"
+   ],
+   "used_by": "derelict ship card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_exp_artifact",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:precursor",
+    "find:artifact"
+   ],
+   "used_by": "precursor artifact card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_tech_corvettes",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/technologies/tech_corvettes.dds",
+    "find:technologies/tech_corvettes",
+    "find:tech_corvettes"
+   ],
+   "used_by": "tech_corvettes tech card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_tech_destroyers",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/technologies/tech_destroyers.dds",
+    "find:technologies/tech_destroyers",
+    "find:tech_destroyers"
+   ],
+   "used_by": "tech_destroyers tech card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_tech_cruisers",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/technologies/tech_cruisers.dds",
+    "find:technologies/tech_cruisers",
+    "find:tech_cruisers"
+   ],
+   "used_by": "tech_cruisers tech card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_tech_battleships",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/technologies/tech_battleships.dds",
+    "find:technologies/tech_battleships",
+    "find:tech_battleships"
+   ],
+   "used_by": "tech_battleships tech card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_tech_titans",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/technologies/tech_titans.dds",
+    "find:technologies/tech_titans",
+    "find:tech_titans"
+   ],
+   "used_by": "tech_titans tech card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_tech_colonization",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/technologies/tech_colonization_1.dds",
+    "find:technologies/tech_colonization_1",
+    "find:tech_colonization_1"
+   ],
+   "used_by": "tech_colonization_1 tech card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_tech_robotics",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/technologies/tech_robotic_workers.dds",
+    "find:technologies/tech_robotic_workers",
+    "find:tech_robotic_workers"
+   ],
+   "used_by": "tech_robotic_workers tech card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_tech_terraforming",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/technologies/tech_terrestrial_sculpting.dds",
+    "find:technologies/tech_terrestrial_sculpting",
+    "find:tech_terrestrial_sculpting"
+   ],
+   "used_by": "tech_terrestrial_sculpting tech card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_mon_amoeba",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:amoeba"
+   ],
+   "used_by": "amoeba hostile card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_mon_tiyanki",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:tiyanki"
+   ],
+   "used_by": "tiyanki hostile card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_mon_crystal",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:crystal_entity",
+    "find:crystal"
+   ],
+   "used_by": "crystal hostile card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_mon_void_cloud",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:void_cloud",
+    "find:cloud"
+   ],
+   "used_by": "void_cloud hostile card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_mon_mining_drone",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:mining_drone"
+   ],
+   "used_by": "mining_drone hostile card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_mon_pirates",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:pirate"
+   ],
+   "used_by": "pirates hostile card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_mon_marauders",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:marauder"
+   ],
+   "used_by": "marauders hostile card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_boss_ether_drake",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:ether_drake",
+    "find:dragon"
+   ],
+   "used_by": "Ether Drake card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_boss_dimensional_horror",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:dimensional_horror",
+    "find:horror"
+   ],
+   "used_by": "Dimensional Horror card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_boss_enigmatic_fortress",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:enigmatic",
+    "find:fortress"
+   ],
+   "used_by": "Enigmatic Fortress card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_crisis_scourge",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:prethoryn",
+    "find:scourge"
+   ],
+   "used_by": "Prethoryn cards",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_crisis_unbidden",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:unbidden",
+    "find:extradimensional"
+   ],
+   "used_by": "Unbidden cards",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_crisis_contingency",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:contingency",
+    "find:ai_crisis"
+   ],
+   "used_by": "Contingency cards",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_ethic_militarist",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/ethics/ethic_militarist.dds",
+    "find:ethics/ethic_militarist"
+   ],
+   "used_by": "militarist ethic button",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_ethic_spiritualist",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/ethics/ethic_spiritualist.dds",
+    "find:ethics/ethic_spiritualist"
+   ],
+   "used_by": "spiritualist ethic button",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_ethic_materialist",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/ethics/ethic_materialist.dds",
+    "find:ethics/ethic_materialist"
+   ],
+   "used_by": "materialist ethic button",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_ethic_machine",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "file:gfx/interface/icons/ethics/ethic_gestalt_consciousness.dds",
+    "find:ethics/ethic_gestalt_consciousness"
+   ],
+   "used_by": "machine ethic button",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "st_title_background",
+   "game": "stellaris",
+   "kind": "image",
+   "lookup": [
+    "find:event_pictures/space_",
+    "find:evt_"
+   ],
+   "used_by": "empire-pick screen backdrop",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stellaris install."
+  },
+  {
+   "id": "sl_card_frame",
+   "game": "stacklands",
+   "kind": "image",
+   "lookup": [
+    "tex:CardBackground",
+    "texfind:cardbackground",
+    "texfind:card_bg",
+    "texfind:card"
+   ],
+   "used_by": "every card's frame",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stacklands install (Unity assets)."
+  },
+  {
+   "id": "sl_pack_art",
+   "game": "stacklands",
+   "kind": "image",
+   "lookup": [
+    "texfind:booster",
+    "texfind:pack"
+   ],
+   "used_by": "every pack card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stacklands install (Unity assets)."
+  },
+  {
+   "id": "sl_board_bg",
+   "game": "stacklands",
+   "kind": "image",
+   "lookup": [
+    "texfind:background",
+    "texfind:table",
+    "texfind:board"
+   ],
+   "used_by": "board background",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stacklands install (Unity assets)."
+  },
+  {
+   "id": "sl_font",
+   "game": "stacklands",
+   "kind": "font",
+   "lookup": [
+    "fontfind:"
+   ],
+   "used_by": "all card and UI text",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stacklands install (Unity assets)."
+  },
+  {
+   "id": "sl_snd_pickup",
+   "game": "stacklands",
+   "kind": "sound",
+   "lookup": [
+    "audiofind:pickup",
+    "audiofind:card"
+   ],
+   "used_by": "picking up a card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stacklands install (Unity assets)."
+  },
+  {
+   "id": "sl_snd_drop",
+   "game": "stacklands",
+   "kind": "sound",
+   "lookup": [
+    "audiofind:drop",
+    "audiofind:place"
+   ],
+   "used_by": "dropping a card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stacklands install (Unity assets)."
+  },
+  {
+   "id": "sl_snd_pack",
+   "game": "stacklands",
+   "kind": "sound",
+   "lookup": [
+    "audiofind:booster",
+    "audiofind:pack"
+   ],
+   "used_by": "opening a pack",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stacklands install (Unity assets)."
+  },
+  {
+   "id": "sl_snd_sell",
+   "game": "stacklands",
+   "kind": "sound",
+   "lookup": [
+    "audiofind:coin",
+    "audiofind:sell"
+   ],
+   "used_by": "selling a card",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stacklands install (Unity assets)."
+  },
+  {
+   "id": "sl_snd_hit",
+   "game": "stacklands",
+   "kind": "sound",
+   "lookup": [
+    "audiofind:hit",
+    "audiofind:attack",
+    "audiofind:punch"
+   ],
+   "used_by": "combat hits",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stacklands install (Unity assets)."
+  },
+  {
+   "id": "sl_snd_done",
+   "game": "stacklands",
+   "kind": "sound",
+   "lookup": [
+    "audiofind:craft",
+    "audiofind:complete",
+    "audiofind:done"
+   ],
+   "used_by": "a stack finishing",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stacklands install (Unity assets)."
+  },
+  {
+   "id": "sl_snd_moon",
+   "game": "stacklands",
+   "kind": "sound",
+   "lookup": [
+    "audiofind:day",
+    "audiofind:moon",
+    "audiofind:end"
+   ],
+   "used_by": "moon end",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stacklands install (Unity assets)."
+  },
+  {
+   "id": "sl_music",
+   "game": "stacklands",
+   "kind": "music",
+   "lookup": [
+    "audiofind:music",
+    "audiofind:theme",
+    "audiofind:song"
+   ],
+   "used_by": "background music",
+   "verified": false,
+   "note": "Resolved at run time from the player's Stacklands install (Unity assets)."
+  }
+ ]
+}

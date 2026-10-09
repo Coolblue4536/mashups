@@ -1,0 +1,10 @@
+{
+  "sheet": "crises",
+  "about": "Endgame crises. One is picked at random each run. The rift opens on the home board at rules.crisis_moon and spawns minions; the boss arrives rules.boss_delay_moons later (or as soon as the rift is destroyed).",
+  "columns": ["id", "name_loc", "name", "rift_card", "minion_card", "boss_card", "spawn_every", "warning", "desc"],
+  "rows": [
+    {"id": "crisis_scourge",     "name_loc": "crisis_prethoryn",   "name": "The Prethoryn Scourge", "rift_card": "crisis_rift", "minion_card": "scourge_swarm",     "boss_card": "scourge_queen",    "spawn_every": 22, "warning": "Swarms are pouring in from beyond the galaxy!",   "desc": "Extragalactic devourers."},
+    {"id": "crisis_unbidden",    "name_loc": "crisis_unbidden",    "name": "The Unbidden",          "rift_card": "crisis_rift", "minion_card": "unbidden_warrior",  "boss_card": "unbidden_avatar",  "spawn_every": 25, "warning": "A portal to another dimension has opened!",       "desc": "Extradimensional invaders."},
+    {"id": "crisis_contingency", "name_loc": "crisis_contingency", "name": "The Contingency",       "rift_card": "crisis_rift", "minion_card": "contingency_drone", "boss_card": "contingency_core", "spawn_every": 23, "warning": "Ancient machines have woken to sterilise the galaxy!", "desc": "A machine intelligence purging organic life."}
+  ]
+}

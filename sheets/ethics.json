@@ -1,0 +1,11 @@
+{
+  "sheet": "ethics",
+  "about": "The empire pick before a run. Every run also gets the shared start cards in rules.start_cards; worker_card replaces the 3 starting Pops.",
+  "columns": ["id", "name_loc", "name", "art", "worker_card", "bonus_cards", "start_techs", "free_pack", "desc"],
+  "rows": [
+    {"id": "militarist",   "name_loc": "ethic_militarist",           "name": "Militarist",           "art": "st_ethic_militarist",   "worker_card": "pop",   "bonus_cards": [{"card": "corvette", "n": 1}, {"card": "shipyard", "n": 1}, {"card": "alloys", "n": 2}],         "start_techs": ["tech_corvettes"], "free_pack": "pack_military",  "desc": "Start with a Shipyard, a Corvette and Corvette tech. Free Military pack."},
+    {"id": "spiritualist", "name_loc": "ethic_spiritualist",         "name": "Spiritualist",         "art": "st_ethic_spiritualist", "worker_card": "pop",   "bonus_cards": [{"card": "priest", "n": 1}, {"card": "temple", "n": 1}, {"card": "unity", "n": 2}],            "start_techs": [],                 "free_pack": "pack_society",   "desc": "Start with a Temple and a Priest. Free Society pack."},
+    {"id": "materialist",  "name_loc": "ethic_materialist",          "name": "Materialist",          "art": "st_ethic_materialist",  "worker_card": "pop",   "bonus_cards": [{"card": "scientist", "n": 1}, {"card": "research_lab", "n": 1}, {"card": "research", "n": 2}], "start_techs": [],                 "free_pack": "pack_research",  "desc": "Start with a Research Lab and a Scientist. Free Research pack."},
+    {"id": "machine",      "name_loc": "ethic_gestalt_consciousness","name": "Machine Intelligence", "art": "st_ethic_machine",      "worker_card": "drone", "bonus_cards": [{"card": "robot_assembly", "n": 1}, {"card": "energy", "n": 4}],                                    "start_techs": ["tech_robotics"],  "free_pack": "pack_industry",  "desc": "Drones instead of Pops: no Food, but 1 Energy each per moon. Robot Assembly Plant. Free Industry pack."}
+  ]
+}
