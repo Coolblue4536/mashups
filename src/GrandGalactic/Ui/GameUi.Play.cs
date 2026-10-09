@@ -5,7 +5,10 @@ namespace GrandGalactic;
 
 public sealed partial class GameUi
 {
-    Board CurBoard => _sim!.Boards[Math.Clamp(_board, 0, _sim.Boards.Count - 1)];
+    Board Table => _sim!.Table;
+
+    /// <summary>Smoothly scroll the camera to a star system.</summary>
+    void GoTo(StarSystem z) => _camGoal = z.Center;
     Rectangle BoardView => new(0, TopBar, Raylib.GetScreenWidth() - RightPanel, Raylib.GetScreenHeight() - TopBar);
 
     void Update(float dt)
@@ -19,25 +22,43 @@ public sealed partial class GameUi
         if (Raylib.IsKeyPressed(KeyboardKey.One)) _speed = 1;
         if (Raylib.IsKeyPressed(KeyboardKey.Two)) _speed = 2;
         if (Raylib.IsKeyPressed(KeyboardKey.Three)) _speed = 4;
-        for (int i = 0; i < Math.Min(9, sim.Boards.Count); i++)
-            if (Raylib.IsKeyPressed(KeyboardKey.F1 + i)) _board = i;
+        for (int i = 0; i < Math.Min(9, sim.Systems.Count); i++)
+            if (Raylib.IsKeyPressed(KeyboardKey.F1 + i)) GoTo(sim.Systems[i]);
+        if (Raylib.IsKeyPressed(KeyboardKey.Z)) _camZoomGoal = _cam.Zoom > 0.3f ? 0.2f : 0.62f; // whole empire / close up
+        foreach (var z in sim.NewSystems) { GoTo(z); Toast($"{z.Name} is now part of your table. Drag cards there freely."); }
+        sim.NewSystems.Clear();
 
         // Camera: right or middle drag pans, wheel zooms, WASD pans.
         var view = BoardView;
         _cam.Offset = new Vector2(view.X + view.Width / 2, view.Y + view.Height / 2);
         if (Raylib.IsMouseButtonDown(MouseButton.Right) || Raylib.IsMouseButtonDown(MouseButton.Middle))
+        {
             _cam.Target -= Raylib.GetMouseDelta() / _cam.Zoom;
+            _camGoal = null;
+        }
+        if (_camGoal is { } goal)
+        {
+            _cam.Target = Vector2.Lerp(_cam.Target, goal, Math.Min(1, dt * 6));
+            if (Vector2.Distance(_cam.Target, goal) < 4) _camGoal = null;
+        }
+        if (_camZoomGoal is { } zg)
+        {
+            _cam.Zoom += (zg - _cam.Zoom) * Math.Min(1, dt * 6);
+            if (Math.Abs(_cam.Zoom - zg) < 0.005f) _camZoomGoal = null;
+        }
         var pan = new Vector2((Raylib.IsKeyDown(KeyboardKey.D) ? 1 : 0) - (Raylib.IsKeyDown(KeyboardKey.A) ? 1 : 0),
                               (Raylib.IsKeyDown(KeyboardKey.S) ? 1 : 0) - (Raylib.IsKeyDown(KeyboardKey.W) ? 1 : 0));
         _cam.Target += pan * 900 * dt / _cam.Zoom;
+        if (pan != Vector2.Zero) _camGoal = null;
         float wheel = Raylib.GetMouseWheelMove();
         if (wheel != 0 && Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), view))
         {
             var before = Raylib.GetScreenToWorld2D(Raylib.GetMousePosition(), _cam);
-            _cam.Zoom = Math.Clamp(_cam.Zoom * (1 + wheel * 0.1f), 0.3f, 1.6f);
+            _cam.Zoom = Math.Clamp(_cam.Zoom * (1 + wheel * 0.1f), 0.12f, 1.6f);
+            _camZoomGoal = null;
             _cam.Target += before - Raylib.GetScreenToWorld2D(Raylib.GetMousePosition(), _cam);
         }
-        _cam.Target = Vector2.Clamp(_cam.Target, Vector2.Zero, new Vector2(Sim.BoardW, Sim.BoardH));
+        _cam.Target = Vector2.Clamp(_cam.Target, sim.BoundsMin, sim.BoundsMax);
 
         if (_screen == Screen.Play) HandleMouse();
         if (!_paused && _screen == Screen.Play) sim.Update(dt * _speed);
@@ -56,7 +77,7 @@ public sealed partial class GameUi
     /// <summary>Topmost card under a world point: (stack, index in stack).</summary>
     (Stack s, int i)? Pick(Vector2 p, Stack? except = null)
     {
-        var b = CurBoard;
+        var b = Table;
         for (int k = b.Stacks.Count - 1; k >= 0; k--)
         {
             var s = b.Stacks[k];
@@ -70,7 +91,7 @@ public sealed partial class GameUi
         return null;
     }
 
-    Battle? PickBattle(Vector2 p) => CurBoard.Battles.FirstOrDefault(bt => Raylib.CheckCollisionPointRec(p, BattleRect(bt)));
+    Battle? PickBattle(Vector2 p) => Table.Battles.FirstOrDefault(bt => Raylib.CheckCollisionPointRec(p, BattleRect(bt)));
 
     static Rectangle BattleRect(Battle bt)
     {
@@ -86,16 +107,16 @@ public sealed partial class GameUi
 
         if (_drag == null && Raylib.IsMouseButtonPressed(MouseButton.Left))
         {
-            // Board tabs.
-            for (int i = 0; i < sim.Boards.Count; i++)
-                if (Raylib.CheckCollisionPointRec(mouse, TabRect(i))) { _board = i; return; }
+            // System names in the top bar scroll the camera there.
+            for (int i = 0; i < sim.Systems.Count; i++)
+                if (Raylib.CheckCollisionPointRec(mouse, TabRect(i))) { GoTo(sim.Systems[i]); return; }
             if (overBoard && Pick(MouseWorld) is { } hit && !hit.s.Cards[hit.i].Def.IsHostile
                 && Defs.Category[hit.s.Cards[hit.i].Def.Category].Draggable)
             {
                 _drag = sim.Split(hit.s, hit.i);
                 _drag.Dragging = true;
                 _dragOffset = MouseWorld - _drag.Pos;
-                var b = CurBoard;
+                var b = Table;
                 b.Stacks.Remove(_drag);
                 b.Stacks.Add(_drag); // draw on top
                 sim.Events.Add(SimEvent.Pickup);
@@ -136,14 +157,6 @@ public sealed partial class GameUi
             Bounce(d);
             return;
         }
-        for (int i = 0; i < sim.Boards.Count; i++)
-            if (Raylib.CheckCollisionPointRec(mouse, TabRect(i)))
-            {
-                if (sim.MoveToBoard(d, sim.Boards[i])) { Toast($"Moved to {sim.Boards[i].Name}."); _board = i; }
-                else Toast(i == _board ? "Already here." : "Only stacks with a ship can travel between systems.");
-                Bounce(d);
-                return;
-            }
         var w = MouseWorld;
         if (PickBattle(w) is { } bt) { sim.JoinBattleOf(d, bt); return; }
         if (Pick(w, d) is { } hit)
@@ -160,7 +173,7 @@ public sealed partial class GameUi
     {
         if (!d.Cards.Any()) return;
         d.Pos = Raylib.GetScreenToWorld2D(new Vector2(BoardView.Width - 320, BoardView.Y + BoardView.Height / 2), _cam);
-        d.Pos = Vector2.Clamp(d.Pos, Vector2.Zero, new Vector2(Sim.BoardW - Sim.CardW, Sim.BoardH - Sim.CardH));
+        d.Pos = _sim!.Clamp(d.Pos);
     }
 
     Rectangle TabRect(int i) => new(8 + i * 112, 6, 106, 46);
@@ -183,23 +196,29 @@ public sealed partial class GameUi
     {
         var sim = _sim!;
         var view = BoardView;
-        var b = CurBoard;
+        var b = Table;
 
-        // Board background: the Stacklands table, or plain space.
+        // The table: each star system is an area, drawn on the Stacklands board texture (or plain space).
         Raylib.BeginScissorMode((int)view.X, (int)view.Y, (int)view.Width, (int)view.Height);
         Raylib.BeginMode2D(_cam);
-        if (Tex("sl_board_bg") is { } bg)
-            Raylib.DrawTexturePro(bg, new Rectangle(0, 0, bg.Width, bg.Height), new Rectangle(0, 0, Sim.BoardW, Sim.BoardH), Vector2.Zero, 0, new Color(150, 160, 200, 255));
-        else
+        var bg = Tex("sl_board_bg");
+        var stars = new Random(7);
+        for (int i = 0; i < 500; i++)
+            Raylib.DrawCircle((int)(sim.BoundsMin.X - 600 + stars.Next((int)(sim.BoundsMax.X - sim.BoundsMin.X + 1200))),
+                (int)(sim.BoundsMin.Y - 600 + stars.Next((int)(sim.BoundsMax.Y - sim.BoundsMin.Y + 1200))), stars.Next(1, 4), new Color(255, 255, 255, stars.Next(30, 140)));
+        foreach (var z in sim.Systems)
         {
-            Raylib.DrawRectangle(0, 0, (int)Sim.BoardW, (int)Sim.BoardH, new Color(16, 20, 40, 255));
-            var rng = new Random(b.Index * 7919 + 3);
-            for (int i = 0; i < 260; i++) Raylib.DrawCircle(rng.Next((int)Sim.BoardW), rng.Next((int)Sim.BoardH), rng.Next(1, 3), new Color(255, 255, 255, rng.Next(40, 160)));
+            var r = new Rectangle(z.Origin.X, z.Origin.Y, z.Size.X, z.Size.Y);
+            if (bg is { } t) Raylib.DrawTexturePro(t, new Rectangle(0, 0, t.Width, t.Height), r, Vector2.Zero, 0, new Color(150, 160, 200, 255));
+            else Raylib.DrawRectangleRec(r, new Color(18, 24, 48, 255));
+            bool fight = b.Battles.Any(bt => z.Contains(bt.Pos));
+            Raylib.DrawRectangleLinesEx(r, 6, fight ? new Color(255, 90, 90, 200) : z.Index == 0 ? new Color(150, 180, 255, 170) : new Color(120, 140, 220, 110));
+            // Labels keep a readable size on screen however far you zoom out.
+            float big = Math.Max(52, 26 / _cam.Zoom), small = Math.Max(28, 15 / _cam.Zoom);
+            Text(z.Name.ToUpperInvariant(), z.Origin.X + 24, z.Origin.Y + 16, big, new Color(255, 255, 255, 70));
+            var kind = z.Index == 0 ? "Capital system" : z.Kind.Length > 0 ? z.Kind : "Guardian system";
+            Text(kind, z.Origin.X + 28, z.Origin.Y + 22 + big, small, new Color(255, 255, 255, 55));
         }
-        Raylib.DrawRectangleLinesEx(new Rectangle(0, 0, Sim.BoardW, Sim.BoardH), 6, new Color(120, 140, 220, 120));
-        Text(b.Name.ToUpperInvariant(), 30, 20, 56, new Color(255, 255, 255, 50));
-        if (b.Kind.Length > 0) Text(b.Kind, 34, 82, 30, new Color(255, 255, 255, 40));
-
         foreach (var s in b.Stacks) if (!s.Dragging) DrawStack(s);
         foreach (var bt in b.Battles) DrawBattle(bt);
         foreach (var s in b.Stacks) if (s.Dragging) DrawStack(s);
@@ -277,16 +296,18 @@ public sealed partial class GameUi
         var sim = _sim!;
         int sw = Raylib.GetScreenWidth();
         Raylib.DrawRectangle(0, 0, sw, TopBar, new Color(14, 16, 34, 255));
-        for (int i = 0; i < sim.Boards.Count; i++)
+        for (int i = 0; i < sim.Systems.Count; i++)
         {
             var r = TabRect(i);
-            bool fight = sim.Boards[i].Battles.Count > 0;
-            Raylib.DrawRectangleRounded(r, 0.3f, 6, i == _board ? new Color(70, 100, 190, 255) : fight ? new Color(130, 40, 50, 255) : new Color(32, 38, 66, 255));
-            var label = sim.Boards[i].Name;
+            var z = sim.Systems[i];
+            bool fight = sim.Table.Battles.Any(bt => z.Contains(bt.Pos));
+            bool here = z.Contains(_cam.Target);
+            Raylib.DrawRectangleRounded(r, 0.3f, 6, fight ? new Color(130, 40, 50, 255) : here ? new Color(70, 100, 190, 255) : new Color(32, 38, 66, 255));
+            var label = z.Name;
             float size = 17;
             while (size > 11 && Measure(label, size).X > r.Width - 12) size -= 1;
             Text(label, r.X + 6, r.Y + 5, size, Color.RayWhite);
-            var kind = i == 0 ? "Capital" : sim.Boards[i].Kind.Length > 0 ? sim.Boards[i].Kind : "Guardian";
+            var kind = i == 0 ? "Capital" : z.Kind.Length > 0 ? z.Kind : "Guardian";
             float ks = 12;
             while (ks > 9 && Measure(kind, ks).X > r.Width - 12) ks -= 1;
             Text(kind, r.X + 6, r.Y + 27, ks, new Color(200, 210, 255, 200));
@@ -323,7 +344,7 @@ public sealed partial class GameUi
         Text(Defs.Rules.SellSlotName, m.X + 14, m.Y + 12, 26, Color.RayWhite);
         Wrapped("Drop cards here to sell them for Energy Credits", m.X + 14, m.Y + 46, m.Width - 28, 16, Color.LightGray);
         Text("Tab recipes - Space pause", sw - RightPanel + 12, m.Y - 44, 14, Color.Gray);
-        Text("1-3 speed - F1-F9 systems", sw - RightPanel + 12, m.Y - 24, 14, Color.Gray);
+        Text("1-3 speed - Z zoom out/in", sw - RightPanel + 12, m.Y - 24, 14, Color.Gray);
     }
 
     void DrawTooltip()
@@ -358,12 +379,15 @@ public sealed partial class GameUi
     void DrawToasts()
     {
         float y = Raylib.GetScreenHeight() - 50;
+        float maxW = BoardView.Width - 60;
         foreach (var (text, t) in Enumerable.Reverse(_toasts).Take(5))
         {
             byte a = (byte)(255 * Math.Clamp(7 - (_clock - t), 0, 1));
-            var sz = Measure(text, 20);
-            Raylib.DrawRectangleRounded(new Rectangle(16, y - 6, sz.X + 24, 34), 0.3f, 6, new Color((byte)10, (byte)12, (byte)26, (byte)(a * 0.85f)));
-            Text(text, 28, y, 20, new Color((byte)255, (byte)255, (byte)255, a));
+            float size = 20;
+            while (size > 13 && Measure(text, size).X > maxW) size -= 1;
+            var sz = Measure(text, size);
+            Raylib.DrawRectangleRounded(new Rectangle(16, y - 6, Math.Min(sz.X, maxW) + 24, 34), 0.3f, 6, new Color((byte)10, (byte)12, (byte)26, (byte)(a * 0.85f)));
+            Text(text, 28, y + (20 - size) / 2, size, new Color((byte)255, (byte)255, (byte)255, a));
             y -= 42;
         }
     }
@@ -395,7 +419,7 @@ public sealed partial class GameUi
         Raylib.DrawRectangle(0, 0, sw, sh, new Color(0, 0, 0, 170));
         var title = sim.State == RunState.Won ? "THE GALAXY IS SAVED" : "YOUR EMPIRE HAS FALLEN";
         Text(title, sw / 2f - Measure(title, 56).X / 2, sh / 2f - 120, 56, sim.State == RunState.Won ? Color.Gold : new Color(255, 110, 100, 255));
-        var why = $"{sim.EndReason}  (Moon {sim.Moon}, {sim.Boards.Count} systems)";
+        var why = $"{sim.EndReason}  (Moon {sim.Moon}, {sim.Systems.Count} systems)";
         Text(why, sw / 2f - Measure(why, 24).X / 2, sh / 2f - 40, 24, Color.RayWhite);
         if (Button(new Rectangle(sw / 2f - 130, sh / 2f + 30, 260, 60), "New run", false, 28)) { _sim = null; _screen = Screen.Empire; }
     }

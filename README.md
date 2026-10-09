@@ -27,11 +27,14 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
   later Titans.
 - **Research.** Stack Research on a Scientist to unlock Corvettes, Destroyers, Cruisers, Battleships,
   Titans, Colonization, Robotic Workers and Terrestrial Sculpting.
-- **Explore.** A Science Ship on an Uncharted System opens a new, randomly rolled star-system board.
+- **One table for your whole empire.** Every star system you find is added as a new area of the same
+  table, around your capital. Drag cards straight from one system to another. Zoom out (Z) to see
+  everything at once.
+- **Explore.** A Science Ship on an Uncharted System adds a new, randomly rolled star system to the table.
   It might be a yellow star, red dwarf, blue giant, binary pair, asteroid belt, nebula, black hole,
   neutron star or pulsar, with anywhere from 0 to 5 planets, plus anomalies, derelicts, space amoebas,
   Tiyanki, crystal entities, void clouds, mining drones or pirates. Each system gets a random name.
-  Ships carry stacks between boards.
+  Monsters and raiders fight in the system where they are.
 - **Study the stars.** A Science Ship parked on a star collects from it: Research from most stars, Dark
   Matter from black holes, Rare Crystals from neutron stars and Exotic Gases from nebulae.
 - **Act 1, Expansion (moons 1–6).** Grow, feed your Pops each moon, and colonise Desert, Arid, Savanna,
@@ -57,12 +60,11 @@ It's single-player only.
 | Fight | Drop ships onto a hostile card or a battle |
 | Buy a pack | Drop Energy Credits onto a pack on the right |
 | Sell | Drop cards onto the Market |
-| Travel | Drop a stack that contains a ship onto a system tab |
 | Pan | Right or middle drag, or WASD |
-| Zoom | Mouse wheel |
+| Zoom | Mouse wheel; Z jumps between your whole empire and close up |
+| Go to a system | Click its name in the top bar, or F1–F9 |
 | Pause / game speed | Space / 1, 2, 3 |
 | Recipe codex | Tab |
-| Switch system | F1–F9 or click the tabs |
 
 ## Requirements
 

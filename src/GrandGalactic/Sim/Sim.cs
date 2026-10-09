@@ -2,23 +2,28 @@ using System.Numerics;
 
 namespace GrandGalactic;
 
-/// <summary>The whole run: boards of card stacks, recipes, moons, combat, packs and the three acts. No rendering.</summary>
+/// <summary>The whole run: one table of card stacks split into star-system areas, recipes, moons, combat, packs and the
+/// three acts. No rendering.</summary>
 public sealed class Sim
 {
     public const float CardW = 120, CardH = 160, StackStep = 30;
-    public const float BoardW = 2600, BoardH = 1600;
+    /// <summary>Size of one star-system area, and the gap between neighbouring areas.</summary>
+    public const float SysW = 1500, SysH = 1000, SysGap = 140;
 
     public readonly Random Rng;
     public readonly EthicDef Ethic;
     public readonly DifficultyDef Diff;
     public readonly int MoonSeconds;
     public readonly CrisisDef Crisis;
-    public readonly List<Board> Boards = new();
+    public readonly Board Table = new();
+    public readonly List<StarSystem> Systems = new();
     public readonly HashSet<string> Techs = new();
     public readonly HashSet<string> Discovered = new();
     public readonly List<string> Messages = new();
     public readonly List<SimEvent> Events = new();
     public readonly Func<string, string> Name;
+    /// <summary>Systems added since the UI last looked (it scrolls to show them).</summary>
+    public readonly List<StarSystem> NewSystems = new();
 
     public int Moon = 1;
     public float MoonTime;
@@ -30,7 +35,9 @@ public sealed class Sim
     int _uid, _stackId, _guardianOpened;
     readonly List<string> _unusedNames = new(Defs.Rules.SystemNames);
 
-    public Board Home => Boards[0];
+    public StarSystem Home => Systems[0];
+    public Vector2 BoundsMin { get; private set; }
+    public Vector2 BoundsMax { get; private set; }
 
     public Sim(EthicDef ethic, int seed, Func<string, string>? name = null, DifficultyDef? difficulty = null, MoonLengthDef? moon = null)
     {
@@ -42,9 +49,9 @@ public sealed class Sim
         Crisis = Defs.Crises[Rng.Next(Defs.Crises.Length)];
         Name = name ?? (id => Defs.Card.TryGetValue(id, out var d) ? d.Name : id);
         var homeSys = Defs.Systems.First(s => s.Kind == "home");
-        var home = AddBoard(homeSys);
+        AddSystem(homeSys);
 
-        var center = new Vector2(BoardW / 2, BoardH / 2);
+        var center = Home.Center;
         var start = new List<string>();
         foreach (var a in Defs.Rules.StartCards) for (int i = 0; i < a.N; i++) start.Add(a.Card);
         for (int i = 0; i < Defs.Rules.StartWorkers; i++) start.Add(ethic.WorkerCard);
@@ -54,18 +61,22 @@ public sealed class Sim
         foreach (var id in start)
         {
             var pos = center + new Vector2(-560 + (k % 8) * 150, -260 + (k / 8) * 200);
-            var c = Spawn(home, id, pos, jitter: false);
+            var c = Spawn(id, pos, jitter: false);
             if (id == "homeworld") c.Claimed = true;
             k++;
         }
         foreach (var t in ethic.StartTechs) Techs.Add(t);
-        OpenPack(Defs.Pack[ethic.FreePack], home, center + new Vector2(0, 380), free: true);
+        OpenPack(Defs.Pack[ethic.FreePack], center + new Vector2(0, 340), free: true);
     }
 
     // ---------- cards and stacks ----------
 
-    /// <summary>Open a board for a system row. Random rows roll their planets and extras and get a random name.</summary>
-    public Board AddBoard(SystemDef sys)
+    /// <summary>Spiral of area slots around the capital: right, below, left, above, then the corners and further out.</summary>
+    static readonly (int x, int y)[] Slots =
+        { (0, 0), (1, 0), (0, 1), (-1, 0), (0, -1), (1, 1), (-1, 1), (-1, -1), (1, -1), (2, 0), (-2, 0), (0, 2), (0, -2), (2, 1), (-2, 1), (2, -1) };
+
+    /// <summary>Add a star system as a new area of the table. Random rows roll their planets and extras and get a random name.</summary>
+    public StarSystem AddSystem(SystemDef sys)
     {
         string name = sys.Name;
         if (sys.Kind == "random")
@@ -74,12 +85,16 @@ public sealed class Sim
             name = _unusedNames[pick];
             _unusedNames.RemoveAt(pick);
         }
-        var b = new Board { Index = Boards.Count, Sys = sys, Name = name, Kind = sys.Kind == "random" ? sys.Name : "" };
-        Boards.Add(b);
+        var slot = Slots[Math.Min(Systems.Count, Slots.Length - 1)];
+        var origin = new Vector2(slot.x * (SysW + SysGap), slot.y * (SysH + SysGap));
+        var z = new StarSystem { Index = Systems.Count, Sys = sys, Name = name, Kind = sys.Kind == "random" ? sys.Name : "", Origin = origin, Size = new Vector2(SysW, SysH) };
+        Systems.Add(z);
+        BoundsMin = Vector2.Min(Systems.Count == 1 ? origin : BoundsMin, origin);
+        BoundsMax = Vector2.Max(Systems.Count == 1 ? origin + z.Size : BoundsMax, origin + z.Size);
 
         // Stars across the top, everything else in a loose grid below.
         for (int i = 0; i < sys.StarCards.Length; i++)
-            Spawn(b, sys.StarCards[i], new Vector2(BoardW / 2 - 80 + (i - (sys.StarCards.Length - 1) / 2f) * 260, 130), jitter: false);
+            Spawn(sys.StarCards[i], origin + new Vector2(SysW / 2 - CardW / 2 + (i - (sys.StarCards.Length - 1) / 2f) * 240, 70), jitter: false);
         var cards = new List<string>();
         foreach (var a in sys.FixedCards) for (int i = 0; i < a.N; i++) cards.Add(a.Card);
         if (sys.PlanetPool.Length > 0)
@@ -91,9 +106,16 @@ public sealed class Sim
             if (Rng.NextDouble() < e.Chance)
                 for (int i = 0; i < e.N; i++) cards.Add(e.Card);
         for (int k = 0; k < cards.Count; k++)
-            Spawn(b, cards[k], new Vector2(BoardW / 2 - 450 + (k % 5) * 220, BoardH / 2 - 380 + (k / 5) * 260), jitter: true);
-        return b;
+            Spawn(cards[k], origin + new Vector2(170 + (k % 6) * 200, 300 + (k / 6) * 240), jitter: true);
+        return z;
     }
+
+    /// <summary>The star system whose area holds a table position (null in the gaps between systems).</summary>
+    public StarSystem? SystemAt(Vector2 p) => Systems.FirstOrDefault(z => z.Contains(p));
+
+    public static Vector2 CardCenter(Stack s) => s.Pos + new Vector2(CardW / 2, CardH / 2);
+
+    public IEnumerable<Stack> StacksIn(StarSystem z) => Table.Stacks.Where(s => z.Contains(CardCenter(s)));
 
     /// <summary>Roll a random system type by weight (what a survey finds).</summary>
     public SystemDef RollSystemType() => Roll(Defs.Systems.Where(s => s.Kind == "random").Select(s => (s, s.Weight)));
@@ -109,22 +131,22 @@ public sealed class Sim
         return c;
     }
 
-    public Card Spawn(Board b, string id, Vector2 pos, bool jitter = true)
+    public Card Spawn(string id, Vector2 pos, bool jitter = true)
     {
         var c = NewCard(id);
-        var s = NewStack(b, pos + (jitter ? new Vector2(Rng.Next(-40, 41), Rng.Next(-40, 41)) : Vector2.Zero));
+        var s = NewStack(pos + (jitter ? new Vector2(Rng.Next(-40, 41), Rng.Next(-40, 41)) : Vector2.Zero));
         Add(s, c);
         return c;
     }
 
-    public Stack NewStack(Board b, Vector2 pos)
+    public Stack NewStack(Vector2 pos)
     {
         var s = new Stack { Id = ++_stackId, Pos = Clamp(pos) };
-        b.Stacks.Add(s);
+        Table.Stacks.Add(s);
         return s;
     }
 
-    static Vector2 Clamp(Vector2 p) => new(Math.Clamp(p.X, 0, BoardW - CardW), Math.Clamp(p.Y, 0, BoardH - CardH));
+    public Vector2 Clamp(Vector2 p) => new(Math.Clamp(p.X, BoundsMin.X, BoundsMax.X - CardW), Math.Clamp(p.Y, BoundsMin.Y, BoundsMax.Y - CardH));
 
     void Add(Stack s, Card c)
     {
@@ -142,7 +164,7 @@ public sealed class Sim
             s.Cards.Remove(c);
             s.Dirty = true;
             c.Stack = null;
-            if (s.Cards.Count == 0) BoardOf(s)?.Stacks.Remove(s);
+            if (s.Cards.Count == 0) Table.Stacks.Remove(s);
         }
         if (c.Battle != null)
         {
@@ -152,16 +174,13 @@ public sealed class Sim
         }
     }
 
-    public Board? BoardOf(Stack s) => Boards.FirstOrDefault(b => b.Stacks.Contains(s));
-
-    public IEnumerable<Card> AllCards => Boards.SelectMany(b => b.AllCards);
+    public IEnumerable<Card> AllCards => Table.AllCards;
 
     /// <summary>Lift card at index and everything above it into a new stack (Stacklands-style pick-up).</summary>
     public Stack Split(Stack s, int index)
     {
         if (index == 0) return s;
-        var b = BoardOf(s)!;
-        var ns = NewStack(b, s.Pos + new Vector2(0, index * StackStep));
+        var ns = NewStack(s.Pos + new Vector2(0, index * StackStep));
         var moving = s.Cards.Skip(index).ToList();
         foreach (var c in moving) { s.Cards.Remove(c); Add(ns, c); }
         s.Dirty = true;
@@ -175,9 +194,8 @@ public sealed class Sim
     public bool StackOnto(Stack moving, Stack target)
     {
         if (!CanStack(moving, target)) return false;
-        var b = BoardOf(moving)!;
         foreach (var c in moving.Cards.ToList()) { moving.Cards.Remove(c); Add(target, c); }
-        b.Stacks.Remove(moving);
+        Table.Stacks.Remove(moving);
         Events.Add(SimEvent.Drop);
         return true;
     }
@@ -230,9 +248,9 @@ public sealed class Sim
         };
     }
 
-    void TickRecipes(Board b, float dt)
+    void TickRecipes(float dt)
     {
-        foreach (var s in b.Stacks.ToList())
+        foreach (var s in Table.Stacks.ToList())
         {
             if (s.Dirty)
             {
@@ -249,11 +267,11 @@ public sealed class Sim
             }
             if (s.Active == null || s.Dragging) continue;
             s.Progress += dt;
-            if (s.Progress >= s.Duration) Complete(b, s);
+            if (s.Progress >= s.Duration) Complete(s);
         }
     }
 
-    void Complete(Board b, Stack s)
+    void Complete(Stack s)
     {
         var m = FindMatch(s);
         s.Progress = 0;
@@ -273,7 +291,7 @@ public sealed class Sim
                 for (int i = 0; i < g.N; i++)
                 {
                     bool newTech = Defs.Card[id].Category == "tech" && !Techs.Contains(id);
-                    Spawn(b, id, outPos + new Vector2(0, i * 12));
+                    Spawn(id, outPos + new Vector2(0, i * 12));
                     if (newTech) Messages.Add($"Researched {Name(id)}!");
                 }
             }
@@ -284,29 +302,30 @@ public sealed class Sim
                 st.Claimed = true;
                 Messages.Add($"{Name(st.Def.Id)} is now part of your empire.");
                 break;
-            case "open_board:random": OpenBoard("random", b, outPos); break;
-            case "open_board:guardian": OpenBoard("guardian", b, outPos); break;
+            case "open_board:random": OpenSystem("random", outPos); break;
+            case "open_board:guardian": OpenSystem("guardian", outPos); break;
         }
         Discovered.Add(r.Id);
         Events.Add(SimEvent.Done);
     }
 
-    void OpenBoard(string kind, Board from, Vector2 pos)
+    void OpenSystem(string kind, Vector2 pos)
     {
         SystemDef? sys = kind == "guardian"
             ? Defs.Systems.Where(x => x.Kind == "guardian").Skip(_guardianOpened).FirstOrDefault()
             : RollSystemType();
-        // Guardian boards always fit; random ones stop at the cap (leaving room for unopened guardians).
+        // Guardian systems always fit; random ones stop at the cap (leaving room for unopened guardians).
         int reserved = kind == "guardian" ? 0 : Defs.Systems.Count(x => x.Kind == "guardian") - _guardianOpened;
-        if (sys == null || Boards.Count + reserved >= Defs.Rules.MaxSystems)
+        if (sys == null || Systems.Count + reserved >= Defs.Rules.MaxSystems)
         {
             Messages.Add("The survey found only empty space - and a little salvage.");
-            for (int i = 0; i < 4; i++) Spawn(from, "energy", pos);
+            for (int i = 0; i < 4; i++) Spawn("energy", pos);
             return;
         }
         if (kind == "guardian") _guardianOpened++;
-        var b = AddBoard(sys);
-        Messages.Add(kind == "guardian" ? $"Found {b.Name}!" : $"Surveyed {b.Name}: {b.Kind.ToLowerInvariant()}, {b.Stacks.Count(s => s.Root.Def.IsPlanet)} planets.");
+        var z = AddSystem(sys);
+        Messages.Add(kind == "guardian" ? $"Found {z.Name}!" : $"Surveyed {z.Name}: {z.Kind.ToLowerInvariant()}, {StacksIn(z).Count(s => s.Root.Def.IsPlanet)} planets.");
+        NewSystems.Add(z);
     }
 
     T Roll<T>(IEnumerable<(T item, int weight)> table)
@@ -317,7 +336,7 @@ public sealed class Sim
         return list[^1].item;
     }
 
-    // ---------- packs, market, travel ----------
+    // ---------- packs and market ----------
 
     public IEnumerable<PackDef> AvailablePacks => Defs.Packs.Where(p => p.UnlockAct <= Act);
     public int PackCost(PackDef p) => Math.Max(1, (int)MathF.Round(p.Cost * Diff.PackCostMult));
@@ -326,23 +345,21 @@ public sealed class Sim
     public bool BuyPack(Stack moving, PackDef pack, Vector2 spawnAt)
     {
         if (pack.UnlockAct > Act || moving.Cards.Any(c => c.Def.Id != "energy") || moving.Cards.Count < PackCost(pack)) return false;
-        var b = BoardOf(moving)!;
         foreach (var c in moving.Cards.Take(PackCost(pack)).ToList()) Remove(c);
-        OpenPack(pack, b, spawnAt, free: false);
+        OpenPack(pack, spawnAt, free: false);
         return true;
     }
 
-    void OpenPack(PackDef pack, Board b, Vector2 at, bool free)
+    void OpenPack(PackDef pack, Vector2 at, bool free)
     {
         for (int i = 0; i < pack.Draws; i++)
-            Spawn(b, Roll(pack.Contents.Select(e => (e.Card, e.Weight))), at + new Vector2((i - pack.Draws / 2f) * (CardW + 20), 0));
+            Spawn(Roll(pack.Contents.Select(e => (e.Card, e.Weight))), at + new Vector2((i - pack.Draws / 2f) * (CardW + 20), 0));
         Events.Add(SimEvent.PackOpen);
         if (free) Messages.Add($"Your {Ethic.Name} start: a free {pack.Name} pack.");
     }
 
     public int Sell(Stack moving)
     {
-        var b = BoardOf(moving)!;
         var pos = moving.Pos;
         int total = 0;
         foreach (var c in moving.Cards.ToList())
@@ -351,22 +368,9 @@ public sealed class Sim
             total += c.Def.Value;
             Remove(c);
         }
-        for (int i = 0; i < total; i++) Spawn(b, "energy", pos + new Vector2(0, -CardH - 20));
+        for (int i = 0; i < total; i++) Spawn("energy", pos + new Vector2(0, -CardH - 20));
         if (total > 0) Events.Add(SimEvent.Sell);
         return total;
-    }
-
-    public static bool CanTravel(Stack s) => s.Cards.Any(c => c.Def.HasTag("ship"));
-
-    public bool MoveToBoard(Stack moving, Board to)
-    {
-        var from = BoardOf(moving)!;
-        if (from == to || !CanTravel(moving)) return false;
-        from.Stacks.Remove(moving);
-        moving.Pos = Clamp(new Vector2(BoardW / 2 + Rng.Next(-200, 200), BoardH / 2 + 300));
-        to.Stacks.Add(moving);
-        moving.Dirty = true;
-        return true;
     }
 
     // ---------- combat ----------
@@ -375,28 +379,28 @@ public sealed class Sim
 
     public void Attack(Stack moving, Card hostile)
     {
-        var b = BoardOf(moving) ?? Boards.First(x => x.Battles.Any(bt => bt.Hostiles.Contains(hostile)));
         var fighters = moving.Cards.Where(Attackable).ToList();
         if (fighters.Count == 0) return;
         foreach (var c in fighters) Remove(c);
-        JoinBattle(b, fighters, hostile);
+        JoinBattle(fighters, hostile);
     }
 
     public void JoinBattleOf(Stack moving, Battle battle) => Attack(moving, battle.Hostiles.First());
 
-    void JoinBattle(Board b, List<Card> players, Card hostile)
+    void JoinBattle(List<Card> players, Card hostile)
     {
         var battle = hostile.Battle;
         if (battle == null)
         {
-            var pos = hostile.Stack?.Pos ?? new Vector2(BoardW / 2, BoardH / 2);
+            var pos = hostile.Stack?.Pos ?? Home.Center;
             Remove(hostile);
-            battle = new Battle { Board = b, Pos = pos };
+            battle = new Battle { Pos = pos };
             battle.Hostiles.Add(hostile);
             hostile.Battle = battle;
-            b.Battles.Add(battle);
-            // Starbases and idle warships on this board rally to the fight.
-            foreach (var s in b.Stacks.ToList())
+            Table.Battles.Add(battle);
+            // Starbases and idle warships in the same star system rally to the fight.
+            var here = SystemAt(pos + new Vector2(CardW / 2, CardH / 2));
+            foreach (var s in Table.Stacks.Where(s => here != null && here.Contains(CardCenter(s))).ToList())
                 foreach (var c in s.Cards.ToList())
                     if (c.Def.Id == "starbase" || (c.Def.HasTag("warship") && s.Active == null && !s.Dragging))
                     {
@@ -419,9 +423,9 @@ public sealed class Sim
         return m;
     }
 
-    void TickBattles(Board b, float dt)
+    void TickBattles(float dt)
     {
-        foreach (var bt in b.Battles.ToList())
+        foreach (var bt in Table.Battles.ToList())
         {
             float pm = PlayerMult(bt);
             foreach (var c in bt.Players.Concat(bt.Hostiles).ToList())
@@ -436,42 +440,42 @@ public sealed class Sim
                 int dmg = (int)MathF.Round(c.Def.Attack * (c.Def.IsHostile ? Diff.EnemyAttackMult : pm));
                 t.Hp -= Math.Max(1, dmg);
                 Events.Add(SimEvent.Hit);
-                if (t.Hp <= 0) Kill(b, bt, t);
+                if (t.Hp <= 0) Kill(bt, t);
                 if (State != RunState.Playing) return;
             }
-            if (bt.Hostiles.Count == 0 || bt.Players.Count == 0) EndBattle(b, bt);
+            if (bt.Hostiles.Count == 0 || bt.Players.Count == 0) EndBattle(bt);
         }
     }
 
-    void Kill(Board b, Battle bt, Card c)
+    void Kill(Battle bt, Card c)
     {
         Remove(c);
         if (c.Def.Id == "homeworld") { Lose("Your homeworld has fallen."); return; }
         if (!c.Def.IsHostile) { Messages.Add($"{Name(c.Def.Id)} was lost in battle."); return; }
         if (Defs.LootOf.TryGetValue(c.Def.Id, out var loot))
             foreach (var d in loot.Drops)
-                for (int i = 0; i < d.N; i++) Spawn(b, d.Card, bt.Pos + new Vector2(CardW * 2, 0));
+                for (int i = 0; i < d.N; i++) Spawn(d.Card, bt.Pos + new Vector2(CardW * 2, 0));
         if (c.Def.Id == Crisis.BossCard) { Win(); return; }
         if (c.Def.Id == Crisis.RiftCard) { Messages.Add($"The rift collapses... {Name(Crisis.BossCard)} comes in person!"); SpawnBoss(); }
         if (c.Def.HasTag("guardian")) Messages.Add($"The {Name(c.Def.Id)} is defeated! Its hoard is yours.");
     }
 
-    void EndBattle(Board b, Battle bt)
+    void EndBattle(Battle bt)
     {
-        b.Battles.Remove(bt);
+        Table.Battles.Remove(bt);
         int i = 0;
         foreach (var c in bt.Players.Concat(bt.Hostiles).ToList())
         {
             c.Battle = null;
-            var s = NewStack(b, bt.Pos + new Vector2((i % 4) * (CardW + 16), (i / 4) * (CardH + 16)));
+            var s = NewStack(bt.Pos + new Vector2((i % 4) * (CardW + 16), (i / 4) * (CardH + 16)));
             Add(s, c);
             i++;
         }
     }
 
-    void TickHostiles(Board b, float dt)
+    void TickHostiles(float dt)
     {
-        foreach (var c in b.Stacks.SelectMany(s => s.Cards).Concat(b.Battles.SelectMany(x => x.Hostiles)).Where(c => c.Def.IsHostile).ToList())
+        foreach (var c in Table.Stacks.SelectMany(s => s.Cards).Concat(Table.Battles.SelectMany(x => x.Hostiles)).Where(c => c.Def.IsHostile).ToList())
         {
             if (c.Def.Id == Crisis.RiftCard)
             {
@@ -479,8 +483,8 @@ public sealed class Sim
                 if (c.SpawnTimer <= 0)
                 {
                     c.SpawnTimer = RiftSpawnEvery;
-                    var pos = (c.Stack?.Pos ?? c.Battle?.Pos ?? new Vector2(BoardW / 2, BoardH / 2)) + new Vector2(0, CardH + 40);
-                    var m = Spawn(b, Crisis.MinionCard, pos);
+                    var pos = (c.Stack?.Pos ?? c.Battle?.Pos ?? Home.Center) + new Vector2(0, CardH + 40);
+                    var m = Spawn(Crisis.MinionCard, pos);
                     m.AggroTimer = 2f;
                 }
                 continue;
@@ -489,14 +493,18 @@ public sealed class Sim
             c.AggroTimer -= dt;
             if (c.AggroTimer > 0) continue;
             c.AggroTimer = Defs.Rules.EnemyAggroSeconds * (0.8f + 0.4f * (float)Rng.NextDouble());
-            var targets = b.Stacks.Where(s => !s.Dragging && s.Cards.Any(Attackable)).ToList();
+            // Hostiles only go after cards in their own star system (or, in the gaps, anything close by).
+            var me = CardCenter(c.Stack!);
+            var mine = SystemAt(me);
+            var targets = Table.Stacks.Where(s => !s.Dragging && s.Cards.Any(Attackable)
+                && (mine != null ? mine.Contains(CardCenter(s)) : Vector2.Distance(CardCenter(s), me) < 900)).ToList();
             if (targets.Count == 0) continue;
             // Raiders go for your defenders first (warships, starbases), then whatever is closest.
             var ts = targets.OrderBy(s => s.Cards.Any(x => x.Def.HasTag("warship") || x.Def.Id == "starbase") ? 0 : 1)
                 .ThenBy(s => Vector2.Distance(s.Pos, c.Stack!.Pos)).First();
             var fighters = ts.Cards.Where(Attackable).ToList();
             foreach (var f in fighters) Remove(f);
-            JoinBattle(b, fighters, c);
+            JoinBattle(fighters, c);
         }
     }
 
@@ -527,11 +535,11 @@ public sealed class Sim
         if (!AllCards.Any(c => c.Def.Category == "person")) { Lose("No one is left to run your empire."); return; }
 
         Moon++;
-        var homeC = new Vector2(BoardW / 2, BoardH / 2);
+        var homeC = Home.Center;
         if (Moon == Diff.Act2Moon)
         {
             Act = 2;
-            for (int i = 0; i < 3; i++) Spawn(Home, "guardian_signal", homeC + new Vector2(-300 + i * 160, -500));
+            for (int i = 0; i < 3; i++) Spawn("guardian_signal", homeC + new Vector2(-560 + i * 160, -400));
             Messages.Add("Act 2 - Guardians. Strange signals... Frontier and Strategic packs are now on sale.");
             Events.Add(SimEvent.Warning);
         }
@@ -539,14 +547,14 @@ public sealed class Sim
         {
             Act = 3;
             RiftOpen = true;
-            Spawn(Home, Crisis.RiftCard, homeC + new Vector2(500, -450), jitter: false);
+            Spawn(Crisis.RiftCard, homeC + new Vector2(480, -400), jitter: false);
             Messages.Add($"Act 3 - {Crisis.Name}! {Crisis.Warning}");
             Events.Add(SimEvent.Warning);
         }
         if (RiftOpen && !BossArrived && Moon >= CrisisMoon + Diff.BossDelayMoons) SpawnBoss();
         if (Moon >= 3 && Moon % Diff.RaidEveryMoons == 0)
         {
-            Spawn(Home, Act >= 2 && Moon % (Diff.RaidEveryMoons * 2) == 0 ? "marauder_raider" : "pirate_raider", new Vector2(120, 120));
+            Spawn(Act >= 2 && Moon % (Diff.RaidEveryMoons * 2) == 0 ? "marauder_raider" : "pirate_raider", Home.Origin + new Vector2(60, 60));
             Messages.Add("Raiders have entered your capital system!");
         }
     }
@@ -555,7 +563,7 @@ public sealed class Sim
     {
         if (BossArrived) return;
         BossArrived = true;
-        var boss = Spawn(Home, Crisis.BossCard, new Vector2(BoardW / 2 + 650, BoardH / 2 - 200), jitter: false);
+        var boss = Spawn(Crisis.BossCard, Home.Center + new Vector2(560, -150), jitter: false);
         boss.AggroTimer = 6f;
         Messages.Add($"{Name(Crisis.BossCard)} has arrived. Destroy it to save the galaxy!");
         Events.Add(SimEvent.Warning);
@@ -571,21 +579,19 @@ public sealed class Sim
         if (State != RunState.Playing) return;
         MoonTime += dt;
         if (MoonTime >= MoonSeconds) { MoonTime -= MoonSeconds; EndMoon(); }
-        foreach (var b in Boards.ToList())
-        {
-            if (State != RunState.Playing) return;
-            TickRecipes(b, dt);
-            TickBattles(b, dt);
-            TickHostiles(b, dt);
-            Separate(b, dt);
-        }
+        TickRecipes(dt);
+        if (State != RunState.Playing) return;
+        TickBattles(dt);
+        if (State != RunState.Playing) return;
+        TickHostiles(dt);
+        Separate(dt);
     }
 
     public static float StackHeight(Stack s) => CardH + StackStep * (s.Cards.Count - 1);
 
-    void Separate(Board b, float dt)
+    void Separate(float dt)
     {
-        var list = b.Stacks;
+        var list = Table.Stacks;
         for (int i = 0; i < list.Count; i++)
             for (int j = i + 1; j < list.Count; j++)
             {

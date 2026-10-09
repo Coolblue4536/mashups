@@ -8,8 +8,7 @@ public static class Demo
 {
     public static void Setup(Sim sim)
     {
-        var home = sim.Home;
-        Stack? Find(string id, Stack? not = null) => home.Stacks.FirstOrDefault(s => s != not && s.Cards.Count == 1 && s.Root.Def.Id == id);
+        Stack? Find(string id, Stack? not = null) => sim.StacksIn(sim.Home).FirstOrDefault(s => s != not && s.Cards.Count == 1 && s.Root.Def.Id == id);
         void On(string top, string bottom)
         {
             if (Find(bottom) is { } b && Find(top, b) is { } t) sim.StackOnto(t, b);
@@ -22,7 +21,7 @@ public static class Demo
         if (Find("minerals") != null && Find("construction_ship") is { } cs)
             for (int i = 0; i < 3 && Find("minerals") is { } m; i++) sim.StackOnto(m, cs);
         // A raider in the capital, met by the fleet (Militarist start has a Corvette).
-        var raider = sim.Spawn(home, "pirate_raider", new Vector2(Sim.BoardW / 2 + 500, Sim.BoardH / 2 + 120), jitter: false);
+        var raider = sim.Spawn("pirate_raider", sim.Home.Center + new Vector2(450, 120), jitter: false);
         if (Find("corvette") is { } fleet) sim.Attack(fleet, raider);
         sim.Messages.Clear();
     }

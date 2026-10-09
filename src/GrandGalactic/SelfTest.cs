@@ -17,17 +17,18 @@ public static class SelfTest
     static Sim Fresh(string ethic = "materialist", int seed = 1)
     {
         var s = new Sim(Defs.Ethics.First(e => e.Id == ethic), seed);
-        foreach (var b in s.Boards) { b.Stacks.Clear(); b.Battles.Clear(); }
+        s.Table.Stacks.Clear();
+        s.Table.Battles.Clear();
         s.MoonTime = -100000; // no moon ends during unit checks
         return s;
     }
 
-    static Stack Build(Sim s, Board b, IEnumerable<string> ids, Vector2 pos)
+    static Stack Build(Sim s, IEnumerable<string> ids, Vector2 pos)
     {
         Stack? st = null;
         foreach (var id in ids)
         {
-            var c = s.Spawn(b, id, pos, jitter: false);
+            var c = s.Spawn(id, pos, jitter: false);
             if (st == null) st = c.Stack!;
             else s.StackOnto(c.Stack!, st);
         }
@@ -53,14 +54,14 @@ public static class SelfTest
             foreach (var t in Defs.Cards.Where(c => c.Category == "tech")) s.Techs.Add(t.Id);
             var ids = new List<string> { Resolve(r.Station) };
             foreach (var i in r.Inputs) for (int k = 0; k < i.N; k++) ids.Add(Resolve(i.Card));
-            var st = Build(s, s.Home, ids, new Vector2(800, 600));
+            var st = Build(s, ids, new Vector2(800, 600));
             var outIds = r.Outputs.SelectMany(o => o.Give).Select(g => g.Card == "station.yield" ? Defs.Card[Resolve(r.Station)].Yield : g.Card).ToHashSet();
-            int before = s.AllCards.Count(c => outIds.Contains(c.Def.Id)), boards = s.Boards.Count;
+            int before = s.AllCards.Count(c => outIds.Contains(c.Def.Id)), boards = s.Systems.Count;
             for (int i = 0; i < 2400 && !s.Discovered.Contains(r.Id); i++) s.Update(0.05f);
             bool fired = s.Discovered.Contains(r.Id);
             bool effect = r.Effect switch
             {
-                "open_board:normal" or "open_board:guardian" => s.Boards.Count == boards + 1,
+                "open_board:random" or "open_board:guardian" => s.Systems.Count == boards + 1,
                 "set_flag:claimed" => s.AllCards.Any(c => c.Def.Id == Resolve(r.Station) && c.Claimed),
                 _ => true,
             };
@@ -71,7 +72,7 @@ public static class SelfTest
         Log.Info("Self-test: recipe does not fire without its tech");
         {
             var s = Fresh();
-            var st = Build(s, s.Home, new[] { "shipyard", "alloys", "alloys", "alloys", "alloys" }, new Vector2(800, 600));
+            var st = Build(s, new[] { "shipyard", "alloys", "alloys", "alloys", "alloys" }, new Vector2(800, 600));
             s.Techs.Remove("tech_destroyers");
             for (int i = 0; i < 600; i++) s.Update(0.05f);
             Check(!s.Discovered.Contains("s_destroyer"), "Destroyer needs Destroyers tech");
@@ -82,7 +83,7 @@ public static class SelfTest
         {
             var s = Fresh();
             s.Act = 3;
-            var st = Build(s, s.Home, Enumerable.Repeat("energy", s.PackCost(p) + 1), new Vector2(400, 400));
+            var st = Build(s, Enumerable.Repeat("energy", s.PackCost(p) + 1), new Vector2(400, 400));
             int before = s.AllCards.Count();
             bool ok = s.BuyPack(st, p, new Vector2(900, 900));
             int after = s.AllCards.Count();
@@ -90,9 +91,9 @@ public static class SelfTest
         }
         {
             var s = Fresh();
-            var st = Build(s, s.Home, new[] { "energy", "energy" }, new Vector2(400, 400));
+            var st = Build(s, new[] { "energy", "energy" }, new Vector2(400, 400));
             Check(!s.BuyPack(st, Defs.Pack["pack_exploration"], Vector2.Zero), "pack refuses too few Energy");
-            var st2 = Build(s, s.Home, new[] { "energy", "energy", "energy", "energy", "energy", "energy", "energy", "energy", "energy", "energy" }, new Vector2(400, 700));
+            var st2 = Build(s, new[] { "energy", "energy", "energy", "energy", "energy", "energy", "energy", "energy", "energy", "energy" }, new Vector2(400, 700));
             Check(!s.BuyPack(st2, Defs.Pack["pack_frontier"], Vector2.Zero), "Act 2 pack locked in Act 1");
         }
 
@@ -105,12 +106,13 @@ public static class SelfTest
             {
                 var s = Fresh(seed: 1000 + run);
                 var sys = s.RollSystemType();
-                var b = s.AddBoard(sys);
+                var z = s.AddSystem(sys);
+                var inSys = s.StacksIn(z).ToList();
                 types[sys.Id] = types.GetValueOrDefault(sys.Id) + 1;
-                int planets = b.Stacks.Count(x => x.Root.Def.IsPlanet);
+                int planets = inSys.Count(x => x.Root.Def.IsPlanet);
                 planetCounts[planets] = planetCounts.GetValueOrDefault(planets) + 1;
-                totalCards += b.Stacks.Count;
-                if (!b.Stacks.Any(x => x.Root.Def.Category == "star")) { Check(false, $"{sys.Id} has a star card"); break; }
+                totalCards += inSys.Count;
+                if (!inSys.Any(x => x.Root.Def.Category == "star")) { Check(false, $"{sys.Id} has a star card"); break; }
             }
             Log.Info("  INFO  types: " + string.Join(", ", types.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key} {kv.Value}")));
             Log.Info("  INFO  planets per system: " + string.Join(", ", planetCounts.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key}: {kv.Value}")));
@@ -118,31 +120,36 @@ public static class SelfTest
             Check(planetCounts.ContainsKey(0) && planetCounts.Keys.Max() >= 4, "planet counts vary (some empty, some with 4+)");
 
             var run2 = Fresh(seed: 77);
-            run2.Boards.RemoveRange(1, run2.Boards.Count - 1);
-            var sci = Build(run2, run2.Home, new[] { "science_ship" }, new Vector2(300, 300));
+            var sci = Build(run2, new[] { "science_ship" }, new Vector2(300, 300));
             for (int i = 0; i < 40; i++)
             {
-                var st = Build(run2, run2.Home, new[] { "uncharted_system" }, new Vector2(300, 700));
+                var st = Build(run2, new[] { "uncharted_system" }, new Vector2(300, 700));
                 run2.StackOnto(st, sci);
                 for (int k = 0; k < 400 && sci.Cards.Count > 1; k++) run2.Update(0.05f);
             }
-            var names = run2.Boards.Skip(1).Select(x => x.Name).ToList();
+            var names = run2.Systems.Skip(1).Select(x => x.Name).ToList();
             int guardians = Defs.Systems.Count(x => x.Kind == "guardian");
-            Check(run2.Boards.Count == Defs.Rules.MaxSystems - guardians && names.Distinct().Count() == names.Count,
-                $"40 surveys open {run2.Boards.Count - 1} systems (cap {Defs.Rules.MaxSystems}, {guardians} kept for guardians), all names unique");
+            bool apart = run2.Systems.All(a => run2.Systems.All(b => a == b || !a.Contains(b.Center)));
+            Check(run2.Systems.Count == Defs.Rules.MaxSystems - guardians && names.Distinct().Count() == names.Count && apart,
+                $"40 surveys add {run2.Systems.Count - 1} system areas to the one table, none overlapping (cap {Defs.Rules.MaxSystems}, {guardians} kept for guardians), all names unique");
         }
 
         Log.Info("Self-test: market and travel");
         {
             var s = Fresh();
-            var st = Build(s, s.Home, new[] { "alloys", "alloys", "precursor_artifact" }, new Vector2(400, 400));
+            var st = Build(s, new[] { "alloys", "alloys", "precursor_artifact" }, new Vector2(400, 400));
             int got = s.Sell(st);
             Check(got == 18 && s.AllCards.Count(c => c.Def.Id == "energy") == 18, "selling 2 Alloys + Artifact gives 18 Energy");
-            var other = s.AddBoard(s.RollSystemType());
-            var pop = Build(s, s.Home, new[] { "pop" }, new Vector2(300, 300));
-            Check(!s.MoveToBoard(pop, other), "a Pop can't travel without a ship");
-            var fleet = Build(s, s.Home, new[] { "corvette", "pop" }, new Vector2(300, 600));
-            Check(s.MoveToBoard(fleet, other) && other.Stacks.Contains(fleet), "a stack with a ship travels to another board");
+            var other = s.AddSystem(s.RollSystemType());
+            var pop = Build(s, new[] { "pop" }, new Vector2(300, 300));
+            pop.Pos = other.Center;
+            s.Update(0.05f);
+            Check(s.SystemAt(Sim.CardCenter(pop)) == other, "a Pop can be dragged straight into another star system on the same table");
+            var raider = s.Spawn("pirate_raider", other.Center + new Vector2(200, 0), jitter: false);
+            var homePop = Build(s, new[] { "pop" }, s.Home.Center);
+            for (int i = 0; i < 400; i++) s.Update(0.05f);
+            Check(homePop.Cards.Count == 1 && homePop.Cards[0].Battle == null && s.Table.Battles.Count(bt => s.Home.Contains(bt.Pos)) == 0,
+                "a raider in another system leaves your capital alone (it fights where it is)");
         }
 
         Log.Info("Self-test: combat");
@@ -158,11 +165,11 @@ public static class SelfTest
             foreach (var (name, cards) in fleets)
             {
                 var s = Fresh();
-                var enemy = s.Spawn(s.Home, foe.Id, new Vector2(1400, 600), jitter: false);
-                var fleet = Build(s, s.Home, cards, new Vector2(800, 600));
+                var enemy = s.Spawn(foe.Id, new Vector2(1400, 600), jitter: false);
+                var fleet = Build(s, cards, new Vector2(800, 600));
                 s.Attack(fleet, enemy);
                 float t = 0;
-                while (t < 300 && s.Home.Battles.Count > 0 && s.State == RunState.Playing) { s.Update(0.05f); t += 0.05f; }
+                while (t < 300 && s.Table.Battles.Count > 0 && s.State == RunState.Playing) { s.Update(0.05f); t += 0.05f; }
                 bool won = !s.AllCards.Any(c => c.Def.Id == foe.Id) || s.State == RunState.Won;
                 int left = s.AllCards.Count(c => c.Def.Category is "ship" or "person");
                 results.Add($"{name}: {(won ? $"WIN {t:0}s, {left}/{cards.Length} left" : "loss")}");
@@ -171,11 +178,11 @@ public static class SelfTest
         }
         {
             var s = Fresh();
-            var drake = s.Spawn(s.Home, "ether_drake", new Vector2(1400, 600), jitter: false);
+            var drake = s.Spawn("ether_drake", new Vector2(1400, 600), jitter: false);
             for (int i = 0; i < 600; i++) s.Update(0.05f);
             Check(drake.Battle == null, "Guardians sleep until you attack them");
-            var raider = s.Spawn(s.Home, "pirate_raider", new Vector2(1400, 900), jitter: false);
-            Build(s, s.Home, new[] { "pop" }, new Vector2(1200, 900));
+            var raider = s.Spawn("pirate_raider", new Vector2(1400, 900), jitter: false);
+            Build(s, new[] { "pop" }, new Vector2(1200, 900));
             for (int i = 0; i < 400; i++) s.Update(0.05f);
             Check(!s.AllCards.Any(c => c.Def.Id == "pop") || raider.Battle != null || !s.AllCards.Contains(raider), "raiders attack your Pops");
         }
@@ -183,10 +190,10 @@ public static class SelfTest
         Log.Info("Self-test: moons");
         {
             var s = Fresh();
-            Build(s, s.Home, new[] { "pop" }, new Vector2(300, 300));
-            Build(s, s.Home, new[] { "pop" }, new Vector2(600, 300));
-            Build(s, s.Home, new[] { "food", "food" }, new Vector2(900, 300));
-            Build(s, s.Home, new[] { "homeworld" }, new Vector2(1200, 300));
+            Build(s, new[] { "pop" }, new Vector2(300, 300));
+            Build(s, new[] { "pop" }, new Vector2(600, 300));
+            Build(s, new[] { "food", "food" }, new Vector2(900, 300));
+            Build(s, new[] { "homeworld" }, new Vector2(1200, 300));
             s.MoonTime = s.MoonSeconds - 0.01f;
             s.Update(0.05f);
             Check(s.Moon == 2 && s.AllCards.Count(c => c.Def.Id == "pop") == 1 && !s.AllCards.Any(c => c.Def.Id == "food"),
@@ -194,8 +201,8 @@ public static class SelfTest
         }
         {
             var s = Fresh("machine");
-            Build(s, s.Home, new[] { "drone", "drone" }, new Vector2(300, 300));
-            Build(s, s.Home, new[] { "energy" }, new Vector2(900, 300));
+            Build(s, new[] { "drone", "drone" }, new Vector2(300, 300));
+            Build(s, new[] { "energy" }, new Vector2(900, 300));
             s.MoonTime = s.MoonSeconds - 0.01f;
             s.Update(0.05f);
             Check(s.AllCards.Count(c => c.Def.Id == "drone") == 1, "moon end: Drones run on Energy");
@@ -208,8 +215,8 @@ public static class SelfTest
             int seed = 0;
             Sim s;
             do s = new Sim(Defs.Ethics[0], ++seed, null, diff, Defs.MoonLengths[0]); while (s.Crisis != crisis);
-            for (int i = 0; i < 400; i++) s.Spawn(s.Home, "food", new Vector2(100, 1400));
-            for (int i = 0; i < 40; i++) s.Spawn(s.Home, "corvette", new Vector2(2400, 1400)); // a big home guard so the run survives to the boss
+            for (int i = 0; i < 400; i++) s.Spawn("food", new Vector2(100, 1400));
+            for (int i = 0; i < 40; i++) s.Spawn("corvette", new Vector2(2400, 1400)); // a big home guard so the run survives to the boss
             int act2 = 0, rift = 0, boss = 0;
             float t = 0;
             while (s.Moon <= diff.CrisisMoon + diff.BossDelayMoons + 1 && s.State == RunState.Playing && t < 4000)
@@ -242,7 +249,7 @@ public static class SelfTest
             Check(workers >= Defs.Rules.StartWorkers && s.AllCards.Any(c => c.Def.Id == "homeworld" && c.Claimed)
                   && e.StartTechs.All(s.Techs.Contains), $"{e.Id}: starts with {workers} {e.WorkerCard}s, a homeworld and its techs");
             for (int i = 0; i < 600; i++) s.Update(0.05f);
-            Check(s.Discovered.Count > 0 || s.Boards.Count >= 1, $"{e.Id}: 30 s of play runs without error");
+            Check(s.Discovered.Count > 0 || s.Systems.Count >= 1, $"{e.Id}: 30 s of play runs without error");
         }
 
         Log.Info(_fails == 0 ? "Self-test: ALL PASS" : $"Self-test: {_fails} FAILED");

@@ -19,7 +19,8 @@ public sealed partial class GameUi
     Screen _screen = Screen.Loading;
     AssetResolver _res = new(null, null);
     Sim? _sim;
-    int _board;
+    Vector2? _camGoal;
+    float? _camZoomGoal;
     Camera2D _cam;
     Stack? _drag;
     Vector2 _dragOffset;
@@ -141,6 +142,13 @@ public sealed partial class GameUi
         _portrait = _res.St?.Portraits.Count > 0 ? 0 : -1;
         StartRun();
         if (_shot != null) Demo.Setup(_sim!);
+        if (_dev && _shot != null) // layout test: a few surveyed systems, zoomed out
+        {
+            for (int i = 0; i < 4; i++) _sim!.AddSystem(_sim.RollSystemType());
+            _sim!.NewSystems.Clear();
+            _cam.Zoom = 0.2f;
+            _cam.Target = (_sim.BoundsMin + _sim.BoundsMax) / 2;
+        }
     }
 
     void HandleFileDrop()
@@ -165,10 +173,11 @@ public sealed partial class GameUi
         _settings.MoonLength = _moon.Id;
         _settings.Save();
         _sim = new Sim(_ethic, Environment.TickCount, id => _res.CardName(id), _diff, _moon);
-        _board = 0;
-        _cam = new Camera2D { Zoom = 0.62f, Target = new Vector2(Sim.BoardW / 2, Sim.BoardH / 2) };
+        _camGoal = null;
+        _camZoomGoal = null;
+        _cam = new Camera2D { Zoom = 0.62f, Target = _sim.Home.Center };
         _screen = Screen.Play;
-        Toast($"{_ethic.Name} empire founded. Stack Pops on your Homeworld to earn Energy, and buy packs on the right.");
+        Toast($"{_ethic.Name} empire founded. Stack Pops on your Homeworld to earn Energy, and buy packs on the right. Z zooms out to your whole empire.");
     }
 
     // ---------- content ----------
