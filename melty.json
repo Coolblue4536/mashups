@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "mode": "standalone",
+  "games": [{"slug": "stellaris", "role": "primary"}, {"slug": "custom-stacklands", "role": "secondary"}],
+  "components": [{"id": "main", "fileName": "GrandGalactic-*.zip", "label": "Grand Galactic (Windows)", "kind": "main", "required": true}],
+  "requirements": [],
+  "mappings": [{"component": "main", "from": "", "to": "{managed}"}],
+  "launch": {"kind": "exe", "path": "{managed}/GrandGalactic.exe", "args": ["--stellaris", "{game}"], "cwd": "{managed}"}
+}
