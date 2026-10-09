@@ -95,7 +95,10 @@ def main():
     for r in rules:
         name = "".join(p.capitalize() for p in r["id"].split("_"))
         v = r["value"]
-        if isinstance(v, list) and all(isinstance(x, str) for x in v):
+        if isinstance(v, list) and v and isinstance(v[0], dict) and "tab" in v[0]:
+            items = ", ".join("new BlueprintTab(" + cs_str(t["tab"]) + ", " + cs_val("x", t["prefixes"], {}) + ")" for t in v)
+            lines.append(f"        public static readonly BlueprintTab[] {name} = {{ {items} }};")
+        elif isinstance(v, list) and all(isinstance(x, str) for x in v):
             lines.append(f"        public static readonly string[] {name} = " + cs_val("x", v, {}) + ";")
         elif isinstance(v, list):
             lines.append(f"        public static readonly Amount[] {name} = " + cs_val("x", v, {"x": ("Amount", ["card", "n"])}) + ";")

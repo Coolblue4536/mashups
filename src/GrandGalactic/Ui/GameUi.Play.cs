@@ -51,7 +51,7 @@ public sealed partial class GameUi
         _cam.Target += pan * 900 * dt / _cam.Zoom;
         if (pan != Vector2.Zero) _camGoal = null;
         float wheel = Raylib.GetMouseWheelMove();
-        if (wheel != 0 && Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), view))
+        if (wheel != 0 && !_codex && Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), view))
         {
             var before = Raylib.GetScreenToWorld2D(Raylib.GetMousePosition(), _cam);
             _cam.Zoom = Math.Clamp(_cam.Zoom * (1 + wheel * 0.1f), 0.12f, 1.6f);
@@ -417,7 +417,7 @@ public sealed partial class GameUi
         Raylib.DrawRectangleRounded(m, 0.12f, 6, mh ? new Color(160, 130, 50, 255) : new Color(70, 58, 30, 255));
         Text(Defs.Rules.SellSlotName, m.X + 14, m.Y + 12, 26, Color.RayWhite);
         Wrapped("Drop cards here to sell them for Energy Credits", m.X + 14, m.Y + 46, m.Width - 28, 16, Color.LightGray);
-        Text("Tab recipes - Space pause", sw - RightPanel + 12, m.Y - 44, 14, Color.Gray);
+        Text("Tab blueprints - Space pause", sw - RightPanel + 12, m.Y - 44, 14, Color.Gray);
         Text("1-3 speed - Z zoom out/in", sw - RightPanel + 12, m.Y - 24, 14, Color.Gray);
     }
 
@@ -446,6 +446,8 @@ public sealed partial class GameUi
             if (c.Def.Slots > 0) lines += $"\nSlots {c.Parts.Count}/{c.Def.Slots}" + (c.Parts.Count < c.Def.Slots ? " - drop ship components here to fit them" : "")
                                        + (c.Def.HasTag("warship") ? (c.Admiral != null ? " - Admiral aboard" : " - drop an Admiral here to assign them") : "");
         }
+        var uses = _sim!.UsedIn(c.Def).Take(4).ToList();
+        if (uses.Count > 0) lines += "\nUsed in: " + string.Join(" | ", uses.Select(BlueprintLine));
         if (Defs.Component.TryGetValue(c.Def.Id, out var cp) && cp.Kind == "weapon")
             lines += $"\nDamage {cp.Damage} every {cp.Cooldown:0.#}s - vs shields x{cp.VsShield:0.##}, armour x{cp.VsArmor:0.##}, hull x{cp.VsHull:0.##}"
                    + (cp.PierceShield >= 1 ? (cp.PierceArmor >= 1 ? " - ignores shields and armour" : " - flies past shields") : "");
@@ -478,24 +480,67 @@ public sealed partial class GameUi
         }
     }
 
+    /// <summary>A blueprint as one line: its recipe, then what it makes (taken from the outputs, so it can't go missing).</summary>
+    string BlueprintLine(RecipeDef e)
+    {
+        if (e.Desc.Contains('=') || e.Desc.Contains(':') || e.Outputs.Length == 0) return e.Desc;
+        string Give(Outcome o) => string.Join(" + ", o.Give.Select(g => (g.N > 1 ? $"{g.N} " : "") + (g.Card == "station.yield" ? "its yield" : _res.CardName(g.Card))));
+        return e.Desc + " = " + (e.Outputs.Length == 1 ? Give(e.Outputs[0]) : "one of: " + string.Join(" / ", e.Outputs.Select(Give)));
+    }
+
+    int _bookTab;
+    float _bookScroll;
+
+    /// <summary>The Blueprint book: every recipe by tab, known ones in full, locked ones with what unlocks them.</summary>
     void DrawCodex()
     {
         var sim = _sim!;
         int sw = Raylib.GetScreenWidth(), sh = Raylib.GetScreenHeight();
-        var r = new Rectangle(80, 80, sw - RightPanel - 160, sh - 160);
-        Raylib.DrawRectangleRounded(r, 0.03f, 6, new Color(10, 12, 26, 245));
-        Text("Recipes you know (Tab to close)", r.X + 24, r.Y + 18, 28, Color.RayWhite);
-        float y = r.Y + 64, x = r.X + 24, colW = (r.Width - 48) / 2;
-        int col = 0;
-        var known = Defs.Recipes.Where(rc => sim.Discovered.Contains(rc.Id) || rc.Id.StartsWith("b_") || rc.Id.StartsWith("x_survey")
-            || rc.Id is "w_yield" or "s_science" or "s_construction" || (rc.RequiresTech != "none" && sim.Techs.Contains(rc.RequiresTech))).ToList();
-        foreach (var rc in known)
+        var r = new Rectangle(60, 70, sw - RightPanel - 120, sh - 130);
+        Raylib.DrawRectangleRounded(r, 0.02f, 6, new Color(10, 12, 26, 248));
+        Raylib.DrawRectangleRoundedLinesEx(r, 0.02f, 6, 2, new Color(120, 140, 220, 160));
+        Text("Blueprint book", r.X + 24, r.Y + 14, 30, Color.RayWhite);
+        Text("Tab closes - Q/E or click to change tab - wheel scrolls", r.X + 270, r.Y + 24, 16, Color.Gray);
+
+        var tabs = Defs.Rules.BlueprintTabs.Select(t => t.Tab).ToList();
+        if (Raylib.IsKeyPressed(KeyboardKey.Q)) { _bookTab = (_bookTab + tabs.Count - 1) % tabs.Count; _bookScroll = 0; }
+        if (Raylib.IsKeyPressed(KeyboardKey.E)) { _bookTab = (_bookTab + 1) % tabs.Count; _bookScroll = 0; }
+        float tx = r.X + 24;
+        for (int i = 0; i < tabs.Count; i++)
         {
-            Text("- " + rc.Desc, x + col * colW, y, 17, sim.Discovered.Contains(rc.Id) ? Color.RayWhite : Color.LightGray);
-            y += 24;
-            if (y > r.Y + r.Height - 30) { y = r.Y + 64; col++; if (col > 1) break; }
+            var list = Defs.Recipes.Where(x => Sim.BlueprintTab(x) == tabs[i]).ToList();
+            int known = list.Count(x => sim.Blueprint(x) != Sim.BlueprintState.Locked);
+            var label = $"{tabs[i]} {known}/{list.Count}";
+            float w = Measure(label, 19).X + 28;
+            if (Button(new Rectangle(tx, r.Y + 56, w, 38), label, i == _bookTab, 19)) { _bookTab = i; _bookScroll = 0; }
+            tx += w + 8;
         }
-        Text($"{Defs.Recipes.Length - known.Count} more to discover...", r.X + 24, r.Y + r.Height - 30, 17, Color.Gray);
+
+        var entries = Defs.Recipes.Where(x => Sim.BlueprintTab(x) == tabs[_bookTab])
+            .OrderBy(x => sim.Blueprint(x) == Sim.BlueprintState.Locked ? 1 : 0).ToList();
+        var area = new Rectangle(r.X + 20, r.Y + 106, r.Width - 40, r.Height - 120);
+        float rowH = 30, total = entries.Count * rowH;
+        _bookScroll = Math.Clamp(_bookScroll - Raylib.GetMouseWheelMove() * 60, 0, Math.Max(0, total - area.Height));
+        Raylib.BeginScissorMode((int)area.X, (int)area.Y, (int)area.Width, (int)area.Height);
+        float y = area.Y - _bookScroll;
+        foreach (var e in entries)
+        {
+            if (y > area.Y - rowH && y < area.Y + area.Height)
+            {
+                var st = sim.Blueprint(e);
+                string mark = st switch { Sim.BlueprintState.Made => "[made]", Sim.BlueprintState.Known => "[ ok ]", _ => "[lock]" };
+                var col = st switch { Sim.BlueprintState.Made => new Color(140, 230, 150, 255), Sim.BlueprintState.Known => Color.RayWhite, _ => new Color(130, 130, 150, 255) };
+                Text(mark, area.X, y, 17, col);
+                float time = e.Time < 0 ? 0 : e.Time;
+                var line = BlueprintLine(e) + (time > 0 ? $"  ({time:0}s)" : "");
+                if (st == Sim.BlueprintState.Locked) line += $"  - needs {_res.CardName(e.RequiresTech)}";
+                float size = 18;
+                while (size > 12 && Measure(line, size).X > area.Width - 90) size -= 1;
+                Text(line, area.X + 80, y, size, col);
+            }
+            y += rowH;
+        }
+        Raylib.EndScissorMode();
     }
 
     void DrawEnd()

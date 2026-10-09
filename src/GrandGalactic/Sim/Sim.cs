@@ -385,7 +385,12 @@ public sealed class Sim
                 {
                     bool newTech = Defs.Card[id].Category == "tech" && !Techs.Contains(id);
                     Spawn(id, outPos + new Vector2(0, i * 12));
-                    if (newTech) Messages.Add($"Researched {Name(id)}!");
+                    if (newTech)
+                    {
+                        var unlocked = Defs.Recipes.Where(x => x.RequiresTech == id).ToList();
+                        Messages.Add($"Researched {Name(id)}! " + (unlocked.Count == 1 ? $"New blueprint: {unlocked[0].Desc}"
+                            : $"{unlocked.Count} new blueprints (Tab to view)."));
+                    }
                 }
             }
         }
@@ -441,6 +446,26 @@ public sealed class Sim
         foreach (var (item, w) in list) { if (r < w) return item; r -= w; }
         return list[^1].item;
     }
+
+    // ---------- blueprints ----------
+
+    public enum BlueprintState { Made, Known, Locked }
+
+    /// <summary>Every recipe is a blueprint: Made (done at least once), Known (can be done now), or Locked behind a technology.</summary>
+    public BlueprintState Blueprint(RecipeDef r) =>
+        Discovered.Contains(r.Id) ? BlueprintState.Made
+        : r.RequiresTech == "none" || Techs.Contains(r.RequiresTech) ? BlueprintState.Known
+        : BlueprintState.Locked;
+
+    public static string BlueprintTab(RecipeDef r) =>
+        Defs.Rules.BlueprintTabs.FirstOrDefault(t => t.Prefixes.Any(p => r.Id.StartsWith(p)))?.Tab ?? "Other";
+
+    /// <summary>Known blueprints that use a card (as the station or an input).</summary>
+    public IEnumerable<RecipeDef> UsedIn(CardDef card) => Defs.Recipes.Where(r => Blueprint(r) != BlueprintState.Locked && (
+        Uses(r.Station, card) || r.Inputs.Any(i => Uses(i.Card, card))));
+
+    static bool Uses(string slot, CardDef card) =>
+        slot == card.Id || (slot.StartsWith("tag:") && card.HasTag(slot[4..]));
 
     // ---------- packs and market ----------
 

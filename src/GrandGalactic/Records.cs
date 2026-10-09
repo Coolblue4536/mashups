@@ -23,6 +23,7 @@ public sealed record ComponentDef(string Id, string NameLoc, string Name, string
 }
 
 public sealed record Amount(string Card, int N);
+public sealed record BlueprintTab(string Tab, string[] Prefixes);
 public sealed record RecipeInput(string Card, int N, bool Keep);
 public sealed record Outcome(int Weight, Amount[] Give);
 

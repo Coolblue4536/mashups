@@ -72,6 +72,10 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
 - **Act 3, Crisis (from moon 16).** A random endgame crisis comes through a rift on your capital board:
   the Prethoryn Scourge, the Unbidden or the Contingency. Destroy its leader to win.
 - **Difficulty and moon length.** Pick Ensign, Captain, Admiral or Grand Admiral (enemy strength, raids, pack prices and when each act starts), and a moon length of 60, 90, 120 or 180 seconds.
+- **Blueprint book (Tab).** Every recipe in the game, sorted into tabs: Build, Ships & Parts, Research,
+  Work, and Explore & Claim. Each entry shows its cards, what it makes and how long it takes. Locked
+  blueprints say which technology unlocks them. Hover any card to see what it's used in, and finishing a
+  technology announces its new blueprints. You never need to memorise a recipe.
 - **Packs and market.** 7 booster packs, a Market for selling cards, 94 cards, 49 stacking recipes and
   9 kinds of random star system, plus the 3 guardian systems.
 
@@ -91,7 +95,7 @@ It's single-player only.
 | Zoom | Mouse wheel; Z jumps between your whole empire and close up |
 | Go to a system | Click its name in the top bar, or F1–F9 |
 | Pause / game speed | Space / 1, 2, 3 |
-| Recipe codex | Tab |
+| Blueprint book (every recipe, by tab) | Tab, then Q/E or click to change tab |
 
 ## Requirements
 

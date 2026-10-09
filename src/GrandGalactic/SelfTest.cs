@@ -143,6 +143,20 @@ public static class SelfTest
                 $"surveying is unlimited: 40 surveys add {run2.Systems.Count - 1} systems, none overlapping, all names unique");
         }
 
+        Log.Info("Self-test: blueprint book");
+        {
+            var s = Fresh();
+            Check(Defs.Recipes.All(r => Sim.BlueprintTab(r) != "Other"), $"all {Defs.Recipes.Length} recipes appear in a Blueprint book tab");
+            Check(s.Blueprint(Defs.Recipes.First(r => r.Id == "r_red_laser")) == Sim.BlueprintState.Known, "tier-1 research (Red Lasers) is visible from the start");
+            var blue = Defs.Recipes.First(r => r.Id == "r_blue_laser");
+            Check(s.Blueprint(blue) == Sim.BlueprintState.Locked, "Blue Laser research shows as locked until Red Lasers are researched");
+            s.Techs.Add("tech_red_laser");
+            Check(s.Blueprint(blue) == Sim.BlueprintState.Known && s.Blueprint(Defs.Recipes.First(r => r.Id == "s_red_laser")) == Sim.BlueprintState.Known,
+                "researching Red Lasers reveals the Red Laser build and Blue Laser research blueprints");
+            Check(s.UsedIn(Defs.Card["alloys"]).Count() >= 5 && s.UsedIn(Defs.Card["alloys"]).All(r => s.Blueprint(r) != Sim.BlueprintState.Locked) && s.UsedIn(Defs.Card["red_laser"]).Any(r => r.Id == "r_blue_laser"),
+                "hovering a card lists the blueprints it is used in");
+        }
+
         Log.Info("Self-test: claiming systems");
         {
             var s = Fresh();

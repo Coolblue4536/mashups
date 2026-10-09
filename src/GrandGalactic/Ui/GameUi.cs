@@ -155,6 +155,7 @@ public sealed partial class GameUi
             var fleet = _sim.StacksIn(_sim.Home).FirstOrDefault(x => Sim.HasShip(x));
             if (fleet != null) _sim.StartTravel(fleet, _sim.Systems[1].Center);
             _sim!.NewSystems.Clear();
+            if (Environment.GetEnvironmentVariable("GG_DEV_BOOK") == "1") { _codex = true; _sim.Techs.Add("tech_red_laser"); _sim.Discovered.Add("s_red_laser"); }
             _cam.Zoom = 0.9f;
             _cam.Target = _sim.Home.Center + new Vector2(-150, 50);
         }

@@ -228,6 +228,10 @@ def main(argv):
     obtainable["guardian_signal"] += 1  # act 2 event (rules.act2_moon)
     obtainable["pirate_raider"] += 1    # raids (difficulties.raid_every_moons)
 
+    tabs = rules.get("blueprint_tabs", [])
+    for r in sheets["recipes"]["rows"]:
+        if not any(r["id"].startswith(p) for t in tabs for p in t["prefixes"]):
+            errors.append(f"recipes.{r['id']}: no blueprint_tabs entry covers it, so the Blueprint book won't show it")
     for cid in cards:
         if obtainable[cid] == 0:
             errors.append(f"cards.{cid}: nothing in the game can produce this card")

@@ -565,5 +565,6 @@ public static partial class Defs
         public static readonly string[] SystemNames = new string[] { "Kelvas", "Tau Vessa", "Orrin's Reach", "Hallow Drift", "Nyx Expanse", "Calder", "Meridian", "Vorrhal", "Sesk", "Anthir", "Duvali", "Quell", "Ishara", "Morrow's Light", "Zentha", "Okkra", "Pale Harbour", "Rhune", "Celadon", "Varnis", "Tethys Gate", "Ulmo", "Brannoc", "Kythera", "Lumen Deep", "Sabre", "Halcyon", "Ashfall", "Mirelle", "Odessa Prime" };
         public const int ClaimLimit = 5;
         public const int TravelSecondsPerJump = 8;
+        public static readonly BlueprintTab[] BlueprintTabs = { new BlueprintTab("Build", new string[] { "b_", "t_" }), new BlueprintTab("Ships & Parts", new string[] { "w_repair", "s_" }), new BlueprintTab("Research", new string[] { "r_" }), new BlueprintTab("Work", new string[] { "w_" }), new BlueprintTab("Explore & Claim", new string[] { "x_", "c_" }) };
     }
 }
