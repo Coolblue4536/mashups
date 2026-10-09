@@ -5,12 +5,21 @@ namespace GrandGalactic;
 public sealed record CategoryDef(string Id, string Label, string Color, string FrameRef, bool Draggable, bool IsCombatantDefault);
 
 public sealed record CardDef(string Id, string NameLoc, string Name, string Category, string[] Tags, string Art, int Value,
-    int Hp, int Attack, float AttackCd, int FoodUpkeep, int EnergyUpkeep, string BoostTag, float BoostMult, string Yield,
+    int Hp, int Attack, float AttackCd, float Shield, float Armor, float ShieldRegen, float HullRegen, float Evasion, int Slots, string Weapon,
+    int FoodUpkeep, int EnergyUpkeep, string BoostTag, float BoostMult, string Yield,
     float YieldTime, string ColonizeWith, string Desc)
 {
     public bool HasTag(string tag) => Array.IndexOf(Tags, tag) >= 0;
     public bool IsHostile => Category is "enemy" or "boss";
     public bool IsPlanet => Category == "planet";
+}
+
+public sealed record ComponentDef(string Id, string NameLoc, string Name, string Kind, string TechNameLoc, string TechName, string RequiresTech,
+    int Damage, float Cooldown, float VsShield, float VsArmor, float VsHull, float PierceShield, float PierceArmor, float Shield, float ShieldRegen,
+    float Armor, float ArmorRegen, float Hull, float HullRegen, float Evasion, string Special, int MinSlots, string Desc)
+{
+    /// <summary>Torpedoes and missiles: they fly past shields but not armour, and Flak can shoot them down.</summary>
+    public bool IsExplosive => PierceShield >= 1 && PierceArmor < 1;
 }
 
 public sealed record Amount(string Card, int N);
@@ -48,6 +57,7 @@ public static partial class Defs
     public static readonly Dictionary<string, LootDef> LootOf = Loot.ToDictionary(l => l.Card);
     public static readonly Dictionary<string, PackDef> Pack = Packs.ToDictionary(p => p.Id);
     public static readonly Dictionary<string, AssetRefDef> Asset = AssetRefs.ToDictionary(a => a.Id);
+    public static readonly Dictionary<string, ComponentDef> Component = Components.ToDictionary(c => c.Id);
     public static DifficultyDef DefaultDifficulty => Difficulties.First(d => d.Id == Rules.DefaultDifficulty);
     public static MoonLengthDef DefaultMoonLength => MoonLengths.First(m => m.Id == Rules.DefaultMoonLength);
 }

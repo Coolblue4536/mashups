@@ -146,11 +146,17 @@ public sealed partial class GameUi
         {
             for (int i = 0; i < 4; i++) _sim!.AddSystem(_sim.RollSystemType());
             _sim!.Systems[2].Claimed = true;
+            // a fitted battleship with an admiral, mid-fight with a marauder, to check bars and part icons
+            var bs = _sim.Spawn("battleship", _sim.Home.Center + new Vector2(-300, 250), jitter: false);
+            foreach (var p in new[] { "gamma_laser", "kinetic_artillery", "improved_deflector", "neutronium_armor" })
+                _sim.Fit(_sim.Spawn(p, _sim.Home.Center, jitter: false), bs);
+            _sim.AssignAdmiral(_sim.Spawn("admiral", _sim.Home.Center, jitter: false), bs);
+            _sim.Attack(bs.Stack!, _sim.Spawn("marauder_raider", _sim.Home.Center + new Vector2(-300, -100), jitter: false));
             var fleet = _sim.StacksIn(_sim.Home).FirstOrDefault(x => Sim.HasShip(x));
             if (fleet != null) _sim.StartTravel(fleet, _sim.Systems[1].Center);
             _sim!.NewSystems.Clear();
-            _cam.Zoom = 0.2f;
-            _cam.Target = (_sim.BoundsMin + _sim.BoundsMax) / 2;
+            _cam.Zoom = 0.9f;
+            _cam.Target = _sim.Home.Center + new Vector2(-150, 50);
         }
     }
 

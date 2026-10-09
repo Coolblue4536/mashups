@@ -41,13 +41,35 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
   Monsters and raiders fight in the system where they are.
 - **Study the stars.** A Science Ship parked on a star collects from it: Research from most stars, Dark
   Matter from black holes, Rare Crystals from neutron stars and Exotic Gases from nebulae.
-- **Act 1, Expansion (moons 1–6).** Grow, feed your Pops each moon, and colonise Desert, Arid, Savanna,
+- **Design your warships.** Research ship components and build them at a Shipyard, then drop them on a
+  ship to fit them. Corvettes have 1 slot, Destroyers 2, Cruisers 3, Battleships 4, Titans 5 and
+  Starbases 2. Upgrades come from studying the part you already have (Scientist + Red Laser + 6
+  Research gives Blue Lasers). The components:
+  - **Energy:** Red, Blue and Gamma Lasers, Plasma Cannon and the Tachyon Lance. Strong against armour.
+  - **Kinetic:** Mass Driver, Railgun and Kinetic Artillery. Strong against shields.
+  - **Explosive:** Torpedo Launcher and Swarmer Missiles. They fly past shields; Flak Batteries shoot
+    them down.
+  - **Hull-only:** Disruptor and Arc Emitter, which ignore both shields and armour.
+  - **Shields:** Deflector, Improved Deflector, Dark Matter Deflector and Psionic Shield.
+  - **Armour:** Nanocomposite, Crystal-Infused, Neutronium and self-repairing Dragonscale.
+  - **Specials:** Regenerative Hull Tissue, Shield Capacitor and Afterburners (dodge chance).
+- **Shields, armour, hull.** Every warship, monster and boss has three bars. Damage hits shields first,
+  then armour, then hull. Shields recharge, and some hulls and armours regenerate. Each crisis has its
+  own defences:
+  - the Unbidden hide behind huge shields;
+  - the Scourge is heavily armoured and regenerates;
+  - the Contingency fires torpedoes.
+
+  So the loadout matters.
+- **Admirals command ships.** Drop an Admiral on a warship to assign them. Their battles hit 50% harder,
+  and they're only lost with their ship. Repair a damaged ship with Shipyard + 1 Alloys.
+- **Act 1, Expansion (moons 1–7).** Grow, feed your Pops each moon, and colonise Desert, Arid, Savanna,
   Ocean, Tropical, Continental, Arctic, Tundra, Alpine, Tomb and Gaia worlds. Build outposts on gas
   giants, asteroids and barren, molten, frozen and toxic worlds.
-- **Act 2, Guardians (from moon 7).** Three Guardian Signals lead to the Ether Drake, the Dimensional
+- **Act 2, Guardians (from moon 8).** Three Guardian Signals lead to the Ether Drake, the Dimensional
   Horror and the Enigmatic Fortress. Beating them earns Living Metal, Dark Matter and Zro. The Frontier
   and Strategic Resources packs go on sale.
-- **Act 3, Crisis (from moon 14).** A random endgame crisis comes through a rift on your capital board:
+- **Act 3, Crisis (from moon 16).** A random endgame crisis comes through a rift on your capital board:
   the Prethoryn Scourge, the Unbidden or the Contingency. Destroy its leader to win.
 - **Difficulty and moon length.** Pick Ensign, Captain, Admiral or Grand Admiral (enemy strength, raids, pack prices and when each act starts), and a moon length of 60, 90, 120 or 180 seconds.
 - **Packs and market.** 7 booster packs, a Market for selling cards, 94 cards, 49 stacking recipes and

@@ -6,7 +6,15 @@ public sealed class Card
 {
     public int Uid;
     public required CardDef Def;
-    public int Hp, MaxHp;
+    /// <summary>Hull (hit points). Shields soak damage first, then armour, then hull.</summary>
+    public float Hp, MaxHp;
+    public float Shield, MaxShield, Armor, MaxArmor;
+    public float ShieldRegen, ArmorRegen, HullRegen, Evasion;
+    /// <summary>Components fitted to this ship or starbase.</summary>
+    public readonly List<ComponentDef> Parts = new();
+    /// <summary>The admiral assigned to this ship, if any (they leave the table and ride with it).</summary>
+    public Card? Admiral;
+    public readonly List<Gun> Guns = new();
     public bool Claimed;
     public float AttackTimer;
     public float AggroTimer;
@@ -14,6 +22,13 @@ public sealed class Card
     public Stack? Stack;
     public Battle? Battle;
     public override string ToString() => $"{Def.Id}#{Uid}";
+}
+
+/// <summary>One weapon on a card: its own damage, reload and damage profile (null = plain).</summary>
+public sealed class Gun
+{
+    public ComponentDef? Profile;
+    public float Damage, Cooldown, Timer;
 }
 
 public sealed class Stack

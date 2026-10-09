@@ -16,7 +16,8 @@ import design  # noqa: E402
 def main(argv):
     release = "--release" in argv
     errors, unverified, warnings = [], [], []
-    sheets = design.load()
+    raw = design.load()
+    sheets = design.expand(raw)
 
     # 1. Every cell filled.
     for name, sh in sheets.items():
@@ -113,7 +114,7 @@ def main(argv):
                     card_ref(f"{w}.outputs", g["card"])
                     obtainable[g["card"]] += 1
         eff = r["effect"]
-        if not (eff == "none" or eff in ("open_board:random", "open_board:guardian", "set_flag:claimed", "claim_system")):
+        if not (eff == "none" or eff in ("open_board:random", "open_board:guardian", "set_flag:claimed", "claim_system", "repair")):
             errors.append(f"{w}.effect: unknown effect '{eff}'")
         sig = (st, tuple(sorted((i["card"], i["n"]) for i in r["inputs"])))
         if sig in sigs:
@@ -236,6 +237,28 @@ def main(argv):
             errors.append(f"cards.{cid}: tagged workplace but has no yield")
         if c["yield"] != "none" and not ({"workplace", "star"} & set(c["tags"])):
             errors.append(f"cards.{cid}: has a yield but is neither a workplace nor a star")
+
+    comps = {c["id"]: c for c in raw.get("components", {}).get("rows", [])}
+    for c in comps.values():
+        w = f"components.{c['id']}"
+        if c["kind"] not in ("weapon", "shield", "armor", "utility"):
+            errors.append(f"{w}.kind: must be weapon, shield, armor or utility")
+        if c["kind"] == "weapon" and (c["damage"] <= 0 or c["cooldown"] <= 0):
+            errors.append(f"{w}: weapons need damage and cooldown")
+        if c["special"] not in ("none", "flak", "arc"):
+            errors.append(f"{w}.special: unknown '{c['special']}'")
+        for p_ in ("pierce_shield", "pierce_armor"):
+            if not 0 <= c[p_] <= 1:
+                errors.append(f"{w}.{p_}: must be 0..1")
+        for b in c["build_cost"]:
+            card_ref(f"{w}.build_cost", b["card"])
+    for cid, c in cards.items():
+        if c["weapon"] != "none" and c["weapon"] not in comps:
+            errors.append(f"cards.{cid}.weapon: '{c['weapon']}' is not a components row")
+        if c["weapon"] != "none" and comps.get(c["weapon"], {}).get("kind") != "weapon":
+            errors.append(f"cards.{cid}.weapon: '{c['weapon']}' is not a weapon")
+        if not 0 <= c["evasion"] < 1:
+            errors.append(f"cards.{cid}.evasion: must be 0..1")
 
     # 3. Verification checkboxes.
     for name in ("asset_refs", "game_systems"):

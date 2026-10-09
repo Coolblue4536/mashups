@@ -181,6 +181,15 @@ public sealed partial class GameUi
         {
             var target = hit.s.Cards[hit.i];
             if (target.Def.IsHostile) { sim.Attack(d, target); return; }
+            // A single ship component dropped on a ship fits into a slot; an admiral takes command of a warship.
+            if (d.Cards.Count == 1 && (d.Root.Def.Category == "component" || (d.Root.Def.Id == "admiral" && target.Def.HasTag("warship"))))
+            {
+                var host = hit.s.Cards.LastOrDefault(x => d.Root.Def.Id == "admiral" ? x.Def.HasTag("warship") : Sim.CanFit(x)) ?? target;
+                var part = d.Root;
+                var why = part.Def.Id == "admiral" ? sim.AssignAdmiral(part, host) : sim.Fit(part, host);
+                if (why == null) { Toast(part.Def.Id == "admiral" ? $"Admiral now commands the {_res.CardName(host.Def.Id)}." : $"{_res.CardName(part.Def.Id)} fitted to {_res.CardName(host.Def.Id)}."); return; }
+                if (part.Def.Category == "component") { Toast(why); d.Pos = _dragFrom; return; }
+            }
             if (!sim.StackOnto(d, hit.s) && hit.s.Cards.Count + d.Cards.Count > Defs.Rules.MaxStack) Toast("That stack is full.");
             return;
         }
@@ -307,13 +316,33 @@ public sealed partial class GameUi
         float size = 17;
         while (size > 11 && Measure(name, size).X > r.Width - 14) size -= 1;
         Text(name, r.X + 8, r.Y + 8, size, new Color(25, 25, 35, 255));
-        // footer: value, hp, claim state
-        if (c.Def.Value > 0) Text($"${c.Def.Value}", r.X + 8, r.Y + r.Height - 26, 18, new Color(40, 40, 50, 255));
-        if (c.Def.Hp > 0)
+        // footer: value, or for fighting cards their shield / armour / hull bars
+        bool fighter = c.MaxHp > 0 && (c.Def.Attack > 0 || c.MaxShield > 0 || c.MaxArmor > 0 || c.Def.IsHostile || c.Def.Slots > 0);
+        if (fighter)
         {
-            var hp = $"{c.Hp}/{c.MaxHp}";
-            Text(hp, r.X + r.Width - 8 - Measure(hp, 18).X, r.Y + r.Height - 26, 18, c.Hp < c.MaxHp ? new Color(170, 20, 20, 255) : new Color(40, 40, 50, 255));
+            float bx = r.X + 8, bw = r.Width - 16, by = r.Y + r.Height - 27;
+            void Bar(float y, float v, float max, Color fill)
+            {
+                Raylib.DrawRectangleRec(new Rectangle(bx, y, bw, 6), new Color(0, 0, 0, 150));
+                if (max > 0) Raylib.DrawRectangleRec(new Rectangle(bx, y, bw * Math.Clamp(v / max, 0, 1), 6), fill);
+            }
+            if (c.MaxShield > 0) Bar(by - 16, c.Shield, c.MaxShield, new Color(90, 170, 255, 255));
+            if (c.MaxArmor > 0) Bar(by - 8, c.Armor, c.MaxArmor, new Color(230, 190, 90, 255));
+            float hk = c.Hp / Math.Max(1, c.MaxHp);
+            Bar(by, c.Hp, c.MaxHp, hk > 0.5f ? new Color(90, 220, 110, 255) : hk > 0.25f ? new Color(240, 170, 60, 255) : new Color(230, 60, 60, 255));
+            Text($"{MathF.Ceiling(c.Hp)}", bx + bw - Measure($"{MathF.Ceiling(c.Hp)}", 13).X, by + 7, 13, new Color(30, 30, 40, 255));
+            // fitted parts as small icons, and the admiral's star
+            for (int i = 0; i < c.Parts.Count; i++)
+            {
+                var ir = new Rectangle(r.X + 10 + i * 21, r.Y + 34, 19, 19);
+                Raylib.DrawRectangleRec(ir, new Color(20, 30, 60, 230));
+                if (Tex("st_comp_" + c.Parts[i].Id) is { } pt) DrawFit(pt, ir, Color.White);
+                else Text(c.Parts[i].Name[..1], ir.X + 5, ir.Y + 2, 15, Color.RayWhite);
+            }
+            if (c.Def.Slots > 0) Text($"slots {c.Parts.Count}/{c.Def.Slots}", r.X + 10, r.Y + 56, 12, new Color(220, 230, 255, 220));
+            if (c.Admiral != null) Text("* Admiral", r.X + 10, r.Y + r.Height - 62, 14, new Color(255, 215, 90, 255));
         }
+        else if (c.Def.Value > 0) Text($"${c.Def.Value}", r.X + 8, r.Y + r.Height - 26, 18, new Color(40, 40, 50, 255));
         if (c.Def.IsPlanet && c.Def.ColonizeWith != "none")
         {
             var tag = c.Claimed ? "Colonised" : "Unclaimed";
@@ -408,6 +437,18 @@ public sealed partial class GameUi
         }
         if (c == null) return;
         var lines = _res.CardName(c.Def.Id) + "\n" + c.Def.Desc;
+        if (c.MaxHp > 0 && (c.MaxShield > 0 || c.MaxArmor > 0 || c.Guns.Count > 0 || c.Def.Slots > 0))
+        {
+            lines += $"\nHull {MathF.Ceiling(c.Hp)}/{c.MaxHp}" + (c.MaxArmor > 0 ? $"  Armour {MathF.Ceiling(c.Armor)}/{c.MaxArmor}" : "")
+                   + (c.MaxShield > 0 ? $"  Shields {MathF.Ceiling(c.Shield)}/{c.MaxShield} (+{c.ShieldRegen:0.#}/s)" : "")
+                   + (c.HullRegen > 0 ? $"  Heals {c.HullRegen:0.#}/s" : "") + (c.Evasion > 0 ? $"  Dodge {c.Evasion:P0}" : "");
+            if (c.Guns.Count > 0) lines += "\nWeapons: " + string.Join(", ", c.Guns.Select(g => $"{g.Profile?.Name ?? "Guns"} {g.Damage:0}/{g.Cooldown:0.#}s"));
+            if (c.Def.Slots > 0) lines += $"\nSlots {c.Parts.Count}/{c.Def.Slots}" + (c.Parts.Count < c.Def.Slots ? " - drop ship components here to fit them" : "")
+                                       + (c.Def.HasTag("warship") ? (c.Admiral != null ? " - Admiral aboard" : " - drop an Admiral here to assign them") : "");
+        }
+        if (Defs.Component.TryGetValue(c.Def.Id, out var cp) && cp.Kind == "weapon")
+            lines += $"\nDamage {cp.Damage} every {cp.Cooldown:0.#}s - vs shields x{cp.VsShield:0.##}, armour x{cp.VsArmor:0.##}, hull x{cp.VsHull:0.##}"
+                   + (cp.PierceShield >= 1 ? (cp.PierceArmor >= 1 ? " - ignores shields and armour" : " - flies past shields") : "");
         if (s?.Active != null) lines += $"\nWorking: {s.Active.Desc} ({Math.Max(0, s.Duration - s.Progress):0}s)";
         var m = Raylib.GetMousePosition() + new Vector2(18, 18);
         float width = 340;

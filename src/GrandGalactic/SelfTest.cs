@@ -7,6 +7,7 @@ namespace GrandGalactic;
 public static class SelfTest
 {
     static int _fails;
+    static readonly Dictionary<(string foe, string fleet), int> Results = new();
 
     static void Check(bool ok, string what)
     {
@@ -40,6 +41,7 @@ public static class SelfTest
         "tag:workplace" => "generator_district",
         "tag:star" => "pulsar",
         "tag:worker" => "pop",
+        "tag:warship" => "corvette",
         "tag:habitable" => "desert_world",
         "tag:uninhabitable" => "gas_giant",
         _ => card,
@@ -60,6 +62,7 @@ public static class SelfTest
                 foreach (var h in s.Table.Stacks.Where(x => x.HasHostile && s.SystemAt(Sim.CardCenter(x))?.Index > 0).ToList())
                     foreach (var c in h.Cards.ToList()) s.Remove(c);
             var st = Build(s, ids, at);
+            if (r.Effect == "repair") foreach (var c in st.Cards.Where(c => c.Def.HasTag("warship"))) c.Hp = 1;
             var outIds = r.Outputs.SelectMany(o => o.Give).Select(g => g.Card == "station.yield" ? Defs.Card[Resolve(r.Station)].Yield : g.Card).ToHashSet();
             int before = s.AllCards.Count(c => outIds.Contains(c.Def.Id)), boards = s.Systems.Count;
             for (int i = 0; i < 2400 && !s.Discovered.Contains(r.Id); i++) s.Update(0.05f);
@@ -69,6 +72,7 @@ public static class SelfTest
                 "open_board:random" or "open_board:guardian" => s.Systems.Count == boards + 1,
                 "set_flag:claimed" => s.AllCards.Any(c => c.Def.Id == Resolve(r.Station) && c.Claimed),
                 "claim_system" => s.SystemAt(at)?.Claimed == true,
+                "repair" => st.Cards.Where(c => c.Def.HasTag("warship")).All(c => c.Hp >= c.MaxHp),
                 _ => true,
             };
             bool produced = r.Outputs.Length == 0 || s.AllCards.Count(c => outIds.Contains(c.Def.Id)) > before - (outIds.Contains(Resolve(r.Station)) && !r.StationKeep ? 1 : 0) || outIds.Count == 0;
@@ -207,30 +211,139 @@ public static class SelfTest
                 "a raider in another system leaves your capital alone (it fights where it is)");
         }
 
-        Log.Info("Self-test: combat");
-        var fleets = new (string name, string[] cards)[]
+        Log.Info("Self-test: damage types, shields, armour and hull");
         {
-            ("early fleet (3 corvettes)", new[] { "corvette", "corvette", "corvette" }),
-            ("mid fleet (admiral, 2 cruisers, 3 destroyers)", new[] { "admiral", "cruiser", "cruiser", "destroyer", "destroyer", "destroyer" }),
-            ("late fleet (admiral, titan, 4 battleships, 2 cruisers)", new[] { "admiral", "titan", "battleship", "battleship", "battleship", "battleship", "cruiser", "cruiser" }),
-        };
-        foreach (var foe in Defs.Cards.Where(c => c.IsHostile && c.Attack > 0))
-        {
-            var results = new List<string>();
-            foreach (var (name, cards) in fleets)
+            float TimeToKill(string foe, string ship, params string[] parts)
             {
-                var s = Fresh();
-                var enemy = s.Spawn(foe.Id, new Vector2(1400, 600), jitter: false);
-                var fleet = Build(s, cards, new Vector2(800, 600));
-                s.Attack(fleet, enemy);
+                var s = Fresh(seed: 5);
+                var enemy = s.Spawn(foe, new Vector2(1200, 500), jitter: false);
+                enemy.Guns.Clear(); // a target dummy: it doesn't shoot back
+                var host = s.Spawn(ship, new Vector2(300, 500), jitter: false);
+                host.Guns.Clear();
+                foreach (var p in parts) s.Fit(s.Spawn(p, new Vector2(300, 800), jitter: false), host);
+                host.Guns.RemoveAll(g => g.Profile == null);
+                s.Attack(host.Stack!, enemy);
                 float t = 0;
-                while (t < 300 && s.Table.Battles.Count > 0 && s.State == RunState.Playing) { s.Update(0.05f); t += 0.05f; }
-                bool won = !s.AllCards.Any(c => c.Def.Id == foe.Id) || s.State == RunState.Won;
-                int left = s.AllCards.Count(c => c.Def.Category is "ship" or "person");
-                results.Add($"{name}: {(won ? $"WIN {t:0}s, {left}/{cards.Length} left" : "loss")}");
+                while (t < 300 && s.AllCards.Contains(enemy)) { s.Update(0.05f); t += 0.05f; }
+                return t;
             }
-            Log.Info($"  INFO  vs {foe.Id,-20} " + string.Join(" | ", results));
+            float laserVsArmour = TimeToKill("crystal_entity", "cruiser", "red_laser", "red_laser");
+            float kineticVsArmour = TimeToKill("crystal_entity", "cruiser", "mass_driver", "mass_driver");
+            float laserVsShield = TimeToKill("void_cloud", "cruiser", "red_laser", "red_laser");
+            float kineticVsShield = TimeToKill("void_cloud", "cruiser", "mass_driver", "mass_driver");
+            Check(laserVsArmour < kineticVsArmour, $"lasers beat armour: armoured Crystalline Entity dies in {laserVsArmour:0.0}s to lasers vs {kineticVsArmour:0.0}s to mass drivers");
+            Check(kineticVsShield < laserVsShield, $"kinetics beat shields: shielded Void Cloud dies in {kineticVsShield:0.0}s to mass drivers vs {laserVsShield:0.0}s to lasers");
+
+            var t = Fresh();
+            var target = t.Spawn("unbidden_warrior", new Vector2(800, 500), jitter: false);
+            float sh = target.Shield, hp = target.Hp;
+            t.Hit(new Gun { Profile = Defs.Component["space_torpedoes"], Damage = 10, Cooldown = 1 }, 1, new Card { Def = target.Def, Hp = 100, MaxHp = 100, Shield = 50, MaxShield = 50 }, 0);
+            var dummy = new Card { Def = target.Def, Hp = 100, MaxHp = 100, Shield = 50, MaxShield = 50, Armor = 20, MaxArmor = 20 };
+            t.Hit(new Gun { Profile = Defs.Component["space_torpedoes"], Damage = 10, Cooldown = 1 }, 1, dummy, 0);
+            Check(dummy.Shield == 50 && dummy.Armor < 20, "torpedoes fly past shields and hit armour");
+            var d2 = new Card { Def = target.Def, Hp = 100, MaxHp = 100, Shield = 50, MaxShield = 50, Armor = 20, MaxArmor = 20 };
+            t.Hit(new Gun { Profile = Defs.Component["disruptor"], Damage = 10, Cooldown = 1 }, 1, d2, 0);
+            Check(d2.Shield == 50 && d2.Armor == 20 && d2.Hp == 90, "disruptors ignore shields and armour, hitting the hull");
+            var d3 = new Card { Def = target.Def, Hp = 100, MaxHp = 100 };
+            var d4 = new Card { Def = target.Def, Hp = 100, MaxHp = 100 };
+            var torp = new Gun { Profile = Defs.Component["space_torpedoes"], Damage = 10, Cooldown = 1 };
+            t.Hit(torp, 1, d3, 0);
+            t.Hit(torp, 1, d4, 0.6f);
+            Check(d4.Hp > d3.Hp, $"flak cuts torpedo damage ({100 - d3.Hp:0} without, {100 - d4.Hp:0} with two Flak Batteries)");
+
+            var regen = Fresh();
+            var bs = regen.Spawn("battleship", new Vector2(500, 500), jitter: false);
+            regen.Fit(regen.Spawn("regenerative_hull_tissue", new Vector2(500, 800), jitter: false), bs);
+            bs.Hp = 10;
+            for (int i = 0; i < 200; i++) regen.Update(0.05f);
+            Check(bs.Hp >= 19, $"Regenerative Hull Tissue heals the hull ({bs.Hp:0} after 10 s, from 10)");
+            int dodged = 0;
+            var ev = new Card { Def = Defs.Card["corvette"], Hp = 1e6f, MaxHp = 1e6f, Evasion = 0.4f };
+            for (int i = 0; i < 1000; i++) if (t.Hit(new Gun { Damage = 1, Cooldown = 1 }, 1, ev, 0) == 0) dodged++;
+            Check(dodged is > 330 and < 470, $"evasion dodges shots ({dodged}/1000 at 40%)");
         }
+
+        Log.Info("Self-test: fitting components and admirals");
+        {
+            var s = Fresh();
+            var corvette = s.Spawn("corvette", new Vector2(300, 300), jitter: false);
+            Check(s.Fit(s.Spawn("red_laser", new Vector2(300, 600), jitter: false), corvette) == null && corvette.Guns.Count == 2,
+                "a Red Laser fits a Corvette and adds a gun");
+            Check(s.Fit(s.Spawn("deflector", new Vector2(300, 600), jitter: false), corvette) is { } full && full.Contains("no free slots"),
+                "a Corvette has 1 slot; the second part is refused");
+            var cruiser = s.Spawn("cruiser", new Vector2(600, 300), jitter: false);
+            Check(s.Fit(s.Spawn("tachyon_lance", new Vector2(600, 600), jitter: false), cruiser) is { } big && big.Contains("bigger hull"),
+                "a Tachyon Lance won't fit a Cruiser");
+            var bs = s.Spawn("battleship", new Vector2(900, 300), jitter: false);
+            float armour = bs.MaxArmor, shields = bs.MaxShield;
+            s.Fit(s.Spawn("neutronium_armor", new Vector2(900, 600), jitter: false), bs);
+            s.Fit(s.Spawn("improved_deflector", new Vector2(900, 600), jitter: false), bs);
+            Check(bs.MaxArmor == armour + 55 && bs.MaxShield == shields + 30 && bs.ShieldRegen == 2, "armour and shield parts raise the ship's armour, shields and recharge");
+            var adm = s.Spawn("admiral", new Vector2(900, 800), jitter: false);
+            Check(s.AssignAdmiral(adm, bs) == null && bs.Admiral == adm && !s.AllCards.Contains(adm), "an Admiral takes command of a Battleship (and rides aboard)");
+            var bt = new Battle();
+            bt.Players.Add(bs);
+            Check(Sim.PlayerMult(bt) == Defs.Card["admiral"].BoostMult, "the assigned Admiral boosts the fleet's damage");
+        }
+
+        Log.Info("Self-test: fleets and loadouts vs guardians and crises");
+        {
+            var fleets = new (string name, (string ship, string[] parts)[] ships, bool admiral)[]
+            {
+                ("early: 3 bare corvettes", new[] { ("corvette", new string[0]), ("corvette", new string[0]), ("corvette", new string[0]) }, false),
+                ("mid bare: 2 cruisers, 3 destroyers + admiral", new[] { ("cruiser", new string[0]), ("cruiser", new string[0]), ("destroyer", new string[0]), ("destroyer", new string[0]), ("destroyer", new string[0]) }, true),
+                ("mid fitted: same, lasers/railguns/deflectors", new[] { ("cruiser", new[] { "blue_laser", "railgun", "improved_deflector" }), ("cruiser", new[] { "blue_laser", "railgun", "crystal_armor" }),
+                    ("destroyer", new[] { "blue_laser", "deflector" }), ("destroyer", new[] { "railgun", "deflector" }), ("destroyer", new[] { "space_torpedoes", "flak_battery" }) }, true),
+                ("late bare: titan, 4 battleships, 2 cruisers + admiral", new[] { ("titan", new string[0]), ("battleship", new string[0]), ("battleship", new string[0]), ("battleship", new string[0]), ("battleship", new string[0]), ("cruiser", new string[0]), ("cruiser", new string[0]) }, true),
+                ("late energy: gamma/plasma/tachyon", new[] { ("titan", new[] { "tachyon_lance", "gamma_laser", "gamma_laser", "dark_matter_deflector", "neutronium_armor" }),
+                    ("battleship", new[] { "gamma_laser", "plasma_cannon", "plasma_cannon", "improved_deflector" }), ("battleship", new[] { "gamma_laser", "plasma_cannon", "plasma_cannon", "improved_deflector" }),
+                    ("battleship", new[] { "gamma_laser", "gamma_laser", "neutronium_armor", "regenerative_hull_tissue" }), ("battleship", new[] { "gamma_laser", "gamma_laser", "neutronium_armor", "flak_battery" }) }, true),
+                ("late kinetic: artillery/railguns", new[] { ("titan", new[] { "kinetic_artillery", "kinetic_artillery", "kinetic_artillery", "dark_matter_deflector", "neutronium_armor" }),
+                    ("battleship", new[] { "kinetic_artillery", "kinetic_artillery", "railgun", "improved_deflector" }), ("battleship", new[] { "kinetic_artillery", "kinetic_artillery", "railgun", "improved_deflector" }),
+                    ("battleship", new[] { "kinetic_artillery", "railgun", "neutronium_armor", "regenerative_hull_tissue" }), ("battleship", new[] { "kinetic_artillery", "railgun", "neutronium_armor", "flak_battery" }) }, true),
+                ("late mixed: artillery + gamma + missiles + flak", new[] { ("titan", new[] { "tachyon_lance", "kinetic_artillery", "swarmer_missiles", "dark_matter_deflector", "neutronium_armor" }),
+                    ("battleship", new[] { "kinetic_artillery", "gamma_laser", "swarmer_missiles", "improved_deflector" }), ("battleship", new[] { "kinetic_artillery", "gamma_laser", "swarmer_missiles", "neutronium_armor" }),
+                    ("battleship", new[] { "kinetic_artillery", "plasma_cannon", "flak_battery", "neutronium_armor" }), ("battleship", new[] { "arc_emitter", "gamma_laser", "flak_battery", "regenerative_hull_tissue" }) }, true),
+            };
+            var foes = new[] { "pirate_raider", "marauder_raider", "ether_drake", "dimensional_horror", "enigmatic_fortress", "scourge_queen", "unbidden_avatar", "contingency_core" };
+            Results.Clear();
+            foreach (var foe in foes)
+            {
+                var row = new List<string>();
+                foreach (var (name, ships, admiral) in fleets)
+                {
+                    int wins = 0; float tsum = 0; int left = 0;
+                    for (int seed = 0; seed < 3; seed++)
+                    {
+                        var s = Fresh(seed: 900 + seed);
+                        var enemy = s.Spawn(foe, new Vector2(1200, 500), jitter: false);
+                        Stack? fleet = null;
+                        foreach (var (ship, parts) in ships)
+                        {
+                            var c = s.Spawn(ship, new Vector2(300, 300), jitter: false);
+                            foreach (var p in parts) s.Fit(s.Spawn(p, new Vector2(300, 800), jitter: false), c);
+                            if (fleet == null) fleet = c.Stack!; else s.StackOnto(c.Stack!, fleet);
+                        }
+                        if (admiral) s.AssignAdmiral(s.Spawn("admiral", new Vector2(300, 800), jitter: false), fleet!.Cards[0]);
+                        s.Attack(fleet!, enemy);
+                        float t = 0;
+                        while (t < 300 && s.Table.Battles.Count > 0 && s.State == RunState.Playing) { s.Update(0.05f); t += 0.05f; }
+                        if (!s.AllCards.Contains(enemy) || s.State == RunState.Won) { wins++; tsum += t; left += s.AllCards.Count(c => c.Def.Category == "ship"); }
+                    }
+                    row.Add(wins == 0 ? "loss" : $"{wins}/3 win {tsum / wins:0}s, {left / wins} ships left");
+                    Results[(foe, name)] = wins;
+                }
+                Log.Info($"  INFO  vs {foe}:");
+                for (int i = 0; i < fleets.Length; i++) Log.Info($"          {fleets[i].name,-52} {row[i]}");
+            }
+            bool Wins(string foe, string fleetPrefix) => Results.Where(kv => kv.Key.foe == foe && kv.Key.fleet.StartsWith(fleetPrefix)).Sum(kv => kv.Value) >= 2;
+            Check(Wins("pirate_raider", "early"), "3 bare corvettes beat a pirate raider");
+            Check(!Wins("ether_drake", "early") && Wins("ether_drake", "mid fitted"), "the Ether Drake needs a fitted mid-game fleet");
+            Check(Defs.Crises.All(c => !Wins(c.BossCard, "mid bare")), "a bare mid-game fleet can't beat any crisis leader");
+            Check(Defs.Crises.All(c => Wins(c.BossCard, "late mixed")), "a well-fitted, mixed late fleet beats every crisis leader");
+            Check(Wins("unbidden_avatar", "late kinetic") && Wins("scourge_queen", "late energy"), "the right damage type beats each crisis (kinetic vs Unbidden shields, energy vs Scourge armour)");
+        }
+
         {
             var s = Fresh();
             var drake = s.Spawn("ether_drake", new Vector2(1400, 600), jitter: false);

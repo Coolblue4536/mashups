@@ -203,8 +203,12 @@ public sealed class Sim
     public Card NewCard(string id)
     {
         var def = Defs.Card[id];
-        int hp = def.IsHostile ? (int)MathF.Round(def.Hp * Diff.EnemyHpMult) : def.Hp;
-        var c = new Card { Uid = ++_uid, Def = def, Hp = hp, MaxHp = hp, AttackTimer = def.AttackCd, AggroTimer = Defs.Rules.EnemyAggroSeconds * (0.6f + (float)Rng.NextDouble()) };
+        float m = def.IsHostile ? Diff.EnemyHpMult : 1f;
+        var c = new Card { Uid = ++_uid, Def = def, AttackTimer = def.AttackCd, AggroTimer = Defs.Rules.EnemyAggroSeconds * (0.6f + (float)Rng.NextDouble()) };
+        c.MaxHp = c.Hp = MathF.Round(def.Hp * m);
+        c.MaxShield = c.Shield = MathF.Round(def.Shield * m);
+        c.MaxArmor = c.Armor = MathF.Round(def.Armor * m);
+        Recalc(c);
         if (def.IsPlanet && def.ColonizeWith == "none") c.Claimed = true;
         if (id == Crisis.RiftCard) c.SpawnTimer = RiftSpawnEvery * 0.5f;
         if (def.Category == "tech") Techs.Add(id);
@@ -294,6 +298,7 @@ public sealed class Sim
                 if (z == null || z.Claimed != (r.RequiresSystem == "claimed")) continue;
                 if (r.Effect == "claim_system" && ClaimBlock(z) != null) continue;
             }
+            if (r.Effect == "repair" && !s.Cards.Any(c => c.Def.HasTag("warship") && Damaged(c))) continue;
             foreach (var st in s.Cards)
             {
                 if (!StationOk(r, st)) continue;
@@ -386,6 +391,14 @@ public sealed class Sim
         }
         switch (r.Effect)
         {
+            case "repair":
+                foreach (var c in s.Cards.Where(c => c.Def.HasTag("warship") && Damaged(c)).Take(1))
+                {
+                    c.Hp = c.MaxHp;
+                    c.Armor = c.MaxArmor;
+                    Messages.Add($"{Name(c.Def.Id)} repaired.");
+                }
+                break;
             case "claim_system":
                 if (SystemAt(CardCenter(s)) is { } claimed)
                 {
@@ -458,12 +471,110 @@ public sealed class Sim
         foreach (var c in moving.Cards.ToList())
         {
             if (c.Def.Value <= 0 || c.Def.IsHostile || c.Def.Id == "energy") continue;
-            total += c.Def.Value;
+            total += c.Def.Value + c.Parts.Sum(p => Defs.Card[p.Id].Value);
             Remove(c);
         }
         for (int i = 0; i < total; i++) Spawn("energy", pos + new Vector2(0, -CardH - 20));
         if (total > 0) Events.Add(SimEvent.Sell);
         return total;
+    }
+
+    // ---------- ship components and admirals ----------
+
+    /// <summary>Rebuild a card's regen, evasion and guns from its sheet row and fitted parts.</summary>
+    void Recalc(Card c)
+    {
+        c.ShieldRegen = c.Def.ShieldRegen + c.Parts.Sum(p => p.ShieldRegen);
+        c.ArmorRegen = c.Parts.Sum(p => p.ArmorRegen);
+        c.HullRegen = c.Def.HullRegen + c.Parts.Sum(p => p.HullRegen);
+        c.Evasion = MathF.Min(0.6f, c.Def.Evasion + c.Parts.Sum(p => p.Evasion));
+        c.Guns.Clear();
+        if (c.Def.Attack > 0)
+            c.Guns.Add(new Gun
+            {
+                Profile = c.Def.Weapon != "none" ? Defs.Component[c.Def.Weapon] : null,
+                Damage = c.Def.Attack * (c.Def.IsHostile ? Diff.EnemyAttackMult : 1f),
+                Cooldown = c.Def.AttackCd,
+                Timer = c.Def.AttackCd,
+            });
+        foreach (var p in c.Parts.Where(p => p.Kind == "weapon"))
+            c.Guns.Add(new Gun { Profile = p, Damage = p.Damage, Cooldown = p.Cooldown, Timer = p.Cooldown * (0.5f + 0.5f * (float)Rng.NextDouble()) });
+    }
+
+    public static bool CanFit(Card host) => !host.Def.IsHostile && host.Def.Slots > 0;
+
+    /// <summary>Fit a component card into a free slot on a warship or starbase. Returns why not, or null when fitted.</summary>
+    public string? Fit(Card part, Card host)
+    {
+        if (part.Def.Category != "component" || !Defs.Component.TryGetValue(part.Def.Id, out var comp)) return null;
+        if (!CanFit(host)) return $"Components fit on warships and starbases, not on {Name(host.Def.Id)}.";
+        if (host.Parts.Count >= host.Def.Slots) return $"{Name(host.Def.Id)} has no free slots ({host.Def.Slots}/{host.Def.Slots}).";
+        if (comp.MinSlots > host.Def.Slots) return $"{comp.Name} needs a bigger hull (Battleship or Titan).";
+        Remove(part);
+        host.Parts.Add(comp);
+        host.MaxShield += comp.Shield; host.Shield += comp.Shield;
+        host.MaxArmor += comp.Armor; host.Armor += comp.Armor;
+        host.MaxHp += comp.Hull; host.Hp += comp.Hull;
+        Recalc(host);
+        if (host.Stack != null) host.Stack.Dirty = true;
+        Events.Add(SimEvent.Done);
+        return null;
+    }
+
+    /// <summary>Put an admiral in command of a warship. Returns why not, or null when assigned.</summary>
+    public string? AssignAdmiral(Card admiral, Card ship)
+    {
+        if (admiral.Def.Id != "admiral") return null;
+        if (!ship.Def.HasTag("warship")) return "Admirals command warships.";
+        if (ship.Admiral != null) return $"That {Name(ship.Def.Id)} already has an admiral.";
+        Remove(admiral);
+        ship.Admiral = admiral;
+        if (ship.Stack != null) ship.Stack.Dirty = true;
+        Events.Add(SimEvent.Done);
+        return null;
+    }
+
+    static bool Damaged(Card c) => c.Hp < c.MaxHp - 0.5f || c.Armor < c.MaxArmor - 0.5f;
+
+    /// <summary>Shields recharge, regenerating armour and hulls heal, in and out of battle.</summary>
+    void TickRegen(float dt)
+    {
+        foreach (var c in AllCards)
+        {
+            if (c.MaxShield > 0 && c.Shield < c.MaxShield)
+                c.Shield = MathF.Min(c.MaxShield, c.Shield + MathF.Max(c.ShieldRegen, c.Battle == null ? 2f : 0f) * dt);
+            if (c.ArmorRegen > 0) c.Armor = MathF.Min(c.MaxArmor, c.Armor + c.ArmorRegen * dt);
+            if (c.HullRegen > 0) c.Hp = MathF.Min(c.MaxHp, c.Hp + c.HullRegen * dt);
+        }
+    }
+
+    /// <summary>One shot: dodge, then shields, then armour, then hull, each scaled by the weapon's profile.</summary>
+    public float Hit(Gun g, float mult, Card target, float flakCut)
+    {
+        if (Rng.NextDouble() < target.Evasion) return 0;
+        var p = g.Profile;
+        float dmg = g.Damage * mult;
+        if (p?.Special == "arc") dmg *= 0.3f + 1.4f * (float)Rng.NextDouble();
+        if (p?.IsExplosive == true) dmg *= 1 - flakCut;
+        float vsS = p?.VsShield ?? 1, vsA = p?.VsArmor ?? 1, vsH = p?.VsHull ?? 1;
+        float through = dmg * (p?.PierceShield ?? 0), atShield = dmg - through;
+        if (target.Shield > 0 && atShield > 0)
+        {
+            float eff = atShield * vsS, absorbed = MathF.Min(eff, target.Shield);
+            target.Shield -= absorbed;
+            atShield = (eff - absorbed) / vsS;
+        }
+        float rest = through + atShield;
+        float pastArmor = rest * (p?.PierceArmor ?? 0), atArmor = rest - pastArmor;
+        if (target.Armor > 0 && atArmor > 0)
+        {
+            float eff = atArmor * vsA, absorbed = MathF.Min(eff, target.Armor);
+            target.Armor -= absorbed;
+            atArmor = (eff - absorbed) / vsA;
+        }
+        float hull = (pastArmor + atArmor) * vsH;
+        target.Hp -= hull;
+        return hull;
     }
 
     // ---------- combat ----------
@@ -504,37 +615,45 @@ public sealed class Sim
         foreach (var c in players.Distinct())
         {
             c.Battle = battle;
-            c.AttackTimer = c.Def.AttackCd * (0.5f + 0.5f * (float)Rng.NextDouble());
+            foreach (var g in c.Guns) g.Timer = g.Cooldown * (0.5f + 0.5f * (float)Rng.NextDouble());
             battle.Players.Add(c);
         }
     }
 
-    float PlayerMult(Battle bt)
+    /// <summary>Admirals (assigned to a ship or fighting on their own) and a Titan's aura boost every player shot in the battle.</summary>
+    public static float PlayerMult(Battle bt)
     {
         float m = 1f;
         foreach (var g in bt.Players.Where(p => p.Def.BoostTag == "combat").GroupBy(p => p.Def.Id)) m *= g.First().Def.BoostMult;
+        if (!bt.Players.Any(p => p.Def.Id == "admiral") && bt.Players.Any(p => p.Admiral != null)) m *= Defs.Card["admiral"].BoostMult;
         return m;
     }
+
+    static float FlakCut(IEnumerable<Card> side) => MathF.Min(0.6f, 0.3f * side.Sum(c => c.Parts.Count(p => p.Special == "flak")));
 
     void TickBattles(float dt)
     {
         foreach (var bt in Table.Battles.ToList())
         {
             float pm = PlayerMult(bt);
+            float flakVsHostiles = FlakCut(bt.Players), flakVsPlayers = FlakCut(bt.Hostiles);
             foreach (var c in bt.Players.Concat(bt.Hostiles).ToList())
             {
-                if (c.Battle != bt || c.Def.Attack <= 0) continue;
-                c.AttackTimer -= dt;
-                if (c.AttackTimer > 0) continue;
-                c.AttackTimer = c.Def.AttackCd;
-                var foes = c.Def.IsHostile ? bt.Players : bt.Hostiles;
-                if (foes.Count == 0) break;
-                var t = foes[Rng.Next(foes.Count)];
-                int dmg = (int)MathF.Round(c.Def.Attack * (c.Def.IsHostile ? Diff.EnemyAttackMult : pm));
-                t.Hp -= Math.Max(1, dmg);
-                Events.Add(SimEvent.Hit);
-                if (t.Hp <= 0) Kill(bt, t);
-                if (State != RunState.Playing) return;
+                if (c.Battle != bt) continue;
+                foreach (var g in c.Guns)
+                {
+                    g.Timer -= dt;
+                    if (g.Timer > 0) continue;
+                    g.Timer = g.Cooldown;
+                    var foes = c.Def.IsHostile ? bt.Players : bt.Hostiles;
+                    if (foes.Count == 0) break;
+                    var t = foes[Rng.Next(foes.Count)];
+                    Hit(g, c.Def.IsHostile ? 1f : pm, t, c.Def.IsHostile ? flakVsHostiles : flakVsPlayers);
+                    Events.Add(SimEvent.Hit);
+                    if (t.Hp <= 0) Kill(bt, t);
+                    if (State != RunState.Playing) return;
+                    if (c.Battle != bt) break;
+                }
             }
             if (bt.Hostiles.Count == 0 || bt.Players.Count == 0) EndBattle(bt);
         }
@@ -544,7 +663,11 @@ public sealed class Sim
     {
         Remove(c);
         if (c.Def.Id == "homeworld") { Lose("Your homeworld has fallen."); return; }
-        if (!c.Def.IsHostile) { Messages.Add($"{Name(c.Def.Id)} was lost in battle."); return; }
+        if (!c.Def.IsHostile)
+        {
+            Messages.Add(c.Admiral != null ? $"{Name(c.Def.Id)} was lost in battle - and its Admiral with it." : $"{Name(c.Def.Id)} was lost in battle.");
+            return;
+        }
         if (Defs.LootOf.TryGetValue(c.Def.Id, out var loot))
             foreach (var d in loot.Drops)
                 for (int i = 0; i < d.N; i++) Spawn(d.Card, bt.Pos + new Vector2(CardW * 2, 0));
@@ -673,6 +796,7 @@ public sealed class Sim
         MoonTime += dt;
         if (MoonTime >= MoonSeconds) { MoonTime -= MoonSeconds; EndMoon(); }
         TickTravel(dt);
+        TickRegen(dt);
         TickRecipes(dt);
         if (State != RunState.Playing) return;
         TickBattles(dt);
