@@ -31,6 +31,14 @@ public sealed class AssetResolver
     static ImageData Cropped(ImageData img, float[]? f) =>
         f == null ? img : img.Crop((int)(f[0] * img.W), (int)(f[1] * img.H), Math.Max(1, (int)(f[2] * img.W)), Math.Max(1, (int)(f[3] * img.H)));
 
+    /// <summary>Small icons are enlarged with a high-quality filter once, at load, so the GPU only ever shrinks them.</summary>
+    static ImageData Crisp(ImageData img)
+    {
+        int m = Math.Max(img.W, img.H);
+        // The tiniest icons get a gentler sharpen: a strong one exaggerates their pixel steps.
+        return m >= 128 ? img : img.UpscaleSharp(Math.Clamp((int)MathF.Ceiling(192f / m), 2, 8), m <= 32 ? 0.2f : 0.55f);
+    }
+
     public ImageData? Image(AssetRefDef a)
     {
         foreach (var full in a.Lookup)
@@ -46,13 +54,13 @@ public sealed class AssetResolver
                 if (St.Lookup(l) is { } hit && ImageData.FromFile(hit.path, hit.frames, hit.frame) is { } img)
                 {
                     Hit(a, $"{full} → {Rel(hit.path)}" + (hit.frames > 1 ? $" (frame {hit.frame} of {hit.frames})" : "") + (crop != null ? " (cropped)" : ""));
-                    return Cropped(img, crop);
+                    return Crisp(Cropped(img, crop));
                 }
             }
             if (a.Game == "stacklands" && Sl != null && Sl.LookupImage(l) is { } sh && sh.load() is { } simg)
             {
                 Hit(a, $"{full} → {sh.asset.Type} '{sh.asset.Name}' {simg.W}x{simg.H}");
-                return Cropped(simg, crop);
+                return Crisp(Cropped(simg, crop));
             }
         }
         Miss(a);

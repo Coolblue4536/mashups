@@ -151,6 +151,7 @@ public sealed partial class GameUi
     }
 
     string? _loadError;
+    readonly HashSet<string> _iconTex = new();
 
     void AutoStart()
     {
@@ -223,7 +224,13 @@ public sealed partial class GameUi
     {
         if (_tex.TryGetValue(assetId, out var t)) return t;
         Texture2D? result = null;
-        if (!_dev && Defs.Asset.TryGetValue(assetId, out var a) && _res.Image(a) is { } img) result = Upload(img);
+        if (!_dev && Defs.Asset.TryGetValue(assetId, out var a) && _res.Image(a) is { } img)
+        {
+            result = Upload(img);
+            // Transparent corners mean an icon (drawn with a margin); an opaque picture fills its window.
+            bool Clear(int x, int y) => img.Rgba[(y * img.W + x) * 4 + 3] < 128;
+            if (Clear(0, 0) || Clear(img.W - 1, 0) || Clear(0, img.H - 1) || Clear(img.W - 1, img.H - 1)) _iconTex.Add(assetId);
+        }
         _tex[assetId] = result;
         return result;
     }

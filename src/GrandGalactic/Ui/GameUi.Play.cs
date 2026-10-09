@@ -340,9 +340,8 @@ public sealed partial class GameUi
         Raylib.DrawRectangleRounded(art, 0.12f, 6, new Color(16, 20, 38, 255));
         if (Tex(c.Def.Art) is { } t)
         {
-            float aspect = (float)t.Width / t.Height, box = art.Width / art.Height;
-            if (aspect > box * 1.35f || aspect < box / 1.35f || (t.Width >= 120 && t.Height >= 120)) DrawCover(t, art, Color.White);
-            else DrawFit(t, new Rectangle(art.X + 6, art.Y + 6, art.Width - 12, art.Height - 12), Color.White);
+            if (_iconTex.Contains(c.Def.Art)) DrawFit(t, new Rectangle(art.X + 7, art.Y + 7, art.Width - 14, art.Height - 14), Color.White);
+            else DrawCover(t, art, Color.White);
         }
         Raylib.DrawRectangleRoundedLinesEx(art, 0.12f, 6, 2, new Color(col.R / 3, col.G / 3, col.B / 3, 200));
 
