@@ -1,0 +1,28 @@
+# Every Stellaris effect/trigger the launcher writes into events. tools/preflight.py
+# checks these against the game's script documentation; launcher_test.go checks
+# the generated events use nothing outside this list (plus structural keys).
+add_deposit
+add_modifier
+any_system
+any_system_within_border
+country_event
+create_starbase
+distance
+every_country
+exists
+has_country_flag
+has_modifier
+has_owner
+has_planet_flag
+has_star_flag
+is_capital
+is_star
+random_country
+random_system
+random_system_planet
+remove_modifier
+save_event_target_as
+set_country_flag
+set_name
+set_planet_flag
+set_star_flag
