@@ -38,6 +38,7 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
   and Strategic Resources packs go on sale.
 - **Act 3, Crisis (from moon 14).** A random endgame crisis comes through a rift on your capital board:
   the Prethoryn Scourge, the Unbidden or the Contingency. Destroy its leader to win.
+- **Difficulty and moon length.** Pick Ensign, Captain, Admiral or Grand Admiral (enemy strength, raids, pack prices and when each act starts), and a moon length of 60, 90, 120 or 180 seconds.
 - **Packs and market.** 7 booster packs, a Market for selling cards, 87 cards, 48 stacking recipes and
   11 star systems in all.
 

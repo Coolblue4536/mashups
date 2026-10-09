@@ -30,6 +30,8 @@ public sealed partial class GameUi
     // empire pick
     int _portraitPage, _portrait = -1;
     EthicDef _ethic = Defs.Ethics[0];
+    DifficultyDef _diff = Defs.DefaultDifficulty;
+    MoonLengthDef _moon = Defs.DefaultMoonLength;
 
     // loaded content
     readonly Dictionary<string, Texture2D?> _tex = new();
@@ -47,6 +49,8 @@ public sealed partial class GameUi
         _dev = devNoAssets;
         _shot = screenshotAfter;
         _autoEthic = autoEthic;
+        _diff = Defs.Difficulties.FirstOrDefault(d => d.Id == settings.Difficulty) ?? Defs.DefaultDifficulty;
+        _moon = Defs.MoonLengths.FirstOrDefault(m => m.Id == settings.MoonLength) ?? Defs.DefaultMoonLength;
     }
 
     public void Run()
@@ -132,7 +136,7 @@ public sealed partial class GameUi
 
     void AutoStart()
     {
-        if (_shot == null && _autoEthic == null) return;
+        if (_autoEthic == null) return;
         _ethic = Defs.Ethics.FirstOrDefault(e => e.Id == _autoEthic) ?? Defs.Ethics[0];
         _portrait = _res.St?.Portraits.Count > 0 ? 0 : -1;
         StartRun();
@@ -157,7 +161,10 @@ public sealed partial class GameUi
     {
         if (_res.St != null && _portrait >= 0) _res.PortraitPath = _res.St.FilePath(_res.St.Portraits[_portrait].TextureFile);
         _tex.Remove("st_portrait_player");
-        _sim = new Sim(_ethic, Environment.TickCount, id => _res.CardName(id));
+        _settings.Difficulty = _diff.Id;
+        _settings.MoonLength = _moon.Id;
+        _settings.Save();
+        _sim = new Sim(_ethic, Environment.TickCount, id => _res.CardName(id), _diff, _moon);
         _board = 0;
         _cam = new Camera2D { Zoom = 0.62f, Target = new Vector2(Sim.BoardW / 2, Sim.BoardH / 2) };
         _screen = Screen.Play;
@@ -346,6 +353,20 @@ public sealed partial class GameUi
         }
         if (_portrait >= 0) Text(ports[_portrait].Group + " / " + ports[_portrait].Name, px + 230, gy + 8, 20, Color.LightGray);
 
+        // Difficulty and moon length.
+        float oy = gy + 56, bw = (cols * cell - 24) / 4f;
+        Text("Difficulty", px, oy, 22, Color.LightGray);
+        Text(_diff.Desc, px + 130, oy + 3, 17, Color.Gray);
+        for (int i = 0; i < Defs.Difficulties.Length; i++)
+            if (Button(new Rectangle(px + i * (bw + 8), oy + 28, bw, 40), Defs.Difficulties[i].Name, Defs.Difficulties[i] == _diff, 19))
+                _diff = Defs.Difficulties[i];
+        oy += 84;
+        Text("Moon length", px, oy, 22, Color.LightGray);
+        Text(_moon.Desc, px + 150, oy + 3, 17, Color.Gray);
+        for (int i = 0; i < Defs.MoonLengths.Length; i++)
+            if (Button(new Rectangle(px + i * (bw + 8), oy + 28, bw, 40), $"{Defs.MoonLengths[i].Name} ({Defs.MoonLengths[i].Seconds}s)", Defs.MoonLengths[i] == _moon, 18))
+                _moon = Defs.MoonLengths[i];
+
         // Ethics.
         float ex = px + cols * cell + 60, ey = 174, ew = Math.Max(420, sw - ex - 60);
         Text("Ethics", ex, 140, 24, Color.LightGray);
@@ -363,7 +384,7 @@ public sealed partial class GameUi
         }
         bool ready = _portrait >= 0 || ports.Count == 0;
         if (Button(new Rectangle(ex, ey + 10, 260, 64), ready ? "Begin" : "Pick a species", false, 30) && ready) StartRun();
-        Text($"Stellaris: {_stellarisPath ?? "-"}", 50, sh - 58, 16, Color.Gray);
-        Text($"Stacklands: {_stacklandsPath ?? "-"}", 50, sh - 36, 16, Color.Gray);
+        Text($"Stellaris: {_stellarisPath ?? "-"}", ex, sh - 58, 16, Color.Gray);
+        Text($"Stacklands: {_stacklandsPath ?? "-"}", ex, sh - 36, 16, Color.Gray);
     }
 }

@@ -32,6 +32,10 @@ public sealed record SystemDef(string Id, string Name, string Kind, int Order, A
 public sealed record CrisisDef(string Id, string NameLoc, string Name, string RiftCard, string MinionCard, string BossCard,
     float SpawnEvery, string Warning, string Desc);
 
+public sealed record DifficultyDef(string Id, string Name, float EnemyHpMult, float EnemyAttackMult, int RaidEveryMoons,
+    int Act2Moon, int CrisisMoon, int BossDelayMoons, float RiftSpawnMult, float PackCostMult, Amount[] BonusCards, string Desc);
+public sealed record MoonLengthDef(string Id, string Name, int Seconds, string Desc);
+
 public sealed record AssetRefDef(string Id, string Game, string Kind, string[] Lookup, string UsedBy, bool Verified, string Note);
 public sealed record GameSystemDef(string Id, string Game, string What, string Source, string Method, string Impl, bool Verified);
 
@@ -42,4 +46,6 @@ public static partial class Defs
     public static readonly Dictionary<string, LootDef> LootOf = Loot.ToDictionary(l => l.Card);
     public static readonly Dictionary<string, PackDef> Pack = Packs.ToDictionary(p => p.Id);
     public static readonly Dictionary<string, AssetRefDef> Asset = AssetRefs.ToDictionary(a => a.Id);
+    public static DifficultyDef DefaultDifficulty => Difficulties.First(d => d.Id == Rules.DefaultDifficulty);
+    public static MoonLengthDef DefaultMoonLength => MoonLengths.First(m => m.Id == Rules.DefaultMoonLength);
 }

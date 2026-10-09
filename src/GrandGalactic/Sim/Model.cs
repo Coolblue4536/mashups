@@ -6,7 +6,7 @@ public sealed class Card
 {
     public int Uid;
     public required CardDef Def;
-    public int Hp;
+    public int Hp, MaxHp;
     public bool Claimed;
     public float AttackTimer;
     public float AggroTimer;

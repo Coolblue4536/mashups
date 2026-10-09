@@ -10,6 +10,8 @@ public sealed class Sim
 
     public readonly Random Rng;
     public readonly EthicDef Ethic;
+    public readonly DifficultyDef Diff;
+    public readonly int MoonSeconds;
     public readonly CrisisDef Crisis;
     public readonly List<Board> Boards = new();
     public readonly HashSet<string> Techs = new();
@@ -24,15 +26,18 @@ public sealed class Sim
     public RunState State = RunState.Playing;
     public string EndReason = "";
     public bool RiftOpen, BossArrived;
-    public int CrisisMoon = Defs.Rules.CrisisMoon;
+    public int CrisisMoon;
     int _uid, _stackId, _normalOpened, _guardianOpened;
 
     public Board Home => Boards[0];
 
-    public Sim(EthicDef ethic, int seed, Func<string, string>? name = null)
+    public Sim(EthicDef ethic, int seed, Func<string, string>? name = null, DifficultyDef? difficulty = null, MoonLengthDef? moon = null)
     {
         Rng = new Random(seed);
         Ethic = ethic;
+        Diff = difficulty ?? Defs.DefaultDifficulty;
+        MoonSeconds = (moon ?? Defs.DefaultMoonLength).Seconds;
+        CrisisMoon = Diff.CrisisMoon;
         Crisis = Defs.Crises[Rng.Next(Defs.Crises.Length)];
         Name = name ?? (id => Defs.Card.TryGetValue(id, out var d) ? d.Name : id);
         var homeSys = Defs.Systems.First(s => s.Kind == "home");
@@ -43,6 +48,7 @@ public sealed class Sim
         foreach (var a in Defs.Rules.StartCards) for (int i = 0; i < a.N; i++) start.Add(a.Card);
         for (int i = 0; i < Defs.Rules.StartWorkers; i++) start.Add(ethic.WorkerCard);
         foreach (var a in ethic.BonusCards) for (int i = 0; i < a.N; i++) start.Add(a.Card);
+        foreach (var a in Diff.BonusCards) for (int i = 0; i < a.N; i++) start.Add(a.Card);
         int k = 0;
         foreach (var id in start)
         {
@@ -71,9 +77,10 @@ public sealed class Sim
     public Card NewCard(string id)
     {
         var def = Defs.Card[id];
-        var c = new Card { Uid = ++_uid, Def = def, Hp = def.Hp, AttackTimer = def.AttackCd, AggroTimer = Defs.Rules.EnemyAggroSeconds * (0.6f + (float)Rng.NextDouble()) };
+        int hp = def.IsHostile ? (int)MathF.Round(def.Hp * Diff.EnemyHpMult) : def.Hp;
+        var c = new Card { Uid = ++_uid, Def = def, Hp = hp, MaxHp = hp, AttackTimer = def.AttackCd, AggroTimer = Defs.Rules.EnemyAggroSeconds * (0.6f + (float)Rng.NextDouble()) };
         if (def.IsPlanet && def.ColonizeWith == "none") c.Claimed = true;
-        if (id == Crisis.RiftCard) c.SpawnTimer = Crisis.SpawnEvery * 0.5f;
+        if (id == Crisis.RiftCard) c.SpawnTimer = RiftSpawnEvery * 0.5f;
         if (def.Category == "tech") Techs.Add(id);
         return c;
     }
@@ -286,12 +293,14 @@ public sealed class Sim
     // ---------- packs, market, travel ----------
 
     public IEnumerable<PackDef> AvailablePacks => Defs.Packs.Where(p => p.UnlockAct <= Act);
+    public int PackCost(PackDef p) => Math.Max(1, (int)MathF.Round(p.Cost * Diff.PackCostMult));
+    float RiftSpawnEvery => Crisis.SpawnEvery * Diff.RiftSpawnMult;
 
     public bool BuyPack(Stack moving, PackDef pack, Vector2 spawnAt)
     {
-        if (pack.UnlockAct > Act || moving.Cards.Any(c => c.Def.Id != "energy") || moving.Cards.Count < pack.Cost) return false;
+        if (pack.UnlockAct > Act || moving.Cards.Any(c => c.Def.Id != "energy") || moving.Cards.Count < PackCost(pack)) return false;
         var b = BoardOf(moving)!;
-        foreach (var c in moving.Cards.Take(pack.Cost).ToList()) Remove(c);
+        foreach (var c in moving.Cards.Take(PackCost(pack)).ToList()) Remove(c);
         OpenPack(pack, b, spawnAt, free: false);
         return true;
     }
@@ -397,7 +406,7 @@ public sealed class Sim
                 var foes = c.Def.IsHostile ? bt.Players : bt.Hostiles;
                 if (foes.Count == 0) break;
                 var t = foes[Rng.Next(foes.Count)];
-                int dmg = c.Def.IsHostile ? c.Def.Attack : (int)MathF.Round(c.Def.Attack * pm);
+                int dmg = (int)MathF.Round(c.Def.Attack * (c.Def.IsHostile ? Diff.EnemyAttackMult : pm));
                 t.Hp -= Math.Max(1, dmg);
                 Events.Add(SimEvent.Hit);
                 if (t.Hp <= 0) Kill(b, bt, t);
@@ -442,7 +451,7 @@ public sealed class Sim
                 c.SpawnTimer -= dt;
                 if (c.SpawnTimer <= 0)
                 {
-                    c.SpawnTimer = Crisis.SpawnEvery;
+                    c.SpawnTimer = RiftSpawnEvery;
                     var pos = (c.Stack?.Pos ?? c.Battle?.Pos ?? new Vector2(BoardW / 2, BoardH / 2)) + new Vector2(0, CardH + 40);
                     var m = Spawn(b, Crisis.MinionCard, pos);
                     m.AggroTimer = 2f;
@@ -492,7 +501,7 @@ public sealed class Sim
 
         Moon++;
         var homeC = new Vector2(BoardW / 2, BoardH / 2);
-        if (Moon == Defs.Rules.Act2Moon)
+        if (Moon == Diff.Act2Moon)
         {
             Act = 2;
             for (int i = 0; i < 3; i++) Spawn(Home, "guardian_signal", homeC + new Vector2(-300 + i * 160, -500));
@@ -507,10 +516,10 @@ public sealed class Sim
             Messages.Add($"Act 3 - {Crisis.Name}! {Crisis.Warning}");
             Events.Add(SimEvent.Warning);
         }
-        if (RiftOpen && !BossArrived && Moon >= CrisisMoon + Defs.Rules.BossDelayMoons) SpawnBoss();
-        if (Moon >= 3 && Moon % Defs.Rules.RaidEveryMoons == 0)
+        if (RiftOpen && !BossArrived && Moon >= CrisisMoon + Diff.BossDelayMoons) SpawnBoss();
+        if (Moon >= 3 && Moon % Diff.RaidEveryMoons == 0)
         {
-            Spawn(Home, Act >= 2 && Moon % (Defs.Rules.RaidEveryMoons * 2) == 0 ? "marauder_raider" : "pirate_raider", new Vector2(120, 120));
+            Spawn(Home, Act >= 2 && Moon % (Diff.RaidEveryMoons * 2) == 0 ? "marauder_raider" : "pirate_raider", new Vector2(120, 120));
             Messages.Add("Raiders have entered your capital system!");
         }
     }
@@ -534,7 +543,7 @@ public sealed class Sim
     {
         if (State != RunState.Playing) return;
         MoonTime += dt;
-        if (MoonTime >= Defs.Rules.MoonSeconds) { MoonTime -= Defs.Rules.MoonSeconds; EndMoon(); }
+        if (MoonTime >= MoonSeconds) { MoonTime -= MoonSeconds; EndMoon(); }
         foreach (var b in Boards.ToList())
         {
             if (State != RunState.Playing) return;

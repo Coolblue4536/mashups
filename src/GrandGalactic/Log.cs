@@ -45,6 +45,8 @@ public sealed class Settings
     public string? StellarisPath { get; set; }
     public string? StacklandsPath { get; set; }
     public float Volume { get; set; } = 0.7f;
+    public string? Difficulty { get; set; }
+    public string? MoonLength { get; set; }
     public float MusicVolume { get; set; } = 0.35f;
 
     static string FilePath => Path.Combine(Paths.DataDir, "settings.json");

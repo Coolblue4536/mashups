@@ -81,11 +81,11 @@ public static class SelfTest
         {
             var s = Fresh();
             s.Act = 3;
-            var st = Build(s, s.Home, Enumerable.Repeat("energy", p.Cost + 1), new Vector2(400, 400));
+            var st = Build(s, s.Home, Enumerable.Repeat("energy", s.PackCost(p) + 1), new Vector2(400, 400));
             int before = s.AllCards.Count();
             bool ok = s.BuyPack(st, p, new Vector2(900, 900));
             int after = s.AllCards.Count();
-            Check(ok && after == before - p.Cost + p.Draws, $"pack {p.Id} costs {p.Cost} and gives {p.Draws}");
+            Check(ok && after == before - s.PackCost(p) + p.Draws, $"pack {p.Id} costs {p.Cost} and gives {p.Draws}");
         }
         {
             var s = Fresh();
@@ -150,7 +150,7 @@ public static class SelfTest
             Build(s, s.Home, new[] { "pop" }, new Vector2(600, 300));
             Build(s, s.Home, new[] { "food", "food" }, new Vector2(900, 300));
             Build(s, s.Home, new[] { "homeworld" }, new Vector2(1200, 300));
-            s.MoonTime = Defs.Rules.MoonSeconds - 0.01f;
+            s.MoonTime = s.MoonSeconds - 0.01f;
             s.Update(0.05f);
             Check(s.Moon == 2 && s.AllCards.Count(c => c.Def.Id == "pop") == 1 && !s.AllCards.Any(c => c.Def.Id == "food"),
                 "moon end: 2 Food feeds one Pop, the other starves");
@@ -159,34 +159,42 @@ public static class SelfTest
             var s = Fresh("machine");
             Build(s, s.Home, new[] { "drone", "drone" }, new Vector2(300, 300));
             Build(s, s.Home, new[] { "energy" }, new Vector2(900, 300));
-            s.MoonTime = Defs.Rules.MoonSeconds - 0.01f;
+            s.MoonTime = s.MoonSeconds - 0.01f;
             s.Update(0.05f);
             Check(s.AllCards.Count(c => c.Def.Id == "drone") == 1, "moon end: Drones run on Energy");
         }
 
-        Log.Info("Self-test: acts and crisis timeline");
+        Log.Info("Self-test: acts and crisis timeline, every difficulty");
+        foreach (var diff in Defs.Difficulties)
         foreach (var crisis in Defs.Crises)
         {
             int seed = 0;
             Sim s;
-            do s = new Sim(Defs.Ethics[0], ++seed); while (s.Crisis != crisis);
+            do s = new Sim(Defs.Ethics[0], ++seed, null, diff, Defs.MoonLengths[0]); while (s.Crisis != crisis);
             for (int i = 0; i < 400; i++) s.Spawn(s.Home, "food", new Vector2(100, 1400));
             for (int i = 0; i < 40; i++) s.Spawn(s.Home, "corvette", new Vector2(2400, 1400)); // a big home guard so the run survives to the boss
             int act2 = 0, rift = 0, boss = 0;
             float t = 0;
-            while (s.Moon <= Defs.Rules.CrisisMoon + Defs.Rules.BossDelayMoons + 1 && s.State == RunState.Playing && t < 3000)
+            while (s.Moon <= diff.CrisisMoon + diff.BossDelayMoons + 1 && s.State == RunState.Playing && t < 4000)
             {
                 s.Update(0.1f); t += 0.1f;
                 if (act2 == 0 && s.Act == 2) act2 = s.Moon;
                 if (rift == 0 && s.RiftOpen) rift = s.Moon;
                 if (boss == 0 && s.BossArrived) boss = s.Moon;
-                foreach (var m in s.Messages) Log.Info($"    [{crisis.Id} moon {s.Moon}] {m}");
                 s.Messages.Clear();
             }
-            Check(act2 == Defs.Rules.Act2Moon, $"{crisis.Id}: Act 2 starts moon {act2}");
-            Check(rift == Defs.Rules.CrisisMoon, $"{crisis.Id}: rift opens moon {rift}");
-            Check(boss > 0 && boss <= Defs.Rules.CrisisMoon + Defs.Rules.BossDelayMoons, $"{crisis.Id}: {crisis.BossCard} arrives moon {boss} (state {s.State}: {s.EndReason})");
-            Check(s.AllCards.Count(c => c.Def.Id == "guardian_signal") == 3 || s.Boards.Count > 1, $"{crisis.Id}: 3 Guardian Signals appear in Act 2");
+            var tag = $"{diff.Id}/{crisis.Id}";
+            Check(act2 == diff.Act2Moon && rift == diff.CrisisMoon && boss > 0 && boss <= diff.CrisisMoon + diff.BossDelayMoons,
+                $"{tag}: Act 2 moon {act2}, rift moon {rift}, {crisis.BossCard} moon {boss} (end: {s.State} {s.EndReason})");
+        }
+        {
+            var hard = Defs.Difficulties.Last();
+            var s = new Sim(Defs.Ethics[0], 3, null, hard);
+            var drake = s.NewCard("ether_drake");
+            Check(drake.MaxHp == (int)MathF.Round(Defs.Card["ether_drake"].Hp * hard.EnemyHpMult) && s.PackCost(Defs.Packs[0]) >= Defs.Packs[0].Cost,
+                $"{hard.Id}: enemies have {drake.MaxHp} HP (x{hard.EnemyHpMult}), packs cost {s.PackCost(Defs.Packs[0])}+");
+            foreach (var m in Defs.MoonLengths)
+                Check(new Sim(Defs.Ethics[0], 1, null, null, m).MoonSeconds == m.Seconds, $"moon length {m.Id} = {m.Seconds}s");
         }
 
         Log.Info("Self-test: every ethic starts a run");

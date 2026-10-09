@@ -1,0 +1,11 @@
+{
+  "sheet": "moon_lengths",
+  "about": "Moon length picked on the empire screen: real seconds per moon. Longer moons mean more time to work between feedings.",
+  "columns": ["id", "name", "seconds", "desc"],
+  "rows": [
+    {"id": "short",    "name": "Short",    "seconds": 60,  "desc": "60 seconds per moon. Fast and hungry."},
+    {"id": "standard", "name": "Standard", "seconds": 90,  "desc": "90 seconds per moon."},
+    {"id": "long",     "name": "Long",     "seconds": 120, "desc": "120 seconds per moon. More time to plan."},
+    {"id": "relaxed",  "name": "Relaxed",  "seconds": 180, "desc": "180 seconds per moon. Plenty of time between feedings."}
+  ]
+}

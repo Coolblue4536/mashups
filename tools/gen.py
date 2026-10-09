@@ -12,7 +12,8 @@ ROOT = Path(__file__).resolve().parent.parent
 SHEETS = ROOT / "sheets"
 OUT = ROOT / "src" / "GrandGalactic" / "Generated" / "Defs.g.cs"
 
-FLOATS = {"attack_cd", "boost_mult", "yield_time", "time", "spawn_every"}
+FLOATS = {"attack_cd", "boost_mult", "yield_time", "time", "spawn_every", "enemy_hp_mult", "enemy_attack_mult",
+          "rift_spawn_mult", "pack_cost_mult"}
 
 # sheet -> (record type, collection name, columns in constructor order, nested list element types)
 SPEC = {
@@ -32,6 +33,10 @@ SPEC = {
                {"bonus_cards": ("Amount", ["card", "n"])}),
     "systems": ("SystemDef", "Systems", ["id", "name", "kind", "order", "cards", "desc"], {"cards": ("Amount", ["card", "n"])}),
     "crises": ("CrisisDef", "Crises", ["id", "name_loc", "name", "rift_card", "minion_card", "boss_card", "spawn_every", "warning", "desc"], {}),
+    "difficulties": ("DifficultyDef", "Difficulties", ["id", "name", "enemy_hp_mult", "enemy_attack_mult", "raid_every_moons",
+                     "act2_moon", "crisis_moon", "boss_delay_moons", "rift_spawn_mult", "pack_cost_mult", "bonus_cards", "desc"],
+                     {"bonus_cards": ("Amount", ["card", "n"])}),
+    "moon_lengths": ("MoonLengthDef", "MoonLengths", ["id", "name", "seconds", "desc"], {}),
     "asset_refs": ("AssetRefDef", "AssetRefs", ["id", "game", "kind", "lookup", "used_by", "verified", "note"], {}),
     "game_systems": ("GameSystemDef", "GameSystems", ["id", "game", "what", "source", "method", "impl", "verified"], {}),
 }

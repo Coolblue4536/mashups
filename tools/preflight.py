@@ -163,16 +163,34 @@ def main(argv):
             card_ref(f"crises.{r['id']}.{col}", r[col])
             obtainable[r[col]] += 1
 
+    diffs = {r["id"]: r for r in sheets["difficulties"]["rows"]}
+    for d in diffs.values():
+        w = f"difficulties.{d['id']}"
+        for b in d["bonus_cards"]:
+            card_ref(f"{w}.bonus_cards", b["card"])
+        if not (1 < d["act2_moon"] < d["crisis_moon"]):
+            errors.append(f"{w}: need 1 < act2_moon < crisis_moon")
+        for col in ("enemy_hp_mult", "enemy_attack_mult", "rift_spawn_mult", "pack_cost_mult", "raid_every_moons", "boss_delay_moons"):
+            if d[col] <= 0:
+                errors.append(f"{w}.{col}: must be > 0")
+    moons = {r["id"]: r for r in sheets["moon_lengths"]["rows"]}
+    for m in moons.values():
+        if m["seconds"] < 20:
+            errors.append(f"moon_lengths.{m['id']}.seconds: too short")
+
     rules = {r["id"]: r["value"] for r in sheets["rules"]["rows"]}
-    for need in ("moon_seconds", "start_cards", "start_workers", "act2_moon", "crisis_moon", "boss_delay_moons",
-                 "raid_every_moons", "enemy_aggro_seconds", "max_stack"):
+    if rules.get("default_difficulty") not in diffs:
+        errors.append("rules.default_difficulty: not a difficulties row")
+    if rules.get("default_moon_length") not in moons:
+        errors.append("rules.default_moon_length: not a moon_lengths row")
+    for need in ("start_cards", "start_workers", "enemy_aggro_seconds", "max_stack", "default_difficulty", "default_moon_length"):
         if need not in rules:
             errors.append(f"rules: missing rule '{need}'")
     for c in rules.get("start_cards", []):
         card_ref("rules.start_cards", c["card"])
         obtainable[c["card"]] += 1
     obtainable["guardian_signal"] += 1  # act 2 event (rules.act2_moon)
-    obtainable["pirate_raider"] += 1    # raids (rules.raid_every_moons)
+    obtainable["pirate_raider"] += 1    # raids (difficulties.raid_every_moons)
 
     for cid in cards:
         if obtainable[cid] == 0:

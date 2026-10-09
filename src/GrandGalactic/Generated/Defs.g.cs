@@ -222,6 +222,22 @@ public static partial class Defs
         new CrisisDef("crisis_contingency", "crisis_contingency", "The Contingency", "crisis_rift", "contingency_drone", "contingency_core", 23.0f, "Ancient machines have woken to sterilise the galaxy!", "A machine intelligence purging organic life."),
     };
 
+    public static readonly DifficultyDef[] Difficulties =
+    {
+        new DifficultyDef("ensign", "Ensign", 0.75f, 0.75f, 6, 8, 18, 4, 1.4f, 0.8f, new Amount[] { new Amount("food", 4), new Amount("energy", 3) }, "Relaxed. Weaker enemies, rare raids, cheaper packs and a late crisis."),
+        new DifficultyDef("captain", "Captain", 1.0f, 1.0f, 4, 7, 14, 3, 1.0f, 1.0f, new Amount[] {  }, "The intended balance."),
+        new DifficultyDef("admiral", "Admiral", 1.25f, 1.2f, 3, 6, 12, 2, 0.8f, 1.15f, new Amount[] {  }, "Tougher enemies, frequent raids and an earlier crisis."),
+        new DifficultyDef("grand_admiral", "Grand Admiral", 1.6f, 1.4f, 2, 5, 10, 2, 0.6f, 1.3f, new Amount[] {  }, "For veterans. Raids every other moon and the crisis comes at moon 10."),
+    };
+
+    public static readonly MoonLengthDef[] MoonLengths =
+    {
+        new MoonLengthDef("short", "Short", 60, "60 seconds per moon. Fast and hungry."),
+        new MoonLengthDef("standard", "Standard", 90, "90 seconds per moon."),
+        new MoonLengthDef("long", "Long", 120, "120 seconds per moon. More time to plan."),
+        new MoonLengthDef("relaxed", "Relaxed", 180, "180 seconds per moon. Plenty of time between feedings."),
+    };
+
     public static readonly AssetRefDef[] AssetRefs =
     {
         new AssetRefDef("st_portrait_player", "stellaris", "image", new string[] { "portrait:player" }, "people cards", false, "The species portrait the player picked on the empire screen (parsed from gfx/portraits/portraits/*.txt)."),
@@ -345,13 +361,10 @@ public static partial class Defs
 
     public static class Rules
     {
-        public const int MoonSeconds = 90;
+        public const string DefaultDifficulty = "captain";
+        public const string DefaultMoonLength = "standard";
         public static readonly Amount[] StartCards = new Amount[] { new Amount("homeworld", 1), new Amount("science_ship", 1), new Amount("construction_ship", 1), new Amount("food", 4), new Amount("energy", 3), new Amount("minerals", 4), new Amount("uncharted_system", 1), new Amount("agriculture_district", 1), new Amount("influence", 1) };
         public const int StartWorkers = 3;
-        public const int Act2Moon = 7;
-        public const int CrisisMoon = 14;
-        public const int BossDelayMoons = 3;
-        public const int RaidEveryMoons = 4;
         public const int EnemyAggroSeconds = 9;
         public const string StarveCard = "none";
         public const string SellSlotName = "Market";

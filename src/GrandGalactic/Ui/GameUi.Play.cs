@@ -125,7 +125,7 @@ public sealed partial class GameUi
             {
                 var at = Raylib.GetScreenToWorld2D(new Vector2(BoardView.Width - 200, BoardView.Y + BoardView.Height / 2), _cam);
                 if (!sim.BuyPack(d, pack, at))
-                    Toast(d.Cards.All(c => c.Def.Id == "energy") ? $"{pack.Name} costs {pack.Cost} Energy Credits." : "Packs are bought with Energy Credits only.");
+                    Toast(d.Cards.All(c => c.Def.Id == "energy") ? $"{pack.Name} costs {sim.PackCost(pack)} Energy Credits." : "Packs are bought with Energy Credits only.");
                 Bounce(d);
                 return;
             }
@@ -249,8 +249,8 @@ public sealed partial class GameUi
         if (c.Def.Value > 0) Text($"${c.Def.Value}", r.X + 8, r.Y + r.Height - 26, 18, new Color(40, 40, 50, 255));
         if (c.Def.Hp > 0)
         {
-            var hp = $"{c.Hp}/{c.Def.Hp}";
-            Text(hp, r.X + r.Width - 8 - Measure(hp, 18).X, r.Y + r.Height - 26, 18, c.Hp < c.Def.Hp ? new Color(170, 20, 20, 255) : new Color(40, 40, 50, 255));
+            var hp = $"{c.Hp}/{c.MaxHp}";
+            Text(hp, r.X + r.Width - 8 - Measure(hp, 18).X, r.Y + r.Height - 26, 18, c.Hp < c.MaxHp ? new Color(170, 20, 20, 255) : new Color(40, 40, 50, 255));
         }
         if (c.Def.IsPlanet && c.Def.ColonizeWith != "none")
         {
@@ -287,12 +287,12 @@ public sealed partial class GameUi
         int food = sim.AllCards.Count(c => c.Def.Id == "food");
         int eat = sim.AllCards.Where(c => c.Def.Category == "person").Sum(c => c.Def.FoodUpkeep);
         int energy = sim.AllCards.Count(c => c.Def.Id == "energy");
-        var info = $"Moon {sim.Moon}  |  Act {sim.Act}  |  Food {food}/{eat} needed  |  Energy {energy}  |  x{_speed:0}";
+        var info = $"{sim.Diff.Name}  |  Moon {sim.Moon}  |  Act {sim.Act}  |  Food {food}/{eat} needed  |  Energy {energy}  |  x{_speed:0}";
         var w = Measure(info, 20).X;
         Text(info, sw - w - 20, 8, 20, food < eat ? new Color(255, 160, 120, 255) : Color.RayWhite);
         var bar = new Rectangle(sw - w - 20, 36, w, 10);
         Raylib.DrawRectangleRec(bar, new Color(40, 44, 70, 255));
-        Raylib.DrawRectangleRec(new Rectangle(bar.X, bar.Y, bar.Width * sim.MoonTime / Defs.Rules.MoonSeconds, bar.Height), new Color(240, 210, 120, 255));
+        Raylib.DrawRectangleRec(new Rectangle(bar.X, bar.Y, bar.Width * sim.MoonTime / sim.MoonSeconds, bar.Height), new Color(240, 210, 120, 255));
     }
 
     void DrawRightPanel()
@@ -308,7 +308,7 @@ public sealed partial class GameUi
             Raylib.DrawRectangleRounded(r, 0.12f, 6, hover ? new Color(80, 110, 200, 255) : new Color(36, 42, 74, 255));
             if (art is { } a) DrawFit(a, new Rectangle(r.X + 4, r.Y + 4, 54, r.Height - 8), Color.White);
             Text(p.Name, r.X + 64, r.Y + 8, 21, Color.RayWhite);
-            Text($"{p.Cost} Energy, {p.Draws} cards", r.X + 64, r.Y + 38, 15, new Color(240, 210, 120, 255));
+            Text($"{sim.PackCost(p)} Energy, {p.Draws} cards", r.X + 64, r.Y + 38, 15, new Color(240, 210, 120, 255));
         }
         var m = MarketRect();
         bool mh = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), m) && _drag != null;

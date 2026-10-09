@@ -1,0 +1,11 @@
+{
+  "sheet": "difficulties",
+  "about": "Difficulty levels picked on the empire screen. Multipliers apply to every hostile card (monsters, raiders, guardians, crises); the moons set when each act starts.",
+  "columns": ["id", "name", "enemy_hp_mult", "enemy_attack_mult", "raid_every_moons", "act2_moon", "crisis_moon", "boss_delay_moons", "rift_spawn_mult", "pack_cost_mult", "bonus_cards", "desc"],
+  "rows": [
+    {"id": "ensign",        "name": "Ensign",        "enemy_hp_mult": 0.75, "enemy_attack_mult": 0.75, "raid_every_moons": 6, "act2_moon": 8, "crisis_moon": 18, "boss_delay_moons": 4, "rift_spawn_mult": 1.4, "pack_cost_mult": 0.8,  "bonus_cards": [{"card": "food", "n": 4}, {"card": "energy", "n": 3}], "desc": "Relaxed. Weaker enemies, rare raids, cheaper packs and a late crisis."},
+    {"id": "captain",       "name": "Captain",       "enemy_hp_mult": 1.0,  "enemy_attack_mult": 1.0,  "raid_every_moons": 4, "act2_moon": 7, "crisis_moon": 14, "boss_delay_moons": 3, "rift_spawn_mult": 1.0, "pack_cost_mult": 1.0,  "bonus_cards": [],                                                  "desc": "The intended balance."},
+    {"id": "admiral",       "name": "Admiral",       "enemy_hp_mult": 1.25, "enemy_attack_mult": 1.2,  "raid_every_moons": 3, "act2_moon": 6, "crisis_moon": 12, "boss_delay_moons": 2, "rift_spawn_mult": 0.8, "pack_cost_mult": 1.15, "bonus_cards": [],                                                  "desc": "Tougher enemies, frequent raids and an earlier crisis."},
+    {"id": "grand_admiral", "name": "Grand Admiral", "enemy_hp_mult": 1.6,  "enemy_attack_mult": 1.4,  "raid_every_moons": 2, "act2_moon": 5, "crisis_moon": 10, "boss_delay_moons": 2, "rift_spawn_mult": 0.6, "pack_cost_mult": 1.3,  "bonus_cards": [],                                                  "desc": "For veterans. Raids every other moon and the crisis comes at moon 10."}
+  ]
+}
