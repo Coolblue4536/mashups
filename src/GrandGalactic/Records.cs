@@ -27,7 +27,9 @@ public sealed record PackDef(string Id, string Name, int Cost, int Draws, int Un
 public sealed record EthicDef(string Id, string NameLoc, string Name, string Art, string WorkerCard, Amount[] BonusCards,
     string[] StartTechs, string FreePack, string Desc);
 
-public sealed record SystemDef(string Id, string Name, string Kind, int Order, Amount[] Cards, string Desc);
+public sealed record Extra(string Card, float Chance, int N);
+public sealed record SystemDef(string Id, string Name, string Kind, int Weight, Amount[] FixedCards, string[] StarCards,
+    int PlanetsMin, int PlanetsMax, PackEntry[] PlanetPool, Extra[] Extras, string Desc);
 
 public sealed record CrisisDef(string Id, string NameLoc, string Name, string RiftCard, string MinionCard, string BossCard,
     float SpawnEvery, string Warning, string Desc);

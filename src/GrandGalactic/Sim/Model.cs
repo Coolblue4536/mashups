@@ -45,6 +45,8 @@ public sealed class Board
     public int Index;
     public required SystemDef Sys;
     public required string Name;
+    /// <summary>What kind of system this is, shown under the name (e.g. "Black hole").</summary>
+    public string Kind = "";
     public readonly List<Stack> Stacks = new();
     public readonly List<Battle> Battles = new();
 

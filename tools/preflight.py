@@ -5,23 +5,18 @@ Lists every unfilled cell, every cross-sheet reference that does not resolve, re
 collide, cards nobody can obtain, and every row still marked unverified.
 Exit code 1 when anything blocks a build; --release also blocks on unverified rows.
 """
-import json
 import sys
 from collections import Counter
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-SHEETS = ROOT / "sheets"
-
-
-def load(name):
-    return json.loads((SHEETS / f"{name}.json").read_text(encoding="utf-8"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import design  # noqa: E402
 
 
 def main(argv):
     release = "--release" in argv
     errors, unverified, warnings = [], [], []
-    sheets = {p.stem: load(p.stem) for p in sorted(SHEETS.glob("*.json"))}
+    sheets = design.load()
 
     # 1. Every cell filled.
     for name, sh in sheets.items():
@@ -98,8 +93,12 @@ def main(argv):
             errors.append(f"{w}.requires_tech: '{r['requires_tech']}' is not a tech card")
         if r["requires_flag"] not in ("none", "claimed", "unclaimed"):
             errors.append(f"{w}.requires_flag: unknown flag '{r['requires_flag']}'")
-        if r["time"] == -1 and st != "has:yield":
-            errors.append(f"{w}.time: -1 (use station yield_time) only valid for has:yield")
+        if r["time"] == -1 and not any(g["card"] == "station.yield" for o in r["outputs"] for g in o["give"]):
+            errors.append(f"{w}.time: -1 (use station yield_time) only valid when an output is station.yield")
+        if r["time"] == -1 and st.startswith("tag:"):
+            for c in cards.values():
+                if c["yield"] == "none" and st[4:] in c["tags"]:
+                    errors.append(f"{w}: station {st} includes card '{c['id']}' which has no yield")
         for o in r["outputs"]:
             for g in o["give"]:
                 if g["card"] == "station.yield":
@@ -110,7 +109,7 @@ def main(argv):
                     card_ref(f"{w}.outputs", g["card"])
                     obtainable[g["card"]] += 1
         eff = r["effect"]
-        if not (eff == "none" or eff in ("open_board:normal", "open_board:guardian", "set_flag:claimed")):
+        if not (eff == "none" or eff in ("open_board:random", "open_board:guardian", "set_flag:claimed")):
             errors.append(f"{w}.effect: unknown effect '{eff}'")
         sig = (st, tuple(sorted((i["card"], i["n"]) for i in r["inputs"])))
         if sig in sigs:
@@ -151,12 +150,39 @@ def main(argv):
 
     kinds = Counter()
     for r in sheets["systems"]["rows"]:
+        w = f"systems.{r['id']}"
         kinds[r["kind"]] += 1
-        for c in r["cards"]:
-            card_ref(f"systems.{r['id']}.cards", c["card"])
+        if r["kind"] not in ("home", "random", "guardian"):
+            errors.append(f"{w}.kind: must be home, random or guardian")
+        for c in r["fixed_cards"]:
+            card_ref(f"{w}.fixed_cards", c["card"])
             obtainable[c["card"]] += 1
+        for c in r["star_cards"]:
+            card_ref(f"{w}.star_cards", c)
+            if c in cards and cards[c]["category"] != "star":
+                errors.append(f"{w}.star_cards: '{c}' is not a star card")
+            obtainable[c] += 1
+        for c in r["planet_pool"]:
+            card_ref(f"{w}.planet_pool", c["card"])
+            if c["card"] in cards and cards[c["card"]]["category"] != "planet":
+                errors.append(f"{w}.planet_pool: '{c['card']}' is not a planet")
+            obtainable[c["card"]] += 1
+        for c in r["extras"]:
+            card_ref(f"{w}.extras", c["card"])
+            if not 0 < c["chance"] <= 1:
+                errors.append(f"{w}.extras: chance for '{c['card']}' must be in (0, 1]")
+            obtainable[c["card"]] += 1
+        if r["kind"] == "random":
+            if r["weight"] <= 0:
+                errors.append(f"{w}.weight: random systems need weight > 0")
+            if not 0 <= r["planets_min"] <= r["planets_max"]:
+                errors.append(f"{w}: need 0 <= planets_min <= planets_max")
+            if r["planets_max"] > 0 and not r["planet_pool"]:
+                errors.append(f"{w}.planet_pool: empty but planets_max > 0")
     if kinds["home"] != 1:
         errors.append("systems: need exactly one home board")
+    if kinds["random"] == 0:
+        errors.append("systems: need at least one random system type")
 
     for r in sheets["crises"]["rows"]:
         for col in ("rift_card", "minion_card", "boss_card"):
@@ -183,7 +209,10 @@ def main(argv):
         errors.append("rules.default_difficulty: not a difficulties row")
     if rules.get("default_moon_length") not in moons:
         errors.append("rules.default_moon_length: not a moon_lengths row")
-    for need in ("start_cards", "start_workers", "enemy_aggro_seconds", "max_stack", "default_difficulty", "default_moon_length"):
+    if len(rules.get("system_names", [])) < rules.get("max_systems", 0):
+        errors.append("rules.system_names: need at least max_systems names")
+    for need in ("start_cards", "start_workers", "enemy_aggro_seconds", "max_stack", "default_difficulty", "default_moon_length",
+                 "system_names", "max_systems"):
         if need not in rules:
             errors.append(f"rules: missing rule '{need}'")
     for c in rules.get("start_cards", []):
@@ -196,6 +225,12 @@ def main(argv):
         if obtainable[cid] == 0:
             errors.append(f"cards.{cid}: nothing in the game can produce this card")
 
+    for cid, c in cards.items():
+        if "workplace" in c["tags"] and c["yield"] == "none":
+            errors.append(f"cards.{cid}: tagged workplace but has no yield")
+        if c["yield"] != "none" and not ({"workplace", "star"} & set(c["tags"])):
+            errors.append(f"cards.{cid}: has a yield but is neither a workplace nor a star")
+
     # 3. Verification checkboxes.
     for name in ("asset_refs", "game_systems"):
         for r in sheets[name]["rows"]:
@@ -203,7 +238,7 @@ def main(argv):
                 unverified.append(f"{name}.{r['id']}")
 
     total_cells = sum(len(sh["rows"]) * len(sh["columns"]) for sh in sheets.values())
-    print(f"Preflight: {len(sheets)} sheets, {sum(len(s['rows']) for s in sheets.values())} rows, {total_cells} cells")
+    print(f"Preflight: sheets/design.json, {len(sheets)} sections, {sum(len(s['rows']) for s in sheets.values())} rows, {total_cells} cells")
     for e in errors:
         print("  ERROR      " + e)
     for w in warnings:

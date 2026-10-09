@@ -27,9 +27,13 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
   later Titans.
 - **Research.** Stack Research on a Scientist to unlock Corvettes, Destroyers, Cruisers, Battleships,
   Titans, Colonization, Robotic Workers and Terrestrial Sculpting.
-- **Explore.** A Science Ship on an Uncharted System opens a new star-system board, with new planets,
-  anomalies, derelicts, space amoebas, Tiyanki, crystal entities, void clouds, mining drones, pirates and
-  marauders. Ships carry stacks between boards.
+- **Explore.** A Science Ship on an Uncharted System opens a new, randomly rolled star-system board.
+  It might be a yellow star, red dwarf, blue giant, binary pair, asteroid belt, nebula, black hole,
+  neutron star or pulsar, with anywhere from 0 to 5 planets, plus anomalies, derelicts, space amoebas,
+  Tiyanki, crystal entities, void clouds, mining drones or pirates. Each system gets a random name.
+  Ships carry stacks between boards.
+- **Study the stars.** A Science Ship parked on a star collects from it: Research from most stars, Dark
+  Matter from black holes, Rare Crystals from neutron stars and Exotic Gases from nebulae.
 - **Act 1, Expansion (moons 1–6).** Grow, feed your Pops each moon, and colonise Desert, Arid, Savanna,
   Ocean, Tropical, Continental, Arctic, Tundra, Alpine, Tomb and Gaia worlds. Build outposts on gas
   giants, asteroids and barren, molten, frozen and toxic worlds.
@@ -39,8 +43,8 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
 - **Act 3, Crisis (from moon 14).** A random endgame crisis comes through a rift on your capital board:
   the Prethoryn Scourge, the Unbidden or the Contingency. Destroy its leader to win.
 - **Difficulty and moon length.** Pick Ensign, Captain, Admiral or Grand Admiral (enemy strength, raids, pack prices and when each act starts), and a moon length of 60, 90, 120 or 180 seconds.
-- **Packs and market.** 7 booster packs, a Market for selling cards, 87 cards, 48 stacking recipes and
-  11 star systems in all.
+- **Packs and market.** 7 booster packs, a Market for selling cards, 94 cards, 49 stacking recipes and
+  9 kinds of random star system, plus the 3 guardian systems.
 
 It's single-player only.
 
@@ -69,12 +73,13 @@ It's single-player only.
 
 ## Building from source
 
-The design lives in `sheets/*.json`, one row per card, recipe, pack, system and asset, and they're the
-source of truth. To build:
+The whole design lives in one file, `sheets/design.json`. It has one section per topic (rules,
+difficulties, moon lengths, ethics, cards, recipes, packs, loot, systems, crises, asset refs) with one
+row per thing, and it's the source of truth. To build:
 
 ```
 python3 tools/preflight.py          # every cell filled, every cross-sheet reference resolves
-python3 tools/gen.py                # sheets -> src/GrandGalactic/Generated/Defs.g.cs
+python3 tools/gen.py                # design.json -> src/GrandGalactic/Generated/Defs.g.cs
 tools/package.sh                    # self-test, Windows build, zip into dist/
 ```
 

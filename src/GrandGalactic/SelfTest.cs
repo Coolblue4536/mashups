@@ -36,7 +36,8 @@ public static class SelfTest
 
     static string Resolve(string card) => card switch
     {
-        "has:yield" => "generator_district",
+        "tag:workplace" => "generator_district",
+        "tag:star" => "pulsar",
         "tag:worker" => "pop",
         "tag:habitable" => "desert_world",
         "tag:uninhabitable" => "gas_giant",
@@ -95,13 +96,49 @@ public static class SelfTest
             Check(!s.BuyPack(st2, Defs.Pack["pack_frontier"], Vector2.Zero), "Act 2 pack locked in Act 1");
         }
 
+        Log.Info("Self-test: random star systems");
+        {
+            var types = new Dictionary<string, int>();
+            var planetCounts = new Dictionary<int, int>();
+            int totalCards = 0;
+            for (int run = 0; run < 300; run++)
+            {
+                var s = Fresh(seed: 1000 + run);
+                var sys = s.RollSystemType();
+                var b = s.AddBoard(sys);
+                types[sys.Id] = types.GetValueOrDefault(sys.Id) + 1;
+                int planets = b.Stacks.Count(x => x.Root.Def.IsPlanet);
+                planetCounts[planets] = planetCounts.GetValueOrDefault(planets) + 1;
+                totalCards += b.Stacks.Count;
+                if (!b.Stacks.Any(x => x.Root.Def.Category == "star")) { Check(false, $"{sys.Id} has a star card"); break; }
+            }
+            Log.Info("  INFO  types: " + string.Join(", ", types.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key} {kv.Value}")));
+            Log.Info("  INFO  planets per system: " + string.Join(", ", planetCounts.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key}: {kv.Value}")));
+            Check(Defs.Systems.Where(x => x.Kind == "random").All(x => types.ContainsKey(x.Id)), "every random system type turns up in 300 surveys");
+            Check(planetCounts.ContainsKey(0) && planetCounts.Keys.Max() >= 4, "planet counts vary (some empty, some with 4+)");
+
+            var run2 = Fresh(seed: 77);
+            run2.Boards.RemoveRange(1, run2.Boards.Count - 1);
+            var sci = Build(run2, run2.Home, new[] { "science_ship" }, new Vector2(300, 300));
+            for (int i = 0; i < 40; i++)
+            {
+                var st = Build(run2, run2.Home, new[] { "uncharted_system" }, new Vector2(300, 700));
+                run2.StackOnto(st, sci);
+                for (int k = 0; k < 400 && sci.Cards.Count > 1; k++) run2.Update(0.05f);
+            }
+            var names = run2.Boards.Skip(1).Select(x => x.Name).ToList();
+            int guardians = Defs.Systems.Count(x => x.Kind == "guardian");
+            Check(run2.Boards.Count == Defs.Rules.MaxSystems - guardians && names.Distinct().Count() == names.Count,
+                $"40 surveys open {run2.Boards.Count - 1} systems (cap {Defs.Rules.MaxSystems}, {guardians} kept for guardians), all names unique");
+        }
+
         Log.Info("Self-test: market and travel");
         {
             var s = Fresh();
             var st = Build(s, s.Home, new[] { "alloys", "alloys", "precursor_artifact" }, new Vector2(400, 400));
             int got = s.Sell(st);
             Check(got == 18 && s.AllCards.Count(c => c.Def.Id == "energy") == 18, "selling 2 Alloys + Artifact gives 18 Energy");
-            var other = s.AddBoard(Defs.Systems.First(x => x.Kind == "normal"));
+            var other = s.AddBoard(s.RollSystemType());
             var pop = Build(s, s.Home, new[] { "pop" }, new Vector2(300, 300));
             Check(!s.MoveToBoard(pop, other), "a Pop can't travel without a ship");
             var fleet = Build(s, s.Home, new[] { "corvette", "pop" }, new Vector2(300, 600));

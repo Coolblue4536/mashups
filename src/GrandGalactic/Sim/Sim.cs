@@ -27,7 +27,8 @@ public sealed class Sim
     public string EndReason = "";
     public bool RiftOpen, BossArrived;
     public int CrisisMoon;
-    int _uid, _stackId, _normalOpened, _guardianOpened;
+    int _uid, _stackId, _guardianOpened;
+    readonly List<string> _unusedNames = new(Defs.Rules.SystemNames);
 
     public Board Home => Boards[0];
 
@@ -63,16 +64,39 @@ public sealed class Sim
 
     // ---------- cards and stacks ----------
 
+    /// <summary>Open a board for a system row. Random rows roll their planets and extras and get a random name.</summary>
     public Board AddBoard(SystemDef sys)
     {
-        var b = new Board { Index = Boards.Count, Sys = sys, Name = sys.Name };
+        string name = sys.Name;
+        if (sys.Kind == "random")
+        {
+            int pick = Rng.Next(_unusedNames.Count);
+            name = _unusedNames[pick];
+            _unusedNames.RemoveAt(pick);
+        }
+        var b = new Board { Index = Boards.Count, Sys = sys, Name = name, Kind = sys.Kind == "random" ? sys.Name : "" };
         Boards.Add(b);
-        int k = 0;
-        foreach (var a in sys.Cards)
-            for (int i = 0; i < a.N; i++, k++)
-                Spawn(b, a.Card, new Vector2(BoardW / 2 - 450 + (k % 5) * 220, BoardH / 2 - 380 + (k / 5) * 260), jitter: true);
+
+        // Stars across the top, everything else in a loose grid below.
+        for (int i = 0; i < sys.StarCards.Length; i++)
+            Spawn(b, sys.StarCards[i], new Vector2(BoardW / 2 - 80 + (i - (sys.StarCards.Length - 1) / 2f) * 260, 130), jitter: false);
+        var cards = new List<string>();
+        foreach (var a in sys.FixedCards) for (int i = 0; i < a.N; i++) cards.Add(a.Card);
+        if (sys.PlanetPool.Length > 0)
+        {
+            int planets = Rng.Next(sys.PlanetsMin, sys.PlanetsMax + 1);
+            for (int i = 0; i < planets; i++) cards.Add(Roll(sys.PlanetPool.Select(p => (p.Card, p.Weight))));
+        }
+        foreach (var e in sys.Extras)
+            if (Rng.NextDouble() < e.Chance)
+                for (int i = 0; i < e.N; i++) cards.Add(e.Card);
+        for (int k = 0; k < cards.Count; k++)
+            Spawn(b, cards[k], new Vector2(BoardW / 2 - 450 + (k % 5) * 220, BoardH / 2 - 380 + (k / 5) * 260), jitter: true);
         return b;
     }
+
+    /// <summary>Roll a random system type by weight (what a survey finds).</summary>
+    public SystemDef RollSystemType() => Roll(Defs.Systems.Where(s => s.Kind == "random").Select(s => (s, s.Weight)));
 
     public Card NewCard(string id)
     {
@@ -260,7 +284,7 @@ public sealed class Sim
                 st.Claimed = true;
                 Messages.Add($"{Name(st.Def.Id)} is now part of your empire.");
                 break;
-            case "open_board:normal": OpenBoard("normal", b, outPos); break;
+            case "open_board:random": OpenBoard("random", b, outPos); break;
             case "open_board:guardian": OpenBoard("guardian", b, outPos); break;
         }
         Discovered.Add(r.Id);
@@ -269,17 +293,20 @@ public sealed class Sim
 
     void OpenBoard(string kind, Board from, Vector2 pos)
     {
-        var sys = Defs.Systems.Where(x => x.Kind == kind).OrderBy(x => x.Order)
-            .Skip(kind == "normal" ? _normalOpened : _guardianOpened).FirstOrDefault();
-        if (sys == null)
+        SystemDef? sys = kind == "guardian"
+            ? Defs.Systems.Where(x => x.Kind == "guardian").Skip(_guardianOpened).FirstOrDefault()
+            : RollSystemType();
+        // Guardian boards always fit; random ones stop at the cap (leaving room for unopened guardians).
+        int reserved = kind == "guardian" ? 0 : Defs.Systems.Count(x => x.Kind == "guardian") - _guardianOpened;
+        if (sys == null || Boards.Count + reserved >= Defs.Rules.MaxSystems)
         {
             Messages.Add("The survey found only empty space - and a little salvage.");
             for (int i = 0; i < 4; i++) Spawn(from, "energy", pos);
             return;
         }
-        if (kind == "normal") _normalOpened++; else _guardianOpened++;
-        AddBoard(sys);
-        Messages.Add($"Surveyed {sys.Name}: a new system board is open.");
+        if (kind == "guardian") _guardianOpened++;
+        var b = AddBoard(sys);
+        Messages.Add(kind == "guardian" ? $"Found {b.Name}!" : $"Surveyed {b.Name}: {b.Kind.ToLowerInvariant()}, {b.Stacks.Count(s => s.Root.Def.IsPlanet)} planets.");
     }
 
     T Roll<T>(IEnumerable<(T item, int weight)> table)

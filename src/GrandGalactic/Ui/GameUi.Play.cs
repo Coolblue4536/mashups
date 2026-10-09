@@ -163,7 +163,7 @@ public sealed partial class GameUi
         d.Pos = Vector2.Clamp(d.Pos, Vector2.Zero, new Vector2(Sim.BoardW - Sim.CardW, Sim.BoardH - Sim.CardH));
     }
 
-    Rectangle TabRect(int i) => new(10 + i * 168, 8, 160, 42);
+    Rectangle TabRect(int i) => new(8 + i * 112, 6, 106, 46);
 
     IEnumerable<(PackDef, Rectangle)> PackRects()
     {
@@ -198,6 +198,7 @@ public sealed partial class GameUi
         }
         Raylib.DrawRectangleLinesEx(new Rectangle(0, 0, Sim.BoardW, Sim.BoardH), 6, new Color(120, 140, 220, 120));
         Text(b.Name.ToUpperInvariant(), 30, 20, 56, new Color(255, 255, 255, 50));
+        if (b.Kind.Length > 0) Text(b.Kind, 34, 82, 30, new Color(255, 255, 255, 40));
 
         foreach (var s in b.Stacks) if (!s.Dragging) DrawStack(s);
         foreach (var bt in b.Battles) DrawBattle(bt);
@@ -282,7 +283,13 @@ public sealed partial class GameUi
             bool fight = sim.Boards[i].Battles.Count > 0;
             Raylib.DrawRectangleRounded(r, 0.3f, 6, i == _board ? new Color(70, 100, 190, 255) : fight ? new Color(130, 40, 50, 255) : new Color(32, 38, 66, 255));
             var label = sim.Boards[i].Name;
-            Text(label, r.X + 10, r.Y + 11, 19, Color.RayWhite);
+            float size = 17;
+            while (size > 11 && Measure(label, size).X > r.Width - 12) size -= 1;
+            Text(label, r.X + 6, r.Y + 5, size, Color.RayWhite);
+            var kind = i == 0 ? "Capital" : sim.Boards[i].Kind.Length > 0 ? sim.Boards[i].Kind : "Guardian";
+            float ks = 12;
+            while (ks > 9 && Measure(kind, ks).X > r.Width - 12) ks -= 1;
+            Text(kind, r.X + 6, r.Y + 27, ks, new Color(200, 210, 255, 200));
         }
         int food = sim.AllCards.Count(c => c.Def.Id == "food");
         int eat = sim.AllCards.Where(c => c.Def.Category == "person").Sum(c => c.Def.FoodUpkeep);
