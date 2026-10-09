@@ -6,7 +6,7 @@ Energy Credits, and build a fleet big enough for the endgame crisis.
 
 It's a mashup in the plain sense: both games are really in it.
 
-- **Stellaris (the host)** brings its pictures and text. That means your species portraits, planet,
+- **Stellaris (the host)** brings its pictures and text. That means its pop, planet,
   resource, ship, technology and ethic icons, the guardians and crises, and the official names, all read
   from your own Stellaris install. Melty starts the game from your Stellaris folder.
 - **Stacklands** brings its look, sound and rules. That means its card frames, pack art, board, font,
@@ -17,9 +17,9 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
 
 ## What you do
 
-- **Found your empire.** Pick a species from your Stellaris portraits and one ethic: Militarist,
-  Spiritualist, Materialist or Machine Intelligence. Each one changes your starting cards and gives you a
-  free booster pack.
+- **Found your empire.** Pick one ethic: Militarist, Spiritualist, Materialist or Gestalt Consciousness
+  (machine drones). Each one changes your starting cards and gives you a free booster pack. (Current
+  Stellaris draws species portraits in 3D, so your people use Stellaris's pop icon instead.)
 - **Work your worlds.** Stack Pops on your Homeworld, districts and colonised planets to make Energy,
   Minerals, Food, Research, Unity and more.
 - **Build.** Stack a Construction Ship with materials to build districts, labs, foundries, shipyards,
@@ -75,7 +75,8 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
 - **Tutorial.** A 16-step checklist in the corner walks a new player through it all: work the
   Homeworld, buy a pack, grow Food, build a Shipyard, research, survey, study a star, travel, claim,
   colonise, build and fit a warship, assign an Admiral, win a battle and reach Act 2. Steps tick off in
-  any order. You can skip a step, or hide the tutorial; switch it back on from the empire screen.
+  any order. You can skip a step, or hide the tutorial; switch it back on from the empire screen. While
+  the tutorial is on, the first moon waits until you have grown Food, so nobody starves while you learn.
 - **Blueprint book (Tab).** Every recipe in the game, sorted into tabs: Build, Ships & Parts, Research,
   Work, and Explore & Claim. Each entry shows its cards, what it makes and how long it takes. Locked
   blueprints say which technology unlocks them. Hover any card to see what it's used in, and finishing a

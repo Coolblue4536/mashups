@@ -61,6 +61,7 @@ public sealed partial class GameUi
         _cam.Target = Vector2.Clamp(_cam.Target, sim.BoundsMin, sim.BoundsMax);
 
         if (_screen == Screen.Play) HandleMouse();
+        sim.TutorialOn = _settings.Tutorial;
         if (!_paused && _screen == Screen.Play) sim.Update(dt * _speed);
 
         foreach (var msg in sim.Messages) Toast(msg);
@@ -507,6 +508,7 @@ public sealed partial class GameUi
         Text($"Tutorial  {done}/{Defs.Tutorial.Length}", r.X + 14, r.Y + 10, 18, new Color(240, 200, 90, 255));
         Text(step.Text, r.X + 14, r.Y + 34, 21, Color.RayWhite);
         Wrapped(step.Hint, r.X + 14, r.Y + 62, r.Width - 28, 16, Color.LightGray, 3);
+        if (sim.MoonHeld) Text("The first moon waits until you have grown Food.", r.X + 14, r.Y + r.Height - 24, 15, new Color(240, 200, 90, 255));
         if (Button(new Rectangle(r.X + r.Width - 150, r.Y + 8, 66, 24), "Skip", false, 15)) sim.SkippedSteps.Add(step.Id);
         if (Button(new Rectangle(r.X + r.Width - 78, r.Y + 8, 64, 24), "Hide", false, 15)) { _settings.Tutorial = false; _settings.Save(); Toast("Tutorial hidden. Turn it back on from the empire screen."); }
     }

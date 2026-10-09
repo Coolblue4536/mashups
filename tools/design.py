@@ -4,7 +4,7 @@ from pathlib import Path
 
 PATH = Path(__file__).resolve().parent.parent / "sheets" / "design.json"
 ORDER = ["rules", "difficulties", "moon_lengths", "ethics", "categories", "cards", "components", "recipes", "packs", "loot",
-         "systems", "crises", "tutorial", "asset_refs", "game_systems"]
+         "systems", "crises", "asset_refs", "game_systems", "tutorial"]
 
 
 def load():
@@ -58,7 +58,8 @@ def expand(sections):
             "inputs": [{"card": b["card"], "n": b["n"], "keep": False} for b in c["build_cost"]],
             "requires_flag": "none", "requires_system": "any", "requires_tech": tech, "time": 12, "tag": "build",
             "outputs": [{"weight": 1, "give": [{"card": cid, "n": 1}]}], "effect": "none", "desc": f"Shipyard + {cost} = {c['name']}"})
-        for aid, look, used in (("st_comp_" + cid, c["icon"], c["name"] + " card"), ("st_tech_" + cid, c["tech_icon"], c["tech_name"] + " tech card")):
-            s["asset_refs"]["rows"].append({"id": aid, "game": "stellaris", "kind": "image", "lookup": look, "used_by": used, "verified": False,
+        for aid, look, used, ok in (("st_comp_" + cid, c["icon"], c["name"] + " card", c.get("icon_verified", False)),
+                                    ("st_tech_" + cid, c["tech_icon"], c["tech_name"] + " tech card", c.get("tech_icon_verified", False))):
+            s["asset_refs"]["rows"].append({"id": aid, "game": "stellaris", "kind": "image", "lookup": look, "used_by": used, "verified": ok,
                                             "note": "Resolved at run time from the player's Stellaris install (from the components section)."})
     return s

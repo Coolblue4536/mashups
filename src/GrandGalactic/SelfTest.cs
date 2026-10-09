@@ -174,6 +174,28 @@ public static class SelfTest
             s.BuyPack(first, Defs.Packs[0], s.Home.Center);
             Check(s.Flags.Contains("pack_bought") && s.StepDone(Defs.Tutorial.First(t => t.Id == "pack")), "buying a pack ticks the pack step");
         }
+        {
+            // A slow first-time player must not starve while still learning: the first moon waits for the Food step.
+            var s = new Sim(Defs.Ethics[0], 4) { TutorialOn = true };
+            for (int i = 0; i < 4000; i++) s.Update(0.05f); // 200 s, over two standard moons
+            Check(s.Moon == 1 && s.MoonTime == 0 && s.State == RunState.Playing, "with the tutorial on, moon 1 waits until Food is grown");
+            s.SkippedSteps.Add(Defs.Rules.TutorialMoonWaitsFor);
+            s.Update(1f);
+            Check(s.MoonTime > 0, "skipping the Food step starts the moon clock");
+            var off = new Sim(Defs.Ethics[0], 4);
+            off.Update(1f);
+            Check(off.MoonTime > 0, "with the tutorial off, the moon clock runs from the start");
+        }
+
+        Log.Info("Self-test: crowded systems keep their cards");
+        {
+            var s = Fresh();
+            s.AddSystem(s.RollSystemType());
+            for (int i = 0; i < 70; i++) s.Spawn("energy", s.Home.Center);
+            for (int i = 0; i < 600; i++) s.Update(0.05f);
+            int outside = s.Table.Stacks.Count(x => x.Root.Def.Id == "energy" && s.SystemAt(Sim.CardCenter(x)) != s.Home);
+            Check(outside == 0, $"70 Energy piled in the capital stay in the capital ({outside} pushed out)");
+        }
 
         Log.Info("Self-test: claiming systems");
         {

@@ -40,6 +40,20 @@ public static class Probe
             else if (a.Kind == "font") res.Font(a);
             refs.Add(new { a.Id, a.Game, a.Kind, hit = res.Hits.GetValueOrDefault(a.Id), file, size });
         }
+        var misses = res.Misses.ToArray();
+        int hitCount = res.Hits.Count;
+        // GG_PROBE_TRY="stellaris|file:gfx/a.dds;stacklands|texfind:box": extra candidate lookups, saved as png/try_*.png to compare by eye.
+        var tries = new List<object>();
+        foreach (var t in (Environment.GetEnvironmentVariable("GG_PROBE_TRY") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = t.Split('|', 2);
+            if (parts.Length < 2) continue;
+            var id = "try_" + new string(parts[1].Select(ch => char.IsLetterOrDigit(ch) ? ch : '_').ToArray());
+            var a = new AssetRefDef(id, parts[0], "image", new[] { parts[1] }, "probe try", false, "");
+            string? file = null;
+            if (res.Image(a) is { } img) Save(img, Path.Combine(outDir, file = $"png/{id}.png"));
+            tries.Add(new { lookup = t, hit = res.Hits.GetValueOrDefault(id), file });
+        }
         var names = Defs.Cards.Select(c => new { c.Id, sheet = c.Name, game = res.CardName(c.Id) });
         var report = new
         {
@@ -64,12 +78,13 @@ public static class Probe
                 fonts = sl.Fonts.Select(t => t.Name).OrderBy(n => n).ToArray(),
             },
             refs,
+            tries,
             names,
-            misses = res.Misses.ToArray(),
+            misses,
         };
         var path = Path.Combine(outDir, "probe.json");
         File.WriteAllText(path, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
-        Log.Info($"probe: {res.Hits.Count} of {Defs.AssetRefs.Length} assets found, {res.Misses.Count} missing → {path}");
+        Log.Info($"probe: {hitCount} of {Defs.AssetRefs.Length} assets found, {misses.Length} missing → {path}");
         return 0;
     }
 

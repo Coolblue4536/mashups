@@ -23,6 +23,8 @@ public static class GameLocator
             if (ok(g)) return Path.GetFullPath(g);
             Log.Info($"locator: '{given}' is not a {folder} install");
         }
+        // Test switch: behave like a PC without the remembered or Steam copy, to check the "game missing" screen.
+        if (Environment.GetEnvironmentVariable("GG_NO_STEAM") == "1") return null;
         if (ok(remembered)) return remembered;
         foreach (var lib in SteamLibraries())
         {

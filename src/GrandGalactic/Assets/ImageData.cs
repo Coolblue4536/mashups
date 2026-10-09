@@ -6,13 +6,18 @@ public sealed class ImageData
     public int W, H;
     public required byte[] Rgba;
 
-    public static ImageData? FromFile(string path, int frames = 1)
+    /// <summary>Load an image; for a horizontal strip of `frames` icons, keep only `frame` (1-based).</summary>
+    public static ImageData? FromFile(string path, int frames = 1, int frame = 1)
     {
         try
         {
             var ext = Path.GetExtension(path).ToLowerInvariant();
             ImageData? img = ext == ".dds" ? FromDds(path) : FromRaylib(path);
-            if (img != null && frames > 1) img = img.Crop(0, 0, img.W / frames, img.H);
+            if (img != null && frames > 1)
+            {
+                int w = img.W / frames;
+                img = img.Crop(w * (Math.Clamp(frame, 1, frames) - 1), 0, w, img.H);
+            }
             return img;
         }
         catch (Exception e)

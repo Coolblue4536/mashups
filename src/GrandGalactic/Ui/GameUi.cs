@@ -352,7 +352,7 @@ public sealed partial class GameUi
         Text("Species", px, py, 24, Color.LightGray);
         py += 34;
         int perPage = cols * rows, pages = Math.Max(1, (ports.Count + perPage - 1) / perPage);
-        if (ports.Count == 0) Wrapped(_dev ? "(no Stellaris loaded)" : "No species portraits were found in your Stellaris install.", px, py, cols * cell, 20, Color.Gray);
+        if (ports.Count == 0) Wrapped(_dev ? "(no Stellaris loaded)" : "Your Stellaris draws species portraits in 3D, so there are no flat portraits to pick from. Your people use Stellaris's pop icon.", px, py, cols * cell, 20, Color.Gray);
         for (int i = 0; i < perPage; i++)
         {
             int idx = _portraitPage * perPage + i;

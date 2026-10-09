@@ -29,9 +29,9 @@ public sealed class AssetResolver
                     if (PortraitPath != null && ImageData.FromFile(PortraitPath) is { } p) { Hit(a, $"{l} → {Rel(PortraitPath)}"); return p; }
                     continue;
                 }
-                if (St.Lookup(l) is { } hit && ImageData.FromFile(hit.path, hit.frames) is { } img)
+                if (St.Lookup(l) is { } hit && ImageData.FromFile(hit.path, hit.frames, hit.frame) is { } img)
                 {
-                    Hit(a, $"{l} → {Rel(hit.path)}" + (hit.frames > 1 ? $" (frame 1 of {hit.frames})" : ""));
+                    Hit(a, $"{l} → {Rel(hit.path)}" + (hit.frames > 1 ? $" (frame {hit.frame} of {hit.frames})" : ""));
                     return img;
                 }
             }

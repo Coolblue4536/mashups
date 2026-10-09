@@ -2,14 +2,16 @@ using System.Text.RegularExpressions;
 
 namespace GrandGalactic;
 
-public sealed record SpriteInfo(string Name, string TextureFile, int Frames);
+/// <summary>A spriteType; Frame is 1-based (Stellaris's default_frame), used when the texture is a strip of Frames icons.</summary>
+public sealed record SpriteInfo(string Name, string TextureFile, int Frames, int Frame = 1);
 public sealed record PortraitInfo(string Name, string Group, string TextureFile);
 
 /// <summary>Reads what the mashup needs from the player's own Stellaris install: names, sprites, planet icons, portraits.</summary>
 public sealed class StellarisData
 {
     public readonly string Root;
-    public readonly Dictionary<string, string> Loc = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Case-sensitive, like the game: "governor" and "GOVERNOR" are different keys.</summary>
+    public readonly Dictionary<string, string> Loc = new(StringComparer.Ordinal);
     public readonly Dictionary<string, SpriteInfo> Sprites = new(StringComparer.OrdinalIgnoreCase);
     public readonly Dictionary<string, string> PlanetIcons = new(StringComparer.OrdinalIgnoreCase);
     public readonly List<PortraitInfo> Portraits = new();
@@ -82,16 +84,27 @@ public sealed class StellarisData
     {
         var dir = Path.Combine(Root, "interface");
         if (!Directory.Exists(dir)) return;
+        // Sprites that pick one frame of another sprite's strip (sprite_sheet_sprite_type + default_frame), e.g. the planet type icons.
+        var sheetRefs = new List<(string name, string sheet, int frame)>();
         foreach (var f in Directory.EnumerateFiles(dir, "*.gfx", SearchOption.AllDirectories))
             foreach (var n in CwNode.ParseFile(f).Descendants())
             {
                 if (n.Children == null || n.Key == null || !n.Key.EndsWith("spriteType", StringComparison.OrdinalIgnoreCase)) continue;
                 var name = n.Get("name");
+                if (name == null) continue;
+                int.TryParse(n.Get("default_frame"), out var frame);
                 var tex = n.Get("texturefile") ?? n.Get("textureFile");
-                if (name == null || tex == null) continue;
+                if (tex == null)
+                {
+                    if (n.Get("sprite_sheet_sprite_type") is { } sheet) sheetRefs.Add((name, sheet, frame));
+                    continue;
+                }
                 int.TryParse(n.Get("noOfFrames"), out var frames);
-                Sprites[name] = new SpriteInfo(name, tex, Math.Max(1, frames));
+                Sprites[name] = new SpriteInfo(name, tex, Math.Max(1, frames), Math.Max(1, frame));
             }
+        foreach (var (name, sheet, frame) in sheetRefs)
+            if (Sprites.TryGetValue(sheet, out var s) && !Sprites.ContainsKey(name))
+                Sprites[name] = s with { Name = name, Frame = Math.Clamp(frame, 1, s.Frames) };
     }
 
     void LoadPlanetClasses()
@@ -122,8 +135,8 @@ public sealed class StellarisData
         Portraits.Sort((a, b) => string.CompareOrdinal(a.Group + a.Name, b.Group + b.Name));
     }
 
-    /// <summary>Resolve one lookup string from asset_refs (file:, sprite:, find:, planetclass:). Returns (path, frames) or null.</summary>
-    public (string path, int frames)? Lookup(string lookup)
+    /// <summary>Resolve one lookup string from asset_refs (file:, sprite:, find:, planetclass:). Returns (path, frames, frame) or null.</summary>
+    public (string path, int frames, int frame)? Lookup(string lookup)
     {
         int c = lookup.IndexOf(':');
         if (c < 0) return null;
@@ -131,7 +144,7 @@ public sealed class StellarisData
         switch (kind)
         {
             case "file":
-                return FilePath(arg) is { } p ? (p, 1) : null;
+                return FilePath(arg) is { } p ? (p, 1, 1) : null;
             case "sprite":
                 return SpriteFile(arg);
             case "planetclass":
@@ -142,12 +155,12 @@ public sealed class StellarisData
                 foreach (var s in Sprites.Values.Where(s => s.Name.ToLowerInvariant().Contains(needle)).OrderBy(s => s.Name.Length).ThenBy(s => s.Name))
                     if (SpriteFile(s.Name) is { } hit) return hit;
                 var file = Files.Keys.Where(k => k.Contains(needle)).OrderBy(k => k.Length).ThenBy(k => k, StringComparer.Ordinal).FirstOrDefault();
-                return file != null ? (Files[file], 1) : null;
+                return file != null ? (Files[file], 1, 1) : null;
             }
         }
         return null;
     }
 
-    (string, int)? SpriteFile(string name) =>
-        Sprites.TryGetValue(name, out var s) && FilePath(s.TextureFile) is { } p ? (p, s.Frames) : null;
+    (string, int, int)? SpriteFile(string name) =>
+        Sprites.TryGetValue(name, out var s) && FilePath(s.TextureFile) is { } p ? (p, s.Frames, s.Frame) : null;
 }

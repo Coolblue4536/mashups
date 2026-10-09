@@ -224,7 +224,9 @@ public sealed class Sim
     public Card Spawn(string id, Vector2 pos, bool jitter = true)
     {
         var c = NewCard(id);
+        var home = SystemAt(pos + new Vector2(CardW / 2, CardH / 2));
         var s = NewStack(pos + (jitter ? new Vector2(Rng.Next(-40, 41), Rng.Next(-40, 41)) : Vector2.Zero));
+        if (home != null) s.Pos = ClampIn(s.Pos, home); // jitter never moves a new card into the next system
         Add(s, c);
         return c;
     }
@@ -237,6 +239,10 @@ public sealed class Sim
     }
 
     public Vector2 Clamp(Vector2 p) => new(Math.Clamp(p.X, BoundsMin.X, BoundsMax.X - CardW), Math.Clamp(p.Y, BoundsMin.Y, BoundsMax.Y - CardH));
+
+    /// <summary>Keep a card inside one star system (or the table, when it isn't in one).</summary>
+    public Vector2 ClampIn(Vector2 p, StarSystem? z) => z == null ? Clamp(p)
+        : new(Math.Clamp(p.X, z.Origin.X, z.Origin.X + z.Size.X - CardW), Math.Clamp(p.Y, z.Origin.Y, z.Origin.Y + z.Size.Y - CardH));
 
     void Add(Stack s, Card c)
     {
@@ -850,10 +856,16 @@ public sealed class Sim
 
     // ---------- main tick ----------
 
+    /// <summary>Set by the UI while the tutorial is shown.</summary>
+    public bool TutorialOn;
+
+    /// <summary>With the tutorial on, the first moon waits until its "grow Food" step is done, so nobody starves while learning.</summary>
+    public bool MoonHeld => TutorialOn && Moon == 1 && Defs.Tutorial.FirstOrDefault(t => t.Id == Defs.Rules.TutorialMoonWaitsFor) is { } step && !StepDone(step);
+
     public void Update(float dt)
     {
         if (State != RunState.Playing) return;
-        MoonTime += dt;
+        if (!MoonHeld) MoonTime += dt;
         if (MoonTime >= MoonSeconds) { MoonTime -= MoonSeconds; EndMoon(); }
         TickTravel(dt);
         TickRegen(dt);
@@ -881,8 +893,9 @@ public sealed class Sim
                 var d = (c.Pos - a.Pos);
                 if (d.LengthSquared() < 1) d = new Vector2(1, 0.3f);
                 var push = Vector2.Normalize(d) * MathF.Min(ox, 60) * MathF.Min(1, dt * 6);
-                a.Pos = Clamp(a.Pos - push / 2);
-                c.Pos = Clamp(c.Pos + push / 2);
+                // A crowded system must not push its cards over the border into the next one.
+                a.Pos = ClampIn(a.Pos - push / 2, SystemAt(CardCenter(a)));
+                c.Pos = ClampIn(c.Pos + push / 2, SystemAt(CardCenter(c)));
             }
     }
 }
