@@ -676,8 +676,12 @@ public sealed partial class Sim
                     var size = Defs.Rules.FleetSizeTechs.FirstOrDefault(a => a.Card == st.Def.Id);
                     Messages.Add($"Researched {Name(st.Def.Id)}! " + (size != null ? $"Fleets can now hold {size.N} warships."
                         : unlocked.Count == 1 ? $"New blueprint: {unlocked[0].Desc}" : unlocked.Count > 1 ? $"{unlocked.Count} new blueprints (Tab to view)." : ""));
+                    // The hull ladder: each hull's research comes with a sketch of the next one (its blueprint card).
                     if (Array.IndexOf(HullLadder, st.Def.Id) >= 0 && NextHull is { } nextHull)
-                        Messages.Add($"Next bigger hull: {Name(nextHull)}. Look for its blueprint in the Military, Research or Frontier packs.");
+                    {
+                        if (!AllCards.Any(c => c.Def.Id == nextHull)) Spawn(nextHull, outPos);
+                        Messages.Add($"Your engineers sketched the next hull: the {Name(nextHull)} blueprint is on the table. Research it next.");
+                    }
                     break;
                 }
             case "repair":

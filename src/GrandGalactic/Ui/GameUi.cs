@@ -233,6 +233,7 @@ public sealed partial class GameUi
         _codex = _escMenu = false;
         CloseDiplomacy();
         _tutorialSeen.Clear();
+        _intro = TutorialShown;
         Toast($"{_ethic.Name} empire founded. Your pool (top bar) is empty: put Pops to work on the Homeworld and districts, then click a pack to buy it. Esc opens the menu.");
     }
 

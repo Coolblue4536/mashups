@@ -27,7 +27,8 @@ public sealed partial class GameUi
 
         if (Raylib.IsKeyPressed(KeyboardKey.Escape))
         {
-            if (sim.War != null) { if (sim.War.Fight == null) sim.EndInvasion(); }
+            if (_intro) _intro = false;
+            else if (sim.War != null) { if (sim.War.Fight == null) sim.EndInvasion(); }
             else if (_diplo != null) CloseDiplomacy();
             else if (_market) _market = false;
             else if (_menuCard != null) CloseCardMenu();
@@ -89,7 +90,7 @@ public sealed partial class GameUi
         sim.TutorialOn = TutorialShown;
         // The book, menus, diplomacy and trade pause the game; an invasion runs on its own while home stands still.
         if (sim.War != null) { if (!_escMenu) sim.UpdateWar(dt * _speed); }
-        else if (!_paused && !_escMenu && !_codex && _diplo == null && _screen == Screen.Play) sim.Update(dt * _speed);
+        else if (!_paused && !_escMenu && !_codex && _diplo == null && !_intro && _screen == Screen.Play) sim.Update(dt * _speed);
 
         foreach (var msg in sim.Messages) Toast(msg);
         sim.Messages.Clear();
@@ -400,6 +401,7 @@ public sealed partial class GameUi
         if (_market) DrawMarket();
         if (_diplo != null && sim.War == null) DrawDiplomacy();
         if (sim.War != null) DrawInvasion();
+        if (_intro && _screen == Screen.Play) DrawIntro();
         if (_paused && !_escMenu && sim.War == null && _diplo == null) Text("PAUSED (Space)", view.Width / 2 - 100, TopBar + 14, 30, Color.Yellow);
         if (_screen == Screen.End) DrawEnd();
         if (_escMenu) DrawEscMenu();

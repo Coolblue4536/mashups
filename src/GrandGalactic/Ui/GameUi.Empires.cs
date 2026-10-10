@@ -10,7 +10,7 @@ public sealed partial class GameUi
     Empire? _diplo;
     bool _trade, _goalPick;
 
-    bool EmpireScreenOpen => _diplo != null || _sim?.War != null;
+    bool EmpireScreenOpen => _diplo != null || _sim?.War != null || _intro;
 
     void CloseDiplomacy() { _diplo = null; _trade = false; _goalPick = false; }
 
@@ -22,6 +22,34 @@ public sealed partial class GameUi
         "tributary" => "Your tributary (pays you every moon)",
         _ => e.HumiliatedUntil > _sim!.Moon ? $"At peace (humiliated until moon {e.HumiliatedUntil})" : "At peace",
     };
+
+    /// <summary>The welcome card at the start of a tutorial run: the whole game in four lines. Time waits for it.</summary>
+    bool _intro;
+
+    void DrawIntro()
+    {
+        int sw = Raylib.GetScreenWidth(), sh = Raylib.GetScreenHeight();
+        var r = new Rectangle(sw / 2f - 360, sh / 2f - 240, 720, 480);
+        DrawPanelFrame(r, new Color(240, 200, 90, 220));
+        Text("Welcome to Grand Galactic", r.X + 30, r.Y + 24, 32, Color.RayWhite);
+        var lines = new[]
+        {
+            ("Cards stack to make things.", "Drag a card onto another: a Pop on your Homeworld makes Energy, a Pop on a farm makes Food."),
+            ("Resources live in the top bar.", "Energy, Food, Minerals and the rest are counters you can spend from any system."),
+            ("Click a card to give it orders.", "Click your Construction Ship to build, a Shipyard for ships, a rival's capital for diplomacy."),
+            ("Follow the gold glow.", "The checklist (top left) says what to do next, and the cards to use glow gold."),
+        };
+        float y = r.Y + 80;
+        foreach (var (head, body) in lines)
+        {
+            Text(head, r.X + 30, y, 21, new Color(240, 200, 90, 255));
+            Wrapped(body, r.X + 30, y + 26, r.Width - 60, 17, Color.LightGray, 2);
+            y += 74;
+        }
+        Text("Everyone eats at the end of each moon (the first is free). Space pauses, Tab opens the blueprint book, Esc the menu.",
+             r.X + 30, r.Y + r.Height - 92, 15, Color.Gray);
+        if (Button(new Rectangle(r.X + r.Width / 2 - 110, r.Y + r.Height - 66, 220, 50), "Let's go", false, 24)) _intro = false;
+    }
 
     void DrawPanelFrame(Rectangle r, Color edge)
     {

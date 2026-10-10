@@ -172,6 +172,14 @@ public static class SelfTest
             Check(s2.Blueprint(Defs.Recipes.First(r => r.Id == "s_red_laser")) == Sim.BlueprintState.Known
                   && s2.Blueprint(Defs.Recipes.First(r => r.Id == "r_red_laser")) == Sim.BlueprintState.Made, "researching Red Laser puts its build blueprint in the book");
             Check(Defs.Packs.Count(p => p.Contents.Any(e => Defs.Card[e.Card].Category == "tech")) >= 4, "four packs carry blueprint cards");
+            {
+                var h = Fresh();
+                h.Techs.Add("tech_corvettes");
+                Build(h, new[] { "tech_destroyers", "scientist" }, new Vector2(400, 400));
+                h.Res["research"] = 20;
+                Run(h, 60, () => h.Techs.Contains("tech_destroyers"));
+                Check(h.Techs.Contains("tech_destroyers") && h.AllCards.Any(c => c.Def.Id == "tech_cruisers"), "researching a hull sketches the next one (its blueprint appears)");
+            }
             Check(Defs.Recipes.All(r => Sim.BlueprintTab(r) != "Other"), $"all {Defs.Recipes.Length} recipes appear in a Blueprint book tab");
         }
 

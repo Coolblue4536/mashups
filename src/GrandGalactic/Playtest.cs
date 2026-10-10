@@ -118,7 +118,7 @@ public static class Playtest
                 if (m.StartsWith("Act ")) Mark(m[..5], m.Split('.')[0]);
                 if (m.Contains("has arrived")) { Mark("boss", m); log.Add("fleet at boss: " + string.Join(", ", s.AllCards.Where(c => c.Def.HasTag("warship")).GroupBy(c => c.Def.Id + "(" + c.Parts.Count + " parts)").Select(g => $"{g.Count()} {g.Key}"))); }
                 if (m.Contains("Raiders")) log.Add($"moon {s.Moon,2}: raid");
-                if (m.Contains("lost in battle")) log.Add($"moon {s.Moon,2}: {m}");
+                if (m.Contains("lost in battle") || m.Contains("starved") || m.Contains("shut down") || m.Contains("declare war") || m.Contains("raid fleet")) log.Add($"moon {s.Moon,2}: {m}");
             }
             if (s.AllCards.Any(c => c.Def.HasTag("warship"))) Stone("warship");
             foreach (var h in Sim.HullLadder) if (s.Techs.Contains(h)) Stone(h);
@@ -294,7 +294,11 @@ public static class Playtest
         int CountCard(string id) => s.AllCards.Count(c => c.Def.Id == id);
 
         // Sell blueprints already known; research the rest with idle Scientists, then Pops.
-        foreach (var bp in Mine(s).Where(x => x.Cards.Count == 1 && x.Root.Def.Category == "tech").ToList())
+        // Hulls first (the "next hull" hint), then weapons and defences, then the rest.
+        int Priority(CardDef d) => Array.IndexOf(Sim.HullLadder, d.Id) >= 0 || d.Id.StartsWith("tech_fleet_doctrine") ? 0
+            : Defs.Component.ContainsKey(d.Id[5..]) || d.Id is "tech_reactor_boosters" or "tech_armor_hardeners" ? 1 : 2;
+        bool saving = false;
+        foreach (var bp in Mine(s).Where(x => x.Cards.Count == 1 && x.Root.Def.Category == "tech").OrderBy(x => Priority(x.Root.Def)).ToList())
         {
             if (s.Techs.Contains(bp.Root.Def.Id)) { s.Sell(bp); continue; }
             var r = Defs.Recipes.First(x => x.Effect == "learn" && x.Station == bp.Root.Def.Id);
