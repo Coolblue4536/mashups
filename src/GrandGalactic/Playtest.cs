@@ -42,7 +42,7 @@ public static class Playtest
     {
         int runs = 0, wins = 0;
         foreach (var e in Defs.Ethics.Where(e => Environment.GetEnvironmentVariable("GG_PT_ETHIC") is not { } only || e.Id == only))
-            for (int seed = 1; seed <= 2; seed++)
+            foreach (int seed in (Environment.GetEnvironmentVariable("GG_PT_SEED") is { } one ? new[] { int.Parse(one) } : new[] { 1, 2 }))
             {
                 var r = Play(e, seed, Defs.DefaultDifficulty);
                 runs++;
