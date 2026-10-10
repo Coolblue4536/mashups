@@ -37,7 +37,7 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
 
   Blueprints come from packs at random, and higher tiers need the lower ones first. Once every blueprint is
   researched, infinite research opens at Research Labs: each level gives +5% hull, shields, armour,
-  damage, output, construction speed or research speed.
+  damage, output, construction speed or research speed. Each level costs 5 more Research than the last.
 - **Rival empires.** Three rival empires share the galaxy and grow stronger with the moons.
   - **Contact:** stack an Envoy (from Exploration packs) with a Science Ship to make first contact; their
     home system joins your table. Click their capital card for diplomacy.
