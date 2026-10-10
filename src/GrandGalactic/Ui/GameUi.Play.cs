@@ -617,8 +617,10 @@ public sealed partial class GameUi
         foreach (var id in ShownResources())
         {
             int n = sim.Have(id);
-            string sub = id == "food" && eat > 0 ? $"-{eat}/moon" : id == "energy" && power > 0 ? $"-{power}/moon" : "";
-            bool shortOf = (id == "food" && n < eat) || (id == "energy" && n < power);
+            bool rations = sim.Moon < Defs.Rules.UpkeepFromMoon;
+            string sub = id == "food" && eat > 0 ? (rations ? $"eat from moon {Defs.Rules.UpkeepFromMoon}" : $"-{eat}/moon")
+                       : id == "energy" && power > 0 ? (rations ? $"from moon {Defs.Rules.UpkeepFromMoon}" : $"-{power}/moon") : "";
+            bool shortOf = !rations && ((id == "food" && n < eat) || (id == "energy" && n < power));
             float tw = Math.Max(Measure($"{n}", 22).X, sub.Length > 0 ? Measure(sub, 12).X : 0);
             var r = new Rectangle(x, y, 44 + tw, 34);
             float pulse = _chipPulse.GetValueOrDefault(id);
