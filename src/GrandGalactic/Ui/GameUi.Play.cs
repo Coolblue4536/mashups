@@ -27,7 +27,9 @@ public sealed partial class GameUi
 
         if (Raylib.IsKeyPressed(KeyboardKey.Escape))
         {
-            if (_market) _market = false;
+            if (sim.War != null) { if (sim.War.Fight == null) sim.EndInvasion(); }
+            else if (_diplo != null) CloseDiplomacy();
+            else if (_market) _market = false;
             else if (_menuCard != null) CloseCardMenu();
             else if (_escMenu) _escMenu = false;
             else if (_codex) _codex = false;
@@ -50,7 +52,7 @@ public sealed partial class GameUi
         // Camera: right or middle drag pans, wheel zooms, WASD pans.
         var view = BoardView;
         _cam.Offset = new Vector2(view.X + view.Width / 2, view.Y + view.Height / 2);
-        bool menus = _escMenu || _codex;
+        bool menus = _escMenu || _codex || EmpireScreenOpen;
         if (!menus && (Raylib.IsMouseButtonDown(MouseButton.Right) || Raylib.IsMouseButtonDown(MouseButton.Middle)))
         {
             _cam.Target -= Raylib.GetMouseDelta() / _cam.Zoom;
@@ -85,7 +87,9 @@ public sealed partial class GameUi
 
         if (_screen == Screen.Play && !menus) HandleMouse();
         sim.TutorialOn = TutorialShown;
-        if (!_paused && !_escMenu && !_codex && _screen == Screen.Play) sim.Update(dt * _speed); // the book and the menu pause the game
+        // The book, menus, diplomacy and trade pause the game; an invasion runs on its own while home stands still.
+        if (sim.War != null) { if (!_escMenu) sim.UpdateWar(dt * _speed); }
+        else if (!_paused && !_escMenu && !_codex && _diplo == null && _screen == Screen.Play) sim.Update(dt * _speed);
 
         foreach (var msg in sim.Messages) Toast(msg);
         sim.Messages.Clear();
@@ -255,6 +259,12 @@ public sealed partial class GameUi
         {
             var target = hit.s.Cards[hit.i];
             if (target.Def.IsHostile) { sim.Attack(d, target); return; }
+            // A fleet dropped on a rival capital invades (at war); an Envoy stays there to gather intel.
+            if (hit.s.Root.EmpireId is { } eid && sim.EmpireOf(eid) is { } emp && d.Cards.Any(c => c.Def.HasTag("warship")))
+            {
+                if (sim.StartInvasion(d, emp) is { } no) { Toast(no); Bounce(d); }
+                return;
+            }
             // A single ship component dropped on a ship fits into a slot (or swaps out a weaker part); an admiral takes
             // command of a fleet.
             bool admiral = d.Cards.Count == 1 && d.Root.Def.Id == "admiral" && hit.s.Cards.Any(x => x.Def.HasTag("warship"));
@@ -344,10 +354,13 @@ public sealed partial class GameUi
             if (bg is { } t) Raylib.DrawTexturePro(t, new Rectangle(0, 0, t.Width, t.Height), r, Vector2.Zero, 0, new Color(150, 160, 200, 255));
             else Raylib.DrawRectangleRec(r, new Color(18, 24, 48, 255));
             bool fight = b.Battles.Any(bt => z.Contains(bt.Pos));
-            Raylib.DrawRectangleLinesEx(r, z.Claimed ? 8 : 4, fight ? new Color(255, 90, 90, 220) : z.Claimed ? new Color(240, 200, 90, 210) : new Color(120, 130, 160, 110));
+            var owner = sim.EmpireOf(z.Owner);
+            Raylib.DrawRectangleLinesEx(r, z.Claimed || owner != null ? 8 : 4, fight ? new Color(255, 90, 90, 220) : owner != null ? Hex(owner.Def.Color, 220)
+                : z.Claimed ? new Color(240, 200, 90, 210) : new Color(120, 130, 160, 110));
             if (!z.Claimed)
             {
-                var hint = sim.ClaimBlock(z) is { } why && why.StartsWith("Claim limit") ? why : "Unclaimed: Construction Ship + 2 Influence on its star";
+                var hint = owner != null ? $"{owner.Def.Name} territory - click their capital card for diplomacy"
+                    : sim.ClaimBlock(z) is { } why && why.StartsWith("Claim limit") ? why : "Unclaimed: Construction Ship + 2 Influence on its star";
                 float hs = Math.Max(24, 13 / _cam.Zoom);
                 while (hs > 12 && Measure(hint, hs).X > z.Size.X - 56) hs -= 1;
                 Text(hint, z.Origin.X + 28, z.Origin.Y + z.Size.Y - hs - 20, hs, new Color(255, 230, 160, 110));
@@ -385,15 +398,47 @@ public sealed partial class GameUi
         if (_codex) DrawCodex();
         if (_menuCard != null) DrawCardMenu();
         if (_market) DrawMarket();
+        if (_diplo != null && sim.War == null) DrawDiplomacy();
+        if (sim.War != null) DrawInvasion();
         if (_paused && !_escMenu) Text("PAUSED (Space)", view.Width / 2 - 100, TopBar + 14, 30, Color.Yellow);
         if (_screen == Screen.End) DrawEnd();
         if (_escMenu) DrawEscMenu();
+    }
+
+    /// <summary>The current tutorial step's highlight list (cards by id or tag:, and ui: targets), or empty.</summary>
+    string[] TutorialTargets => TutorialShown && _screen == Screen.Play && _sim?.CurrentStep is { } st ? st.Highlight : Array.Empty<string>();
+
+    bool Highlighted(Card c, Stack s)
+    {
+        foreach (var h in TutorialTargets)
+        {
+            bool hit = h.StartsWith("tag:") ? c.Def.HasTag(h[4..]) : c.Def.Id == h;
+            if (!hit) continue;
+            // Workers glow only while idle (so the player sees which ones to move).
+            if (c.Def.HasTag("worker") && s.Cards.Count > 1) continue;
+            return true;
+        }
+        return false;
+    }
+
+    void Glow(Rectangle r)
+    {
+        float k = 0.5f + 0.5f * MathF.Sin(_clock * 5);
+        Raylib.DrawRectangleRoundedLinesEx(new Rectangle(r.X - 5, r.Y - 5, r.Width + 10, r.Height + 10), 0.12f, 6, 3 + 2 * k, new Color(255, 215, 90, (int)(140 + 115 * k)));
     }
 
     void DrawStack(Stack s)
     {
         for (int i = 0; i < s.Cards.Count; i++)
             DrawCard(s.Cards[i], new Rectangle(s.Pos.X, s.Pos.Y + i * Sim.StackStep, Sim.CardW, Sim.CardH), s.Dragging);
+        if (!s.Dragging)
+            for (int i = 0; i < s.Cards.Count; i++)
+                if (Highlighted(s.Cards[i], s))
+                {
+                    float h = i == s.Cards.Count - 1 ? Sim.CardH : Sim.StackStep;
+                    Glow(new Rectangle(s.Pos.X, s.Pos.Y + i * Sim.StackStep, Sim.CardW, h));
+                    break;
+                }
         if (s.Active != null && s.Duration > 0 && s.Wait == null)
         {
             var r = new Rectangle(s.Pos.X, s.Pos.Y - 18, Sim.CardW, 12);
@@ -493,7 +538,8 @@ public sealed partial class GameUi
         }
 
         // Title.
-        var name = _res.CardName(c.Def.Id);
+        var empire = c.EmpireId != null ? _sim?.EmpireOf(c.EmpireId) : null;
+        var name = empire?.Def.Name ?? _res.CardName(c.Def.Id);
         float size = 16;
         while (size > 10 && Measure(name, size).X > r.Width - 18) size -= 0.5f;
         Text(name, r.X + 9, r.Y + 8 + (16 - size) / 2, size, Ink);
@@ -501,7 +547,12 @@ public sealed partial class GameUi
         // Art window: a rounded pane of space with the picture inside.
         var art = new Rectangle(r.X + 9, r.Y + 28, r.Width - 18, r.Height - 60);
         Raylib.DrawRectangleRounded(art, 0.12f, 6, new Color(16, 20, 38, 255));
-        DrawCardArt(c.Def, art, col);
+        if (empire != null)
+        {
+            if (Tex(c.Def.Art) is { } throne) DrawCover(throne, art, Color.White);
+            if (Tex(empire.Def.Art) is { } flag) DrawFit(flag, new Rectangle(art.X + art.Width * 0.2f, art.Y + art.Height * 0.15f, art.Width * 0.6f, art.Height * 0.7f), Color.White);
+        }
+        else DrawCardArt(c.Def, art, col);
         Raylib.DrawRectangleRoundedLinesEx(art, 0.12f, 6, 2, new Color(col.R / 3, col.G / 3, col.B / 3, 200));
 
         // Footer: hull and bars for fighting cards, else the value; planets say whether they are yours.
@@ -565,7 +616,8 @@ public sealed partial class GameUi
         }
         if (c.Def.IsPlanet && c.Def.ColonizeWith != "none")
         {
-            var tag = c.Claimed ? (c.Def.HasTag("colony") ? "Colony" : "Outpost") : "Unclaimed";
+            bool theirs = !c.Claimed && c.Stack != null && _sim?.SystemAt(Sim.CardCenter(c.Stack))?.Owner != null;
+            var tag = c.Claimed ? (c.Def.HasTag("colony") ? "Colony" : "Outpost") : theirs ? "Theirs" : "Unclaimed";
             Text(tag, r.X + r.Width - 10 - Measure(tag, 12).X, fy + 6, 12, c.Claimed ? new Color(20, 100, 40, 255) : new Color(110, 70, 20, 255));
         }
         if (c.Def.Category == "tech" && _sim != null)
@@ -624,9 +676,10 @@ public sealed partial class GameUi
             while (ks > 9 && Measure(kind, ks).X > r.Width - 12) ks -= 1;
             Text(kind, r.X + 6, r.Y + 27, ks, new Color(200, 210, 255, 200));
         }
-        var info = $"{sim.Diff.Name}  |  Owned {sim.ClaimedCount}/{Defs.Rules.ClaimLimit}  |  Moon {sim.Moon}  |  Act {sim.Act}  |  x{_speed:0}";
+        var info = (sim.EnergyDeficit ? "ENERGY DEFICIT  |  " : "") + (sim.Endless ? "Endless  |  " : "") +
+                   $"{sim.Species.Name}  |  {sim.Diff.Name}  |  Owned {sim.ClaimedCount}/{Defs.Rules.ClaimLimit}  |  Moon {sim.Moon}  |  Act {sim.Act}  |  x{_speed:0}";
         var w = Measure(info, 20).X;
-        Text(info, sw - w - 20, 8, 20, Color.RayWhite);
+        Text(info, sw - w - 20, 8, 20, sim.EnergyDeficit ? new Color(255, 140, 120, 255) : Color.RayWhite);
         var bar = new Rectangle(sw - w - 20, 36, w, 10);
         Raylib.DrawRectangleRec(bar, new Color(40, 44, 70, 255));
         Raylib.DrawRectangleRec(new Rectangle(bar.X, bar.Y, bar.Width * sim.MoonTime / sim.MoonSeconds, bar.Height), new Color(240, 210, 120, 255));
@@ -634,7 +687,7 @@ public sealed partial class GameUi
 
         // The resource pool: one counter per resource, usable from every system.
         int eat = sim.AllCards.Where(c => c.Def.Category == "person").Sum(c => c.Def.FoodUpkeep);
-        int power = sim.AllCards.Where(c => c.Def.Category == "person").Sum(c => c.Def.EnergyUpkeep);
+        int power = sim.AllCards.Where(c => c.Def.Category == "person").Sum(c => c.Def.EnergyUpkeep) + sim.StructureUpkeep;
         float x = 12, y = 60;
         _chip.Clear();
         foreach (var id in ShownResources())
@@ -782,12 +835,15 @@ public sealed partial class GameUi
                 Text($"{sim.PackCost(p)} Energy, {p.Draws} cards", r.X + 74, r.Y + r.Height - 22, 14, costCol);
             }
         }
+        if (TutorialTargets.Contains("ui:packs")) foreach (var (_, pr) in PackRects().Take(1)) Glow(pr);
         var m = MarketRect();
+        if (TutorialTargets.Contains("ui:market")) Glow(m);
         bool mh = Raylib.CheckCollisionPointRec(mouse, m) && _drag != null;
         Raylib.DrawRectangleRounded(m, 0.12f, 6, mh ? new Color(160, 130, 50, 255) : new Color(70, 58, 30, 255));
         Text(Defs.Rules.SellSlotName, m.X + 14, m.Y + 12, 26, Color.RayWhite);
         Wrapped("Drop cards here to sell them; click to trade surplus resources for Energy", m.X + 14, m.Y + 46, m.Width - 28, 15, Color.LightGray);
-        Text("Tab blueprints - Space pause", sw - RightPanel + 12, m.Y - 44, 14, Color.Gray);
+        if (TutorialTargets.Contains("ui:book")) Glow(new Rectangle(sw - RightPanel + 8, m.Y - 48, RightPanel - 20, 22));
+        Text("Tab blueprints - Space pause", sw - RightPanel + 12, m.Y - 44, 14, TutorialTargets.Contains("ui:book") ? new Color(255, 220, 120, 255) : Color.Gray);
         Text("1-3 speed - Z zoom - Esc menu", sw - RightPanel + 12, m.Y - 24, 14, Color.Gray);
 
         if (hovered is { } h)

@@ -33,6 +33,7 @@ public sealed partial class GameUi
     EthicDef _ethic = Defs.Ethics[0];
     DifficultyDef _diff = Defs.DefaultDifficulty;
     MoonLengthDef _moon = Defs.DefaultMoonLength;
+    SpeciesDef _species = Defs.Species[0];
 
     // loaded content
     readonly Dictionary<string, Texture2D?> _tex = new();
@@ -52,6 +53,7 @@ public sealed partial class GameUi
         _autoEthic = autoEthic;
         _diff = Defs.Difficulties.FirstOrDefault(d => d.Id == settings.Difficulty) ?? Defs.DefaultDifficulty;
         _moon = Defs.MoonLengths.FirstOrDefault(m => m.Id == settings.MoonLength) ?? Defs.DefaultMoonLength;
+        _species = Defs.Species.FirstOrDefault(s => s.Id == settings.Species) ?? Defs.Species.First(s => s.Id == Defs.Rules.DefaultSpecies);
     }
 
     public void Run()
@@ -218,9 +220,10 @@ public sealed partial class GameUi
         _tex.Remove("st_portrait_player");
         _settings.Difficulty = _diff.Id;
         _settings.MoonLength = _moon.Id;
+        _settings.Species = _species.Id;
         _settings.Save();
         // --screenshot runs use a fixed seed, so the capture is the same every time.
-        _sim = new Sim(_ethic, _shot != null ? 1 : Environment.TickCount, id => _res.CardName(id), _diff, _moon);
+        _sim = new Sim(_ethic, _shot != null ? 1 : Environment.TickCount, id => _res.CardName(id), _diff, _moon, _species);
         _camGoal = null;
         _camZoomGoal = null;
         _cam = new Camera2D { Zoom = 0.62f, Target = _sim.Home.Center };
@@ -403,7 +406,21 @@ public sealed partial class GameUi
         Text("Species", px, py, 24, Color.LightGray);
         py += 34;
         int perPage = cols * rows, pages = Math.Max(1, (ports.Count + perPage - 1) / perPage);
-        if (ports.Count == 0) Wrapped(_dev ? "(no Stellaris loaded)" : "Your Stellaris draws species portraits in 3D, so there are no flat portraits to pick from. Your people use Stellaris's pop icon.", px, py, cols * cell, 20, Color.Gray);
+        if (ports.Count == 0)
+        {
+            // No flat portraits in current Stellaris: pick a species by its traits instead.
+            for (int i = 0; i < Defs.Species.Length; i++)
+            {
+                var sp = Defs.Species[i];
+                var r = new Rectangle(px, py + i * 112, cols * cell - 8, 104);
+                bool sel = sp == _species, hover = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), r);
+                Raylib.DrawRectangleRounded(r, 0.12f, 8, sel ? new Color(60, 90, 170, 255) : hover ? new Color(40, 46, 80, 255) : new Color(24, 28, 50, 230));
+                if (Tex(sp.Art) is { } icon) DrawFit(icon, new Rectangle(r.X + 12, r.Y + 14, 76, 76), Color.White);
+                Text(sp.Name, r.X + 104, r.Y + 12, 26, Color.RayWhite);
+                Wrapped(sp.Desc, r.X + 104, r.Y + 46, r.Width - 120, 18, Color.LightGray, 3);
+                if (hover && Raylib.IsMouseButtonPressed(MouseButton.Left)) _species = sp;
+            }
+        }
         for (int i = 0; i < perPage; i++)
         {
             int idx = _portraitPage * perPage + i;

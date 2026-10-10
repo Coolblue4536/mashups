@@ -25,6 +25,8 @@ public sealed class Card
     public int Fleet;
     /// <summary>Seconds toward a colonised planet's next unworked yield.</summary>
     public float Passive;
+    /// <summary>For a rival empire's capital card: which empire it is.</summary>
+    public string? EmpireId;
     public Stack? Stack;
     public Battle? Battle;
     public override string ToString() => $"{Def.Id}#{Uid}";
@@ -99,6 +101,8 @@ public sealed class StarSystem
     public (int X, int Y) Slot;
     /// <summary>Owned by the player: planets here can be colonised and worked. Limited by rules.claim_limit.</summary>
     public bool Claimed;
+    /// <summary>A rival empire's system (its id), or null.</summary>
+    public string? Owner;
 
     public Vector2 Center => Origin + Size / 2;
     public bool Contains(Vector2 p) => p.X >= Origin.X && p.Y >= Origin.Y && p.X < Origin.X + Size.X && p.Y < Origin.Y + Size.Y;

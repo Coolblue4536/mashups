@@ -14,6 +14,11 @@ public sealed partial class GameUi
     {
         var give = r.Outputs.SelectMany(o => o.Give).FirstOrDefault();
         if (r.Effect == "learn") return $"Research {_res.CardName(r.Station)}";
+        if (r.Effect.StartsWith("repeat:"))
+        {
+            var tid = r.Effect[7..];
+            return $"{_res.CardName(tid).Replace(" (repeatable)", "")} level {(_sim?.RepLevels.GetValueOrDefault(tid) ?? 0) + 1}";
+        }
         if (r.Effect == "set_flag:claimed") return r.Outputs.Length > 0 ? "Colonise a planet" : "Build an outpost";
         if (r.Outputs.Length > 1 && r.Inputs.FirstOrDefault(i => !Sim.IsResource(i.Card) && !i.Card.StartsWith("tag:")) is { } what)
             return $"Explore the {_res.CardName(what.Card)}";
@@ -33,6 +38,7 @@ public sealed partial class GameUi
     /// <summary>The card whose picture stands for a blueprint: what it makes, else its station.</summary>
     static string? RecipeThumb(RecipeDef r)
     {
+        if (r.Effect.StartsWith("repeat:")) return r.Effect[7..];
         var give = r.Outputs.SelectMany(o => o.Give).FirstOrDefault(g => g.Card != "station.yield");
         if (give != null && Defs.Card.ContainsKey(give.Card)) return give.Card;
         if (Defs.Card.ContainsKey(r.Station)) return r.Station;
@@ -78,6 +84,7 @@ public sealed partial class GameUi
     void OpenCardMenu(Stack s, Card c, Vector2 at)
     {
         var sim = _sim!;
+        if (s.Root.EmpireId is { } eid && sim.EmpireOf(eid) is { } emp) { _diplo = emp; return; }
         bool any = sim.OrdersFor(c).Any(r => sim.Blueprint(r) != Sim.BlueprintState.Locked) || c.Parts.Count > 0 || c.Admiral != null;
         if (!any) return;
         _menuCard = c;
@@ -232,6 +239,7 @@ public sealed partial class GameUi
 
     void SaveGame(bool quiet = false)
     {
+        if (_sim?.War != null) { if (!quiet) Toast("Finish the invasion first (bring the fleet home), then save."); return; }
         try
         {
             _sim!.SaveTo(Sim.SavePath, _res.PortraitPath ?? "");
@@ -480,7 +488,16 @@ public sealed partial class GameUi
         Text(title, sw / 2f - Measure(title, 56).X / 2, sh / 2f - 120, 56, sim.State == RunState.Won ? Color.Gold : new Color(255, 110, 100, 255));
         var why = $"{sim.EndReason}  (Moon {sim.Moon}, {sim.Systems.Count} systems)";
         Text(why, sw / 2f - Measure(why, 24).X / 2, sh / 2f - 40, 24, Color.RayWhite);
-        if (Button(new Rectangle(sw / 2f - 130, sh / 2f + 30, 260, 60), "New run", false, 28))
+        if (sim.State == RunState.Won && Button(new Rectangle(sw / 2f - 130, sh / 2f + 30, 260, 60), "Keep playing", false, 28))
+        {
+            // Endless: the galaxy is saved, but your empire carries on - rivals keep growing, raids keep coming.
+            sim.State = RunState.Playing;
+            sim.Endless = true;
+            _screen = Screen.Play;
+            Toast("Endless play: your empire carries on. Rival empires keep growing; infinite research waits once every blueprint is known.");
+            return;
+        }
+        if (Button(new Rectangle(sw / 2f - 130, sh / 2f + (sim.State == RunState.Won ? 104 : 30), 260, 60), "New run", false, 28))
         {
             try { if (Sim.HasSave) File.Delete(Sim.SavePath); } catch { /* an old save is harmless */ }
             _sim = null;

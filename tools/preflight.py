@@ -93,7 +93,7 @@ def main(argv):
                 card_ref(f"{w}.inputs", inp["card"])
             if inp["n"] < 1:
                 errors.append(f"{w}.inputs: n must be >= 1")
-        if r["requires_tech"] != "none" and r["requires_tech"] not in techs:
+        if r["requires_tech"] not in ("none", "all") and r["requires_tech"] not in techs:
             errors.append(f"{w}.requires_tech: '{r['requires_tech']}' is not a tech card")
         if r["requires_system"] not in ("any", "claimed", "unclaimed"):
             errors.append(f"{w}.requires_system: must be any, claimed or unclaimed")
@@ -117,9 +117,13 @@ def main(argv):
                     card_ref(f"{w}.outputs", g["card"])
                     obtainable[g["card"]] += 1
         eff = r["effect"]
-        if not (eff == "none" or eff in ("open_board:random", "open_board:guardian", "set_flag:claimed", "claim_system", "repair", "learn")):
+        if eff.startswith("repeat:"):
+            if eff[7:] not in techs:
+                errors.append(f"{w}.effect: '{eff[7:]}' is not a tech card")
+        elif not (eff == "none" or eff in ("open_board:random", "open_board:guardian", "set_flag:claimed", "claim_system", "repair", "learn", "contact")):
             errors.append(f"{w}.effect: unknown effect '{eff}'")
-        sig = (st, tuple(sorted((i["card"], i["n"]) for i in r["inputs"])))
+        # Order recipes are picked from a menu, so two may share a stack.
+        sig = (st, r["id"]) if r.get("order") else (st, tuple(sorted((i["card"], i["n"]) for i in r["inputs"])))
         if sig in sigs:
             errors.append(f"{w}: same stack as recipes.{sigs[sig]}")
         sigs[sig] = r["id"]
@@ -232,16 +236,39 @@ def main(argv):
         obtainable[c["card"]] += 1
     obtainable["guardian_signal"] += 1  # act 2 event (rules.act2_moon)
     obtainable["pirate_raider"] += 1    # raids (difficulties.raid_every_moons)
+    for cid, c in cards.items():        # made in code: rival empires' capitals and warships; repeatable techs exist only as menu entries
+        if cid.startswith("empire_") or "repeatable" in c["tags"]:
+            obtainable[cid] += 1
 
-    flags = {"pack_bought", "opened_book", "researched", "traveled", "fitted", "admiral", "battle_won", "sold"}
+    flags = {"pack_bought", "opened_book", "researched", "traveled", "fitted", "admiral", "battle_won", "sold", "contacted"}
     recipe_ids = {r["id"] for r in sheets["recipes"]["rows"]}
     for t in sheets.get("tutorial", {}).get("rows", []):
-        kind, _, arg = t["done_when"].partition(":")
         w = f"tutorial.{t['id']}.done_when"
-        ok = {"recipe": lambda a: a in recipe_ids, "made": lambda a: a in cards, "has": lambda a: a in cards, "has_tag": lambda a: a in tags,
-              "flag": lambda a: a in flags, "claimed": lambda a: a.isdigit(), "act": lambda a: a in ("1", "2", "3")}.get(kind)
-        if ok is None or not ok(arg):
-            errors.append(f"{w}: '{t['done_when']}' is not a valid condition")
+        for cond in t["done_when"].split("|"):  # any one of several conditions
+            kind, _, arg = cond.partition(":")
+            ok = {"recipe": lambda a: a in recipe_ids, "made": lambda a: a in cards, "has": lambda a: a in cards, "has_tag": lambda a: a in tags,
+                  "flag": lambda a: a in flags, "claimed": lambda a: a.isdigit(), "act": lambda a: a in ("1", "2", "3")}.get(kind)
+            if ok is None or not ok(arg):
+                errors.append(f"{w}: '{cond}' is not a valid condition")
+        for h in t.get("highlight", []):
+            if not (h in cards or (h.startswith("tag:") and h[4:] in tags) or h in ("ui:packs", "ui:book", "ui:market", "ui:topbar")):
+                errors.append(f"tutorial.{t['id']}.highlight: '{h}' is not a card, tag:<tag> or ui:packs/book/market/topbar")
+    for r in sheets.get("species", {}).get("rows", []):
+        asset_ref(f"species.{r['id']}.art", r["art"])
+    for r in sheets.get("empires", {}).get("rows", []):
+        asset_ref(f"empires.{r['id']}.art", r["art"])
+        if r["personality"] not in ("aggressive", "balanced", "peaceful"):
+            errors.append(f"empires.{r['id']}.personality: aggressive, balanced or peaceful")
+        if not 1 <= r["systems"] <= 5:
+            errors.append(f"empires.{r['id']}.systems: 1-5")
+    for r in sheets.get("bonuses", {}).get("rows", []):
+        if r["tech"] not in techs:
+            errors.append(f"bonuses.{r['id']}.tech: '{r['tech']}' is not a tech card")
+        if r["applies"] not in ("food", "minerals", "energy", "alloys", "research", "unity", "consumer_goods", "learn", "babies", "build",
+                                "hull", "shields", "armor", "damage", "homeworld", "starbase"):
+            errors.append(f"bonuses.{r['id']}.applies: unknown '{r['applies']}'")
+    if rules.get("default_species") not in {r["id"] for r in sheets.get("species", {}).get("rows", [])}:
+        errors.append("rules.default_species: not a species row")
     tabs = rules.get("blueprint_tabs", [])
     for r in sheets["recipes"]["rows"]:
         if not any(r["id"].startswith(p) for t in tabs for p in t["prefixes"]):
@@ -253,7 +280,7 @@ def main(argv):
     for cid, c in cards.items():
         if "workplace" in c["tags"] and c["yield"] == "none":
             errors.append(f"cards.{cid}: tagged workplace but has no yield")
-        if c["yield"] != "none" and not ({"workplace", "star"} & set(c["tags"])):
+        if c["yield"] != "none" and not ({"workplace", "star", "megastructure"} & set(c["tags"])):
             errors.append(f"cards.{cid}: has a yield but is neither a workplace nor a star")
 
     comps = {c["id"]: c for c in raw.get("components", {}).get("rows", [])}

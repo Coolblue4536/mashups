@@ -14,7 +14,8 @@ OUT = ROOT / "src" / "GrandGalactic" / "Generated" / "Defs.g.cs"
 
 FLOATS = {"chance", "shield", "armor", "shield_regen", "hull_regen", "armor_regen", "evasion", "cooldown", "vs_shield", "vs_armor", "vs_hull",
           "pierce_shield", "pierce_armor", "hull", "attack_cd", "boost_mult", "yield_time", "time", "spawn_every", "enemy_hp_mult", "enemy_attack_mult",
-          "rift_spawn_mult", "pack_cost_mult"}
+          "rift_spawn_mult", "pack_cost_mult", "food_mult", "minerals_mult", "energy_mult", "alloys_mult", "research_mult", "babies_mult",
+          "pop_hp_mult", "mult", "growth"}
 
 # sheet -> (record type, collection name, columns in constructor order, nested list element types)
 SPEC = {
@@ -45,7 +46,11 @@ SPEC = {
                      "act2_moon", "crisis_moon", "boss_delay_moons", "rift_spawn_mult", "pack_cost_mult", "bonus_cards", "desc"],
                      {"bonus_cards": ("Amount", ["card", "n"])}),
     "moon_lengths": ("MoonLengthDef", "MoonLengths", ["id", "name", "seconds", "desc"], {}),
-    "tutorial": ("TutorialStep", "Tutorial", ["id", "text", "hint", "done_when"], {}),
+    "tutorial": ("TutorialStep", "Tutorial", ["id", "text", "hint", "done_when", "highlight"], {}),
+    "species": ("SpeciesDef", "Species", ["id", "name", "art", "food_mult", "minerals_mult", "energy_mult", "alloys_mult", "research_mult",
+                                          "babies_mult", "pop_hp_mult", "desc"], {}),
+    "empires": ("EmpireDef", "Empires", ["id", "name", "adjective", "art", "color", "personality", "base_strength", "growth", "systems", "desc"], {}),
+    "bonuses": ("BonusDef", "Bonuses", ["id", "tech", "applies", "mult", "desc"], {}),
     "asset_refs": ("AssetRefDef", "AssetRefs", ["id", "game", "kind", "lookup", "used_by", "verified", "note"], {}),
     "game_systems": ("GameSystemDef", "GameSystems", ["id", "game", "what", "source", "method", "impl", "verified"], {}),
 }

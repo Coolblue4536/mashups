@@ -24,7 +24,12 @@ public sealed record ComponentDef(string Id, string NameLoc, string Name, string
 }
 
 public sealed record Amount(string Card, int N);
-public sealed record TutorialStep(string Id, string Text, string Hint, string DoneWhen);
+public sealed record TutorialStep(string Id, string Text, string Hint, string DoneWhen, string[] Highlight);
+public sealed record SpeciesDef(string Id, string Name, string Art, float FoodMult, float MineralsMult, float EnergyMult, float AlloysMult,
+    float ResearchMult, float BabiesMult, float PopHpMult, string Desc);
+public sealed record EmpireDef(string Id, string Name, string Adjective, string Art, string Color, string Personality, int BaseStrength,
+    float Growth, int Systems, string Desc);
+public sealed record BonusDef(string Id, string Tech, string Applies, float Mult, string Desc);
 public sealed record BlueprintTab(string Tab, string[] Prefixes);
 public sealed record RecipeInput(string Card, int N, bool Keep);
 public sealed record Outcome(int Weight, Amount[] Give);

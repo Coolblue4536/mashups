@@ -11,7 +11,10 @@ public sealed class SaveData
     public int MoonSeconds, Moon, Act, CrisisMoon, Uid, StackId, GuardianOpened, NameRound, SysCount;
     public float MoonTime;
     public bool RiftOpen, BossArrived;
-    public string Portrait = "";
+    public string Portrait = "", Species = "";
+    public bool EnergyDeficit, Endless;
+    public Dictionary<string, int> RepLevels = new();
+    public List<EmpireSave> Empires = new();
     public List<string> Techs = new(), Discovered = new(), Flags = new(), Made = new(), Skipped = new(), UnusedNames = new();
     public Dictionary<string, int> Res = new();
     public List<SysSave> Systems = new();
@@ -19,9 +22,20 @@ public sealed class SaveData
     public List<BattleSave> Battles = new();
 }
 
+public sealed class EmpireSave
+{
+    public string Id = "", Status = "peace", WarGoal = "";
+    public bool Contacted, TheyDeclared;
+    public int Intel, GoalSystem = -1, WarSince, HumiliatedUntil, LastRaid, Area = -1;
+    public float IntelProgress, StrengthLoss;
+    public List<string> SystemNames = new(), SystemPlanets = new();
+    public List<bool> SystemCapital = new(), SystemOccupied = new();
+}
+
 public sealed class SysSave
 {
     public string Sys = "", Name = "", Kind = "";
+    public string? Owner;
     public int Index, SlotX, SlotY;
     public bool Claimed;
 }
@@ -34,6 +48,7 @@ public sealed class CardSave
     public CardSave? Admiral;
     public bool Claimed;
     public int Fleet;
+    public string? EmpireId;
 }
 
 public sealed class StackSave
@@ -64,7 +79,7 @@ public sealed partial class Sim
         {
             Id = c.Def.Id, Hp = c.Hp, MaxHp = c.MaxHp, Shield = c.Shield, MaxShield = c.MaxShield, Armor = c.Armor, MaxArmor = c.MaxArmor,
             AttackTimer = c.AttackTimer, AggroTimer = c.AggroTimer, SpawnTimer = c.SpawnTimer, Grow = c.Grow, Passive = c.Passive, Parts = c.Parts.Select(p => p.Id).ToList(),
-            Admiral = c.Admiral != null ? C(c.Admiral) : null, Claimed = c.Claimed, Fleet = c.Fleet,
+            Admiral = c.Admiral != null ? C(c.Admiral) : null, Claimed = c.Claimed, Fleet = c.Fleet, EmpireId = c.EmpireId,
         };
         return new SaveData
         {
@@ -72,7 +87,16 @@ public sealed partial class Sim
             Uid = _uid, StackId = _stackId, GuardianOpened = _guardianOpened, NameRound = _nameRound, SysCount = _sysCount, MoonTime = MoonTime,
             RiftOpen = RiftOpen, BossArrived = BossArrived, Techs = Techs.ToList(), Discovered = Discovered.ToList(), Flags = Flags.ToList(),
             Made = Made.ToList(), Skipped = SkippedSteps.ToList(), UnusedNames = _unusedNames.ToList(), Res = new(Res),
-            Systems = Systems.Select(z => new SysSave { Sys = z.Sys.Id, Name = z.Name, Kind = z.Kind, Index = z.Index, SlotX = z.Slot.X, SlotY = z.Slot.Y, Claimed = z.Claimed }).ToList(),
+            Species = Species.Id, EnergyDeficit = EnergyDeficit, Endless = Endless, RepLevels = new(RepLevels),
+            Empires = Empires.Select(e => new EmpireSave
+            {
+                Id = e.Def.Id, Status = e.Status, WarGoal = e.WarGoal, Contacted = e.Contacted, TheyDeclared = e.TheyDeclared, Intel = e.Intel,
+                GoalSystem = e.GoalSystem, WarSince = e.WarSince, HumiliatedUntil = e.HumiliatedUntil, LastRaid = e.LastRaid, Area = e.Area,
+                IntelProgress = e.IntelProgress, StrengthLoss = e.StrengthLoss, SystemNames = e.Systems.Select(x => x.Name).ToList(),
+                SystemPlanets = e.Systems.Select(x => string.Join(",", x.Planets)).ToList(), SystemCapital = e.Systems.Select(x => x.Capital).ToList(),
+                SystemOccupied = e.Systems.Select(x => x.Occupied).ToList(),
+            }).ToList(),
+            Systems = Systems.Select(z => new SysSave { Sys = z.Sys.Id, Name = z.Name, Kind = z.Kind, Index = z.Index, SlotX = z.Slot.X, SlotY = z.Slot.Y, Claimed = z.Claimed, Owner = z.Owner }).ToList(),
             Stacks = Table.Stacks.Select(s => new StackSave
             {
                 Id = s.Id, X = (s.Glide ?? s.Pos).X, Y = (s.Glide ?? s.Pos).Y, FromX = s.TravelFrom.X, FromY = s.TravelFrom.Y, ToX = s.TravelTo.X, ToY = s.TravelTo.Y,
@@ -105,6 +129,23 @@ public sealed partial class Sim
     {
         Rng = new Random(Environment.TickCount);
         Ethic = Defs.Ethics.First(e => e.Id == d.Ethic);
+        Species = Defs.Species.FirstOrDefault(x => x.Id == d.Species) ?? Defs.Species.First(x => x.Id == Defs.Rules.DefaultSpecies);
+        EnergyDeficit = d.EnergyDeficit; Endless = d.Endless;
+        foreach (var kv in d.RepLevels) RepLevels[kv.Key] = kv.Value;
+        foreach (var es in d.Empires)
+        {
+            if (Defs.Empires.FirstOrDefault(x => x.Id == es.Id) is not { } def) continue;
+            var e = new Empire { Def = def, Status = es.Status, WarGoal = es.WarGoal, Contacted = es.Contacted, TheyDeclared = es.TheyDeclared, Intel = es.Intel,
+                                 GoalSystem = es.GoalSystem, WarSince = es.WarSince, HumiliatedUntil = es.HumiliatedUntil, LastRaid = es.LastRaid, Area = es.Area,
+                                 IntelProgress = es.IntelProgress, StrengthLoss = es.StrengthLoss };
+            for (int i = 0; i < es.SystemNames.Count; i++)
+            {
+                var sys = new EmpireSystem { Name = es.SystemNames[i], Capital = es.SystemCapital.ElementAtOrDefault(i), Occupied = es.SystemOccupied.ElementAtOrDefault(i) };
+                sys.Planets.AddRange((es.SystemPlanets.ElementAtOrDefault(i) ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Where(Defs.Card.ContainsKey));
+                e.Systems.Add(sys);
+            }
+            Empires.Add(e);
+        }
         Diff = Defs.Difficulties.FirstOrDefault(x => x.Id == d.Difficulty) ?? Defs.DefaultDifficulty;
         Crisis = Defs.Crises.FirstOrDefault(x => x.Id == d.Crisis) ?? Defs.Crises[0];
         MoonSeconds = d.MoonSeconds;
@@ -119,7 +160,7 @@ public sealed partial class Sim
         {
             var origin = new Vector2(z.SlotX * (SysW + SysGap), z.SlotY * (SysH + SysGap));
             Systems.Add(new StarSystem { Index = z.Index, Sys = sysDefs[z.Sys], Name = z.Name, Kind = z.Kind, Origin = origin, Size = new Vector2(SysW, SysH),
-                                         Slot = (z.SlotX, z.SlotY), Claimed = z.Claimed });
+                                         Slot = (z.SlotX, z.SlotY), Claimed = z.Claimed, Owner = z.Owner });
         }
         RecalcBounds();
         Card C(CardSave s)
@@ -129,6 +170,7 @@ public sealed partial class Sim
             Recalc(c);
             c.Hp = s.Hp; c.MaxHp = s.MaxHp; c.Shield = s.Shield; c.MaxShield = s.MaxShield; c.Armor = s.Armor; c.MaxArmor = s.MaxArmor;
             c.AttackTimer = s.AttackTimer; c.AggroTimer = s.AggroTimer; c.SpawnTimer = s.SpawnTimer; c.Grow = s.Grow; c.Passive = s.Passive; c.Claimed = s.Claimed; c.Fleet = s.Fleet;
+            c.EmpireId = s.EmpireId;
             if (s.Admiral != null) c.Admiral = C(s.Admiral);
             return c;
         }

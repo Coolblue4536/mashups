@@ -15,6 +15,13 @@ public sealed partial class Sim
     public readonly DifficultyDef Diff;
     public readonly int MoonSeconds;
     public readonly CrisisDef Crisis;
+    public readonly SpeciesDef Species;
+    /// <summary>Levels of each repeatable (infinite) technology.</summary>
+    public readonly Dictionary<string, int> RepLevels = new();
+    /// <summary>Upkeep went unpaid at the last moon's end: work is slower and ships hit softer until it is paid.</summary>
+    public bool EnergyDeficit;
+    /// <summary>The crisis is beaten and the player chose to keep playing.</summary>
+    public bool Endless;
     public readonly Board Table = new();
     public readonly List<StarSystem> Systems = new();
     public readonly HashSet<string> Techs = new();
@@ -48,10 +55,11 @@ public sealed partial class Sim
     public Vector2 BoundsMin { get; private set; }
     public Vector2 BoundsMax { get; private set; }
 
-    public Sim(EthicDef ethic, int seed, Func<string, string>? name = null, DifficultyDef? difficulty = null, MoonLengthDef? moon = null)
+    public Sim(EthicDef ethic, int seed, Func<string, string>? name = null, DifficultyDef? difficulty = null, MoonLengthDef? moon = null, SpeciesDef? species = null)
     {
         Rng = new Random(seed);
         Ethic = ethic;
+        Species = species ?? Defs.Species.First(x => x.Id == Defs.Rules.DefaultSpecies);
         Diff = difficulty ?? Defs.DefaultDifficulty;
         MoonSeconds = (moon ?? Defs.DefaultMoonLength).Seconds;
         CrisisMoon = Diff.CrisisMoon;
@@ -75,6 +83,7 @@ public sealed partial class Sim
             if (!IsResource(id)) k++;
         }
         foreach (var t in ethic.StartTechs) Techs.Add(t);
+        PickEmpires();
         OpenPack(Defs.Pack[ethic.FreePack], center + new Vector2(0, 340), free: true);
         Gains.Clear();
         foreach (var s in Table.Stacks) if (s.Glide is { } g) { s.Pos = g; s.Glide = null; } // the opening table is dealt, not slid
@@ -197,6 +206,7 @@ public sealed partial class Sim
     public string? ClaimBlock(StarSystem z)
     {
         if (z.Claimed) return $"{z.Name} is already yours.";
+        if (z.Owner != null) return $"{z.Name} belongs to the {EmpireOf(z.Owner)?.Def.Name}. Win a war to claim it.";
         if (ClaimedCount >= Defs.Rules.ClaimLimit)
             return $"Claim limit reached: you own {ClaimedCount}/{Defs.Rules.ClaimLimit} systems.";
         if (StacksIn(z).Any(s => s.HasHostile) || Table.Battles.Any(b => z.Contains(b.Pos)))
@@ -218,6 +228,7 @@ public sealed partial class Sim
     public string? AbandonBlock(StarSystem z)
     {
         if (z == Home) return "Your capital can't be abandoned.";
+        if (z.Owner != null) return $"{z.Name} belongs to the {EmpireOf(z.Owner)?.Def.Name}.";
         if (z.Claimed) return $"{z.Name} is yours; only unclaimed systems can be abandoned.";
         if (Table.Battles.Any(b => b.System == z || z.Contains(b.Pos))) return $"Finish the battle in {z.Name} first.";
         if (Table.Stacks.Any(s => s.Traveling && z.Contains(s.TravelTo + new Vector2(CardW / 2, CardH / 2))))
@@ -245,7 +256,8 @@ public sealed partial class Sim
 
     // ---------- travel between systems ----------
 
-    public static bool HasShip(Stack s) => s.Cards.Any(c => c.Def.HasTag("ship"));
+    /// <summary>What can cross between systems: a stack with a ship (or an Envoy, who travels on their own).</summary>
+    public static bool HasShip(Stack s) => s.Cards.Any(c => c.Def.HasTag("ship") || c.Def.HasTag("envoy"));
 
     public float TravelSeconds(StarSystem a, StarSystem b) =>
         Math.Max(1, Math.Max(Math.Abs(a.Slot.X - b.Slot.X), Math.Abs(a.Slot.Y - b.Slot.Y))) * Defs.Rules.TravelSecondsPerJump;
@@ -295,10 +307,9 @@ public sealed partial class Sim
         var def = Defs.Card[id];
         float m = def.IsHostile ? Diff.EnemyHpMult : 1f;
         var c = new Card { Uid = ++_uid, Def = def, AttackTimer = def.AttackCd, AggroTimer = Defs.Rules.EnemyAggroSeconds * (0.6f + (float)Rng.NextDouble()) };
-        c.MaxHp = c.Hp = MathF.Round(def.Hp * m);
-        c.MaxShield = c.Shield = MathF.Round(def.Shield * m);
-        c.MaxArmor = c.Armor = MathF.Round(def.Armor * m);
         Recalc(c);
+        RefreshStats(c);
+        c.Hp = c.MaxHp; c.Shield = c.MaxShield; c.Armor = c.MaxArmor;
         if (def.IsPlanet && def.ColonizeWith == "none") c.Claimed = true;
         if (id == Crisis.RiftCard) c.SpawnTimer = RiftSpawnEvery * 0.5f;
         return c;
@@ -478,8 +489,9 @@ public sealed partial class Sim
 
     bool Available(RecipeDef r, Stack s)
     {
-        if (r.RequiresTech != "none" && !Techs.Contains(r.RequiresTech)) return false;
+        if (r.RequiresTech == "all" ? !AllBlueprintsKnown : r.RequiresTech != "none" && !Techs.Contains(r.RequiresTech)) return false;
         if (r.Effect == "learn" && Techs.Contains(r.Station)) return false;
+        if (r.Effect == "contact" && !Empires.Any(e => !e.Contacted)) return false;
         if (r.RequiresSystem != "any")
         {
             var z = SystemAt(CardCenter(s));
@@ -519,6 +531,7 @@ public sealed partial class Sim
                 if (r.Outputs.Any(o => o.Give.Any(g => g.Card == "baby")) && rest.Any(c => c.Def.HasTag("baby"))) continue;
                 float dur = r.Time < 0 ? st.Def.YieldTime : r.Time;
                 foreach (var b in rest.Concat(kept)) if (b.Def.BoostTag == r.Tag) dur /= b.Def.BoostMult;
+                dur /= SpeedMult(r, st);
                 return new Match(r, st, consumed, dur);
             }
         }
@@ -557,7 +570,7 @@ public sealed partial class Sim
     {
         if (s.Order is { } o)
         {
-            if (o.RequiresTech != "none" && !Techs.Contains(o.RequiresTech)) return $"{o.Desc}: needs {Name(o.RequiresTech)} research";
+            if (!TechOk(o)) return o.RequiresTech == "all" ? "Opens once every blueprint is researched" : $"{o.Desc}: needs {Name(o.RequiresTech)} research";
             var station = s.Cards.FirstOrDefault(c => StationOk(o, c));
             var others = s.Cards.Where(c => c != station).ToList();
             var missing = new List<string>();
@@ -635,16 +648,30 @@ public sealed partial class Sim
                 {
                     Made.Add(id);
                     if (Defs.Card[id].HasTag("baby") && st.Stack != null) Add(st.Stack, NewCard(id)); // a Baby stays on its City District
-                    else Spawn(id, outPos + new Vector2(0, i * 12));
+                    else
+                    {
+                        var made = Spawn(id, outPos + new Vector2(0, i * 12));
+                        if (made.Def.IsPlanet && st.Def.IsPlanet && st.Claimed) made.Claimed = true; // terraformed worlds stay yours
+                    }
                 }
             }
         }
+        if (r.Effect.StartsWith("repeat:"))
+        {
+            var tid = r.Effect[7..];
+            RepLevels[tid] = RepLevels.GetValueOrDefault(tid) + 1;
+            Messages.Add($"{Name(tid).Replace(" (repeatable)", "")} level {RepLevels[tid]}: +{Defs.Rules.RepStepPct * RepLevels[tid]}% in all.");
+            RefreshAll();
+        }
+        if (r.Effect == "contact") MakeContact();
         switch (r.Effect)
         {
             case "learn":
                 {
                     Techs.Add(st.Def.Id);
                     Flags.Add("researched");
+                    RefreshAll();
+                    if (AllBlueprintsKnown) Messages.Add("Every blueprint is researched! Infinite research is open: click a Research Lab.");
                     var unlocked = Defs.Recipes.Where(x => x.RequiresTech == st.Def.Id && x.Effect != "learn").ToList();
                     var size = Defs.Rules.FleetSizeTechs.FirstOrDefault(a => a.Card == st.Def.Id);
                     Messages.Add($"Researched {Name(st.Def.Id)}! " + (size != null ? $"Fleets can now hold {size.N} warships."
@@ -711,11 +738,12 @@ public sealed partial class Sim
 
     // ---------- tutorial ----------
 
-    public bool StepDone(TutorialStep t)
+    public bool StepDone(TutorialStep t) => SkippedSteps.Contains(t.Id) || t.DoneWhen.Split('|').Any(CondDone);
+
+    bool CondDone(string cond)
     {
-        if (SkippedSteps.Contains(t.Id)) return true;
-        int c = t.DoneWhen.IndexOf(':');
-        string kind = t.DoneWhen[..c], arg = t.DoneWhen[(c + 1)..];
+        int c = cond.IndexOf(':');
+        string kind = cond[..c], arg = cond[(c + 1)..];
         return kind switch
         {
             "recipe" => Discovered.Contains(arg),
@@ -740,7 +768,7 @@ public sealed partial class Sim
     /// technology. A research blueprint counts as Made once its technology is known.</summary>
     public BlueprintState Blueprint(RecipeDef r) =>
         Discovered.Contains(r.Id) || (r.Effect == "learn" && Techs.Contains(r.Station)) ? BlueprintState.Made
-        : r.Effect != "learn" && (r.RequiresTech == "none" || Techs.Contains(r.RequiresTech)) ? BlueprintState.Known
+        : r.Effect != "learn" && TechOk(r) ? BlueprintState.Known
         : BlueprintState.Locked;
 
     public static string BlueprintTab(RecipeDef r) =>
@@ -870,10 +898,10 @@ public sealed partial class Sim
         }
         Remove(part);
         host.Parts.Add(comp);
-        host.MaxShield += comp.Shield; host.Shield += comp.Shield;
-        host.MaxArmor += comp.Armor; host.Armor += comp.Armor;
-        host.MaxHp += comp.Hull; host.Hp += comp.Hull;
         Recalc(host);
+        float s0 = host.MaxShield, a0 = host.MaxArmor, h0 = host.MaxHp;
+        RefreshStats(host);
+        host.Shield += host.MaxShield - s0; host.Armor += host.MaxArmor - a0; host.Hp += host.MaxHp - h0;
         Flags.Add("fitted");
         if (host.Stack != null) host.Stack.Dirty = true;
         Events.Add(SimEvent.Done);
@@ -887,10 +915,10 @@ public sealed partial class Sim
         if (host.Battle != null) return "Ships can't be refitted mid-battle.";
         var comp = host.Parts[index];
         host.Parts.RemoveAt(index);
-        host.MaxShield -= comp.Shield; host.Shield = MathF.Min(host.Shield, host.MaxShield);
-        host.MaxArmor -= comp.Armor; host.Armor = MathF.Min(host.Armor, host.MaxArmor);
-        host.MaxHp -= comp.Hull; host.Hp = MathF.Max(1, MathF.Min(host.Hp, host.MaxHp));
         Recalc(host);
+        RefreshStats(host);
+        host.Shield = MathF.Min(host.Shield, host.MaxShield); host.Armor = MathF.Min(host.Armor, host.MaxArmor);
+        host.Hp = MathF.Max(1, MathF.Min(host.Hp, host.MaxHp));
         Spawn(comp.Id, (host.Stack?.Pos ?? Home.Center) + new Vector2(CardW + 30, 0), jitter: false);
         if (host.Stack != null) host.Stack.Dirty = true;
         return null;
@@ -1023,6 +1051,15 @@ public sealed partial class Sim
     {
         foreach (var bt in Table.Battles.ToList())
         {
+            if (!TickBattle(bt, dt)) return;
+            if (bt.Hostiles.Count == 0 || bt.Players.Count == 0) EndBattle(bt);
+        }
+    }
+
+    /// <summary>One battle's shots for a tick. False when the run ended.</summary>
+    bool TickBattle(Battle bt, float dt)
+    {
+        {
             float flakVsHostiles = FlakCut(bt.Players), flakVsPlayers = FlakCut(bt.Hostiles);
             foreach (var c in bt.Players.Concat(bt.Hostiles).ToList())
             {
@@ -1035,10 +1072,10 @@ public sealed partial class Sim
                     var foes = c.Def.IsHostile ? bt.Players : bt.Hostiles;
                     if (foes.Count == 0) break;
                     var t = foes[Rng.Next(foes.Count)];
-                    Hit(g, c.Def.IsHostile ? 1f : PlayerMult(bt, c), t, c.Def.IsHostile ? flakVsHostiles : flakVsPlayers);
+                    Hit(g, c.Def.IsHostile ? 1f : PlayerMult(bt, c) * DamageMult, t, c.Def.IsHostile ? flakVsHostiles : flakVsPlayers);
                     Events.Add(SimEvent.Hit);
                     if (t.Hp <= 0) Kill(bt, t);
-                    if (State != RunState.Playing) return;
+                    if (State != RunState.Playing) return false;
                     if (c.Battle != bt) break;
                 }
             }
@@ -1053,10 +1090,10 @@ public sealed partial class Sim
                     Hit(g, 1f, t, 0);
                     Events.Add(SimEvent.Hit);
                     if (t.Hp <= 0) Kill(bt, t);
-                    if (State != RunState.Playing) return;
+                    if (State != RunState.Playing) return false;
                 }
-            if (bt.Hostiles.Count == 0 || bt.Players.Count == 0) EndBattle(bt);
         }
+        return true;
     }
 
     void Kill(Battle bt, Card c)
@@ -1071,7 +1108,7 @@ public sealed partial class Sim
         if (Defs.LootOf.TryGetValue(c.Def.Id, out var loot))
             foreach (var d in loot.Drops)
                 for (int i = 0; i < d.N; i++) Spawn(d.Card, bt.Pos + new Vector2(CardW * 2, 0));
-        if (c.Def.Id == Crisis.BossCard) { Win(); return; }
+        if (c.Def.Id == Crisis.BossCard && !Endless) { Win(); return; }
         if (c.Def.Id == Crisis.RiftCard) { Messages.Add($"The rift collapses... {Name(Crisis.BossCard)} comes in person!"); SpawnBoss(); }
         if (c.Def.HasTag("guardian")) Messages.Add($"The {Name(c.Def.Id)} is defeated! Its hoard is yours.");
     }
@@ -1140,10 +1177,11 @@ public sealed partial class Sim
             if (s.Traveling) continue;
             foreach (var c in s.Cards)
             {
-                if (!c.Def.IsPlanet || !c.Claimed || c.Def.ColonizeWith == "none" || c.Def.Yield == "none") continue;
-                if (s.Active?.Id == "w_yield" && s.ActiveStation == c) { c.Passive = 0; continue; } // worked: the Pop is faster
-                c.Passive += dt;
-                if (c.Passive < c.Def.YieldTime * Defs.Rules.ColonyPassiveMult) continue;
+                bool mega = c.Def.HasTag("megastructure");
+                if (!mega && (!c.Def.IsPlanet || !c.Claimed || c.Def.ColonizeWith == "none" || c.Def.Yield == "none")) continue;
+                if (!mega && s.Active?.Id == "w_yield" && s.ActiveStation == c) { c.Passive = 0; continue; } // worked: the Pop is faster
+                c.Passive += dt * Mult(c.Def.Yield) / (EnergyDeficit ? Defs.Rules.EnergyDeficitWorkPct / 100f : 1f);
+                if (c.Passive < c.Def.YieldTime * (mega ? 1 : Defs.Rules.ColonyPassiveMult)) continue;
                 c.Passive = 0;
                 Gain(c.Def.Yield, 1, CardCenter(s));
             }
@@ -1158,7 +1196,7 @@ public sealed partial class Sim
             if (!s.Cards.Any(GrowsBabies)) continue;
             foreach (var b in s.Cards.Where(c => c.Def.HasTag("baby")).ToList())
             {
-                b.Grow += dt;
+                b.Grow += dt * Mult("babies");
                 if (b.Grow < Defs.Rules.BabyGrowSeconds) continue;
                 var at = s.Pos + new Vector2(CardW + 30, 0);
                 Remove(b);
@@ -1179,7 +1217,8 @@ public sealed partial class Sim
         var people = AllCards.Where(c => c.Def.Category == "person").ToList();
         int eat = people.Sum(c => c.Def.FoodUpkeep), power = people.Sum(c => c.Def.EnergyUpkeep);
         if (Have("food") < eat) { Messages.Add($"Food is short: {Have("food")} of {eat} needed at the end of this moon. Put Pops on farms, or some will starve!"); Events.Add(SimEvent.Warning); }
-        if (Have("energy") < power) { Messages.Add($"Energy is short: {Have("energy")} of {power} needed at the end of this moon, or Drones shut down!"); Events.Add(SimEvent.Warning); }
+        int need = power + StructureUpkeep;
+        if (Have("energy") < need) { Messages.Add($"Energy is short: {Have("energy")} of {need} needed at the end of this moon (buildings, fleets{(power > 0 ? ", Drones" : "")}). Make more Energy or sell something!"); Events.Add(SimEvent.Warning); }
     }
 
     void EndMoon()
@@ -1203,6 +1242,21 @@ public sealed partial class Sim
                     else if (shutdown == 0) { Remove(p); shutdown++; } // one Drone goes offline per moon; the rest run on reserve power
                 }
             }
+        // Buildings and fleets cost Energy each moon; unpaid upkeep means a deficit (slower work, weaker ships) next moon.
+        int upkeep = StructureUpkeep;
+        if (Moon >= Defs.Rules.UpkeepFromMoon && upkeep > 0)
+        {
+            bool was = EnergyDeficit;
+            if (Have("energy") >= upkeep) { Res["energy"] -= upkeep; EnergyDeficit = false; }
+            else
+            {
+                Res["energy"] = 0;
+                EnergyDeficit = true;
+                Messages.Add($"Energy deficit: your buildings and fleets need {upkeep} Energy a moon. Work is slower and ships hit softer until you pay it.");
+                Events.Add(SimEvent.Warning);
+            }
+            if (was != EnergyDeficit) foreach (var st in Table.Stacks) st.Dirty = true;
+        }
         if (starved > 0) Messages.Add($"{starved} of your people starved. Grow more Food!");
         if (shutdown > 0) Messages.Add("A Drone shut down for lack of Energy. Put Drones on Energy work, or more will follow each moon!");
         if (!AllCards.Any(c => c.Def.Category == "person")) { Lose("No one is left to run your empire."); return; }
@@ -1225,6 +1279,7 @@ public sealed partial class Sim
             Events.Add(SimEvent.Warning);
         }
         if (RiftOpen && !BossArrived && Moon >= CrisisMoon + Diff.BossDelayMoons) SpawnBoss();
+        EmpiresMoon();
         if (Moon >= Defs.Rules.FirstRaidMoon && Moon % Diff.RaidEveryMoons == 0)
         {
             Spawn(Moon >= Defs.Rules.MarauderMoon && Moon % (Diff.RaidEveryMoons * 2) == 0 ? "marauder_raider" : "pirate_raider", Home.Origin + new Vector2(60, 60));
@@ -1265,6 +1320,7 @@ public sealed partial class Sim
         TickRecipes(dt);
         TickBabies(dt);
         TickColonies(dt);
+        TickIntel(dt);
         if (State != RunState.Playing) return;
         TickBattles(dt);
         if (State != RunState.Playing) return;

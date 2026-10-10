@@ -92,7 +92,7 @@ public static class SelfTest
                 _ => true,
             };
             bool produced = r.Outputs.Length == 0 || outIds.Sum(id => Count(s, id)) > before - (outIds.Contains(Resolve(r.Station)) && !r.StationKeep ? 1 : 0);
-            bool paid = Sim.Costs(r).All(i => s.Have(i.Card) == 0 || outIds.Contains(i.Card));
+            bool paid = Sim.Costs(r).All(i => s.Have(i.Card) < i.N || outIds.Contains(i.Card));
             Check(fired && effect && produced && paid, $"recipe {r.Id,-24} fires ({string.Join(" + ", ids)}{(Sim.Costs(r).Any() ? " + pool: " + string.Join(", ", Sim.Costs(r).Select(i => $"{i.N} {i.Card}")) : "")})");
         }
 
@@ -153,10 +153,10 @@ public static class SelfTest
             float t2 = 0;
             while (!s.Techs.Contains("tech_mass_driver") && t2 < 200) { s.Update(0.05f); t2 += 0.05f; }
             Check(s.Techs.Contains("tech_mass_driver") && t2 < t * 0.6f, $"a Scientist researches twice as fast ({t2:0}s vs {t:0}s)");
-            var blue = Build(s, new[] { "tech_railgun", "pop" }, new Vector2(400, 700));
+            var blue = Build(s, new[] { "tech_coilgun", "pop" }, new Vector2(400, 700));
             s.Res["research"] = 20;
             Run(s, 1);
-            Check(s.Techs.Contains("tech_mass_driver") && blue.Active != null, "Railgun can be researched once Mass Driver is known");
+            Check(s.Techs.Contains("tech_mass_driver") && blue.Active != null, "Coilgun can be researched once Mass Driver is known");
             var s2 = Fresh();
             var b2 = Build(s2, new[] { "tech_blue_laser", "pop" }, new Vector2(400, 400));
             s2.Res["research"] = 20;
@@ -179,9 +179,9 @@ public static class SelfTest
         {
             var s = Fresh();
             var city = Build(s, new[] { "city_district", "pop", "pop" }, new Vector2(400, 400));
-            s.Res["food"] = 2;
+            s.Res["food"] = 3;
             Run(s, 40, () => city.Cards.Any(c => c.Def.Id == "baby"));
-            Check(city.Cards.Any(c => c.Def.Id == "baby") && s.Have("food") == 0, "City District + 2 Pops + 2 Food make a Baby, who stays on the City District");
+            Check(city.Cards.Any(c => c.Def.Id == "baby") && s.Have("food") == 0, "City District + 2 Pops + 3 Food make a Baby, who stays on the City District");
             s.Res["food"] = 10;
             Run(s, 30);
             Check(city.Cards.Count(c => c.Def.Id == "baby") == 1, "only one Baby at a time per City District");
@@ -214,8 +214,8 @@ public static class SelfTest
             Check(c2.Have("food") == 1, $"an unworked colony yields on its own (1 Food every {every:0}s)");
             Build(c2, new[] { "pop", "pop" }, c2.Home.Center + new Vector2(400, 0)).Cards.ToList().ForEach(_ => { });
             foreach (var p in c2.Table.Stacks.Where(x => x.Root.Def.Id == "pop").ToList()) c2.StackOnto(p, colony);
-            c2.Res["food"] = 2;
-            Run(c2, 25, () => colony.Cards.Any(c => c.Def.Id == "baby"));
+            c2.Res["food"] = 3;
+            Run(c2, 35, () => colony.Cards.Any(c => c.Def.Id == "baby"));
             Check(colony.Cards.Any(c => c.Def.Id == "baby"), "a colony with 2 Pops (+2 Food) raises a Baby");
             Run(c2, 61, () => !colony.Cards.Any(c => c.Def.Id == "baby"));
             Check(c2.AllCards.Count(c => c.Def.Id == "pop") == 3, "the Baby grows up on the colony");
@@ -226,6 +226,127 @@ public static class SelfTest
             int pirate = Sim.Threat(f.NewCard("pirate_raider")), boss = Sim.Threat(f.NewCard("scourge_queen"));
             Check(Sim.FleetStrength(strong) > Sim.FleetStrength(weak) && boss > 5 * pirate,
                   $"strength ratings order sensibly (corvette {Sim.FleetStrength(weak)}, 3 ships {Sim.FleetStrength(strong)}, pirate {pirate}, Scourge Queen {boss})");
+        }
+
+        Log.Info("Self-test: energy upkeep, research bonuses, species, infinite research");
+        {
+            var s = Fresh();
+            s.Moon = Defs.Rules.UpkeepFromMoon;
+            Build(s, new[] { "pop" }, new Vector2(200, 200));
+            Build(s, new[] { "corvette" }, new Vector2(400, 200));
+            Build(s, new[] { "research_lab" }, new Vector2(600, 200));
+            s.Res["food"] = 10; s.Res["energy"] = 1;
+            Check(s.StructureUpkeep == Defs.Card["corvette"].EnergyUpkeep + Defs.Card["research_lab"].EnergyUpkeep, $"buildings and fleets cost Energy each moon ({s.StructureUpkeep})");
+            s.MoonTime = s.MoonSeconds - 0.01f;
+            s.Update(0.05f);
+            Check(s.EnergyDeficit && s.Have("energy") == 0, "unpaid upkeep puts you in an energy deficit");
+            var farm = Build(s, new[] { "agriculture_district", "pop" }, new Vector2(800, 400));
+            Run(s, 0.1f);
+            float slow = farm.Duration;
+            s.Res["energy"] = 50;
+            s.MoonTime = s.MoonSeconds - 0.01f;
+            s.Update(0.05f);
+            Run(s, 0.1f);
+            Check(!s.EnergyDeficit && slow > farm.Duration * 1.3f, $"a deficit slows work ({slow:0.0}s vs {farm.Duration:0.0}s) until upkeep is paid");
+            float before = farm.Duration;
+            s.Techs.Add("tech_hydroponics");
+            foreach (var x in s.Table.Stacks) x.Dirty = true;
+            Run(s, 0.1f);
+            Check(Math.Abs(before / farm.Duration - 1.25f) < 0.02f, $"Hydroponic Farming makes Food work 25% faster ({before:0.0}s -> {farm.Duration:0.0}s)");
+            var ag = new Sim(Defs.Ethics[0], 1, null, null, null, Defs.Species.First(x => x.Id == "agrarian"));
+            var li = new Sim(Defs.Ethics[0], 1, null, null, null, Defs.Species.First(x => x.Id == "lithoid"));
+            Check(ag.Mult("food") > li.Mult("food") && li.Mult("minerals") > ag.Mult("minerals") && li.NewCard("pop").MaxHp > ag.NewCard("pop").MaxHp,
+                  "species differ: Agrarians farm faster, Lithoids mine faster and are tougher");
+            var rr = Defs.Recipes.First(r => r.Id == "rr_hull");
+            var all = Fresh();
+            Check(all.Blueprint(rr) == Sim.BlueprintState.Locked, "infinite research stays hidden until every blueprint is researched");
+            foreach (var t in Defs.Cards.Where(c => c.Category == "tech" && !c.HasTag("repeatable"))) all.Techs.Add(t.Id);
+            var ship = all.Spawn("battleship", new Vector2(300, 600), jitter: false);
+            float hp0 = ship.MaxHp;
+            var lab = Build(all, new[] { "research_lab", "scientist" }, new Vector2(700, 600));
+            all.SetOrder(lab, rr);
+            all.Res["research"] = 20;
+            Run(all, 60, () => all.RepLevels.GetValueOrDefault("tech_rep_hull") > 0);
+            Check(all.RepLevels.GetValueOrDefault("tech_rep_hull") == 1 && ship.MaxHp > hp0 * 1.04f, $"repeatable Ship Hull research adds 5% hull ({hp0} -> {ship.MaxHp})");
+        }
+
+        Log.Info("Self-test: rival empires");
+        {
+            var s = Fresh();
+            Check(s.Empires.Count == Defs.Rules.EmpireCount && s.Empires.All(e => !e.Contacted), $"{Defs.Rules.EmpireCount} rival empires per run, none met at the start");
+            int systems = s.Systems.Count;
+            var envoy = Build(s, new[] { "envoy", "science_ship" }, new Vector2(400, 400));
+            Run(s, 40, () => s.Empires.Any(e => e.Contacted));
+            var e = s.Empires.FirstOrDefault(x => x.Contacted);
+            var z = s.Systems.LastOrDefault();
+            Check(e != null && s.Systems.Count == systems + 1 && z?.Owner == e.Def.Id && s.StacksIn(z!).Any(x => x.Root.EmpireId == e.Def.Id) && s.Flags.Contains("contacted"),
+                  "Envoy + Science Ship makes first contact: the empire's home system (with its capital card) joins the table");
+            if (e != null && z != null)
+            {
+                Check(s.ClaimBlock(z) != null && s.AbandonBlock(z) != null, "an empire's system can't be claimed or abandoned");
+                var cap = s.StacksIn(z).First(x => x.Root.EmpireId == e.Def.Id);
+                var spy = s.Spawn("envoy", cap.Pos, jitter: false).Stack!;
+                s.StackOnto(spy, cap);
+                Run(s, Defs.Rules.IntelSecondsPerLevel + 2);
+                Check(e.Intel == 2, $"an Envoy at their capital raises intel a level per {Defs.Rules.IntelSecondsPerLevel}s (now {e.Intel})");
+                var deal = e.Offers[0];
+                s.Res[deal.Give] = deal.GiveN;
+                int had = s.Have(deal.Get);
+                Check(s.Trade(e, 0) == null && s.Have(deal.Get) == had + deal.GetN && s.Trade(e, 0) != null, "a trade deal swaps resources, once per moon");
+                Check(s.DeclareWar(e, "humiliation") == null && e.Status == "war", "declaring war needs a goal (humiliation)");
+                s.Moon += Defs.Rules.EmpireRaidEvery;
+                s.MoonTime = s.MoonSeconds - 0.01f;
+                s.Res["food"] = 999; s.Res["energy"] = 999;
+                s.Update(0.05f);
+                Check(s.Table.Stacks.Any(x => x.Root.Def.HasTag("empire") && x.Root.Def.IsHostile), "at war, they send raid fleets to your capital");
+                foreach (var h in s.Table.Stacks.Where(x => x.HasHostile).ToList()) foreach (var c in h.Cards.ToList()) s.Remove(c);
+                s.Techs.Add("tech_fleet_doctrine_2");
+                var fleet = Build(s, Enumerable.Repeat("battleship", 8), new Vector2(300, 700));
+                Check(s.StartInvasion(fleet, e) == null && s.War != null, "dropping a fleet on their capital (at war) starts an invasion");
+                int capital = e.Systems.FindIndex(x => x.Capital);
+                s.AttackSystem(capital);
+                float t = 0;
+                while (s.War?.Fight != null && t < 200) { s.UpdateWar(0.05f); t += 0.05f; }
+                Check(s.War != null && s.War.Won && e.Status == "peace" && e.HumiliatedUntil > s.Moon, $"occupying their capital wins a humiliation war ({t:0}s)");
+                int moon = s.Moon;
+                s.EndInvasion();
+                Check(s.War == null && s.Moon == moon && s.Table.Stacks.Any(x => Sim.Warships(x) > 0), "the fleet comes home; time at home stood still");
+                var e2 = s.Empires.First(x => x != e);
+                e2.Contacted = true;
+                s.DeclareWar(e2, "tributary");
+                var f2 = s.Table.Stacks.First(x => Sim.Warships(x) > 0);
+                s.StartInvasion(f2, e2);
+                s.AttackSystem(e2.Systems.FindIndex(x => x.Capital));
+                t = 0;
+                while (s.War?.Fight != null && t < 200) { s.UpdateWar(0.05f); t += 0.05f; }
+                s.EndInvasion();
+                int en = s.Have("energy");
+                s.MoonTime = s.MoonSeconds - 0.01f;
+                s.Update(0.05f);
+                Check(e2.Status == "tributary" && s.Have("energy") > en - s.StructureUpkeep - 5, "a tributary pays Energy and Minerals each moon");
+                var path = Path.Combine(Path.GetTempPath(), "gg_selftest_emp.json");
+                s.SaveTo(path);
+                var l = new Sim(Sim.ReadSave(path)!);
+                File.Delete(path);
+                Check(l.Empires.Count == s.Empires.Count && l.Empires.Any(x => x.Status == "tributary") && l.Systems.Any(x => x.Owner != null)
+                      && l.AllCards.Any(c => c.EmpireId != null), "empires (status, intel, systems, capital cards) save and load");
+            }
+        }
+
+        Log.Info("Self-test: endless play after a win");
+        {
+            var s = Fresh();
+            var boss = s.Spawn(s.Crisis.BossCard, new Vector2(1200, 500), jitter: false);
+            boss.Hp = 1; boss.Shield = boss.MaxShield = 0; boss.Armor = 0; boss.ShieldRegen = boss.HullRegen = boss.ArmorRegen = 0; boss.Evasion = 0;
+            s.Attack(Build(s, new[] { "battleship", "battleship" }, new Vector2(300, 500)), boss);
+            Run(s, 30, () => s.State != RunState.Playing);
+            Check(s.State == RunState.Won, "destroying the crisis leader wins");
+            s.State = RunState.Playing; s.Endless = true;
+            var again = s.Spawn(s.Crisis.BossCard, new Vector2(1200, 500), jitter: false);
+            again.Hp = 1; again.Shield = again.MaxShield = 0; again.Armor = 0; again.ShieldRegen = again.HullRegen = again.ArmorRegen = 0; again.Evasion = 0;
+            s.Attack(s.Table.Stacks.FirstOrDefault(x => Sim.Warships(x) > 0) ?? Build(s, new[] { "battleship" }, new Vector2(300, 500)), again);
+            Run(s, 30);
+            Check(s.State == RunState.Playing && !s.AllCards.Contains(again), "after choosing to keep playing, the run carries on");
         }
 
         Log.Info("Self-test: random star systems");
@@ -364,15 +485,18 @@ public static class SelfTest
             var s = Fresh();
             Check(s.Home.Claimed && s.ClaimedCount == 1, "you start owning only your capital");
             var far = s.AddSystem(s.RollSystemType());
+            foreach (var h in s.StacksIn(far).Where(x => x.HasHostile).ToList()) foreach (var c in h.Cards.ToList()) s.Remove(c);
             var col = Build(s, new[] { "desert_world", "colony_ship" }, far.Center);
             Run(s, 30);
             Check(!s.Discovered.Contains("c_colonize"), "colonising needs the system claimed first");
             var amoeba = s.Spawn("space_amoeba", far.Origin + new Vector2(1200, 700), jitter: false);
+            amoeba.AggroTimer = 999; // it only has to be there
             s.Res["influence"] = 2;
             var claim = Build(s, new[] { "yellow_star", "construction_ship" }, far.Origin + new Vector2(200, 650));
             Run(s, 1);
             Check(!far.Claimed && s.Messages.Any(m => m.Contains("Clear the hostiles")), "a system with hostiles in it can't be claimed (and the game says why)");
-            foreach (var c in amoeba.Stack?.Cards.ToList() ?? new List<Card>()) s.Remove(c);
+            foreach (var h in s.StacksIn(far).Where(x => x.HasHostile).ToList()) foreach (var c in h.Cards.ToList()) s.Remove(c);
+            foreach (var bt in s.Table.Battles.ToList()) foreach (var c in bt.Hostiles.ToList()) s.Remove(c);
             claim.Dirty = true;
             Run(s, 30, () => far.Claimed);
             for (int i = 0; i < 600 && !s.Discovered.Contains("c_colonize"); i++) { col.Dirty = true; s.Update(0.05f); }
