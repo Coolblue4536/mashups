@@ -45,9 +45,9 @@ def main():
         tag = " (UI context loaded first)" if ui_first else ""
         ok &= check(sa.count("SA|BEGIN|1") == 1, "standard: exactly one handoff block" + tag)
         ok &= check("SA|LEVEL|standard" in sa, "standard: level recorded" + tag)
-        ok &= check("SA|CIV|1|1|2|Roman Empire|Roman|Trajan" in sa, "player is slot 1, reached space 2nd" + tag)
-        ok &= check("SA|CIV|2|0|1|Japanese Empire|Japanese|Hojo Tokimune" in sa, "Japan is a rival that reached space 1st" + tag)
-        ok &= check("SA|CIV|3|0|0|Scythian Empire|Scythian|Tomyris" in sa, "Scythia never reached space (satellite is not a trigger)" + tag)
+        ok &= check("SA|CIV|1|1|2|Roman Empire|Roman|Trajan|Male" in sa, "player is slot 1, reached space 2nd" + tag)
+        ok &= check("SA|CIV|2|0|1|Japanese Empire|Japanese|Hojo Tokimune|Male" in sa, "Japan is a rival that reached space 1st" + tag)
+        ok &= check("SA|CIV|3|0|0|Scythian Empire|Scythian|Tomyris|Female" in sa, "Scythia never reached space (satellite is not a trigger)" + tag)
         ok &= check([l for l in sa if l.startswith("SA|CITY|1|")] == ["SA|CITY|1|Rome", "SA|CITY|1|Cumae pipe", "SA|CITY|1|Antium"],
                     "player cities: capital first, then by population, '|' cleaned" + tag)
         ok &= check("SA|CITY|2|Kyōto" in sa, "rival cities carried, non-ASCII kept" + tag)

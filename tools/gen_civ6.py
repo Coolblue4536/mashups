@@ -33,8 +33,12 @@ def write(rel, text):
         f.write(text)
     return rel
 
+# Civ VI shows only the text of the language it runs in, so the mod's (English) text
+# is written for every language the game ships with.
+CIV6_LANGUAGES = ["en_US", "de_DE", "es_ES", "fr_FR", "it_IT", "ja_JP", "ko_KR", "pl_PL", "pt_BR", "ru_RU", "zh_Hans_CN", "zh_Hant_HK"]
+
 def text_xml(rows):
-    body = "\n".join(f'    <Row Tag="{x(t)}" Language="en_US"><Text>{x(v)}</Text></Row>' for t, v in rows)
+    body = "\n".join(f'    <Row Tag="{x(t)}" Language="{lang}"><Text>{x(v)}</Text></Row>' for lang in CIV6_LANGUAGES for t, v in rows)
     return f'<?xml version="1.0" encoding="utf-8"?>\n<GameData>\n  <LocalizedText>\n{body}\n  </LocalizedText>\n</GameData>\n'
 
 def main():
@@ -50,7 +54,7 @@ def main():
            "INSERT INTO Parameters (ParameterId, Name, Description, Domain, DefaultValue, ConfigurationGroup, ConfigurationId, GroupId, SortIndex)",
            "VALUES ('SA_SpaceRace', 'LOC_SA_SPACE_RACE_NAME', 'LOC_SA_SPACE_RACE_DESC', 'SA_SpaceRaceLevels', 'standard', 'Game', 'SA_SPACE_RACE', 'AdvancedOptions', 2010);"]
     cfg_text = [("LOC_SA_SPACE_RACE_NAME", "Space Race (Stellar Ascension)"),
-                ("LOC_SA_SPACE_RACE_DESC", "How hard losing the race to space hits you when your empire continues in Stellaris.")]
+                ("LOC_SA_SPACE_RACE_DESC", "Stellar Ascension: the first civilization to complete the Moon Landing wins the race to space. This sets what losing the race costs you when your empire continues in Stellaris.")]
     for i, r in enumerate(levels):
         tag = "LOC_SA_LEVEL_" + r["level"].upper()
         cfg.append(f"INSERT INTO DomainValues (Domain, Value, Name, Description, SortIndex) VALUES ('SA_SpaceRaceLevels', {sql(r['level'])}, {sql(tag + '_NAME')}, {sql(tag + '_DESC')}, {10 * (i + 1)});")
@@ -59,25 +63,34 @@ def main():
     files.append(write("Text/SA_ConfigText.xml", text_xml(cfg_text)))
 
     # --- hook civ_tech_tooltips --------------------------------------------------
+    # Some techs already have a description (Rocketry does). The legacy line is added
+    # after the player's own text at load time, in every language their game has.
     data = ["-- generated from sheets/techs.json"]
+    tech_text = ["-- generated from sheets/techs.json: the tech's own description (if any), then its Space Age legacy"]
     text = []
     for r in s["techs"]["rows"]:
         m = mods[r["modifier"]]
-        tag = f"LOC_SA_{r['civ_tech']}_DESCRIPTION"
-        data.append(f"UPDATE Technologies SET Description = {sql(tag)} WHERE TechnologyType = {sql(r['civ_tech'])};")
-        text.append((tag, f"Space Age legacy: {r['title']} ({m['effect_text']} in Stellaris)."))
+        tech = r["civ_tech"]
+        tag = f"LOC_SA_{tech}_DESCRIPTION"
+        data.append(f"UPDATE Technologies SET Description = {sql(tag)} WHERE TechnologyType = {sql(tech)};")
+        legacy = f"Space Age legacy: {r['title']}. In Stellaris: {m['effect_text']}."
+        tech_text.append(
+            f"INSERT OR REPLACE INTO LocalizedText (Language, Tag, Text) SELECT n.Language, {sql(tag)}, "
+            f"COALESCE((SELECT d.Text || '[NEWLINE][NEWLINE]' FROM LocalizedText d WHERE d.Language = n.Language AND d.Tag = {sql('LOC_' + tech + '_DESCRIPTION')}), '') || {sql(legacy)} "
+            f"FROM LocalizedText n WHERE n.Tag = {sql('LOC_' + tech + '_NAME')};")
     trig = const(s, "trigger_projects").split()
     text += [
-        ("LOC_SA_ACT1_TITLE", "Act 1 complete: your civilization reaches space"),
-        ("LOC_SA_ACT1_BODY", "Your empire is ready to continue in Stellaris. Save if you like, then exit Civilization VI: Stellaris opens with your civilization, your rivals and your wonders. In Stellaris's empire list, pick {1_Name}."),
+        ("LOC_SA_ACT1_TITLE", "Act 1 complete: your civilization has reached space"),
+        ("LOC_SA_ACT1_BODY", "Your empire is ready to continue in Stellaris. Save if you like, then quit Civilization VI. Stellaris will start with your civilization, your rivals and your wonders. Start a new game there and choose {1_Name} in the empire list."),
         ("LOC_SA_DEFEAT_TITLE", "Lost the race to space"),
-        ("LOC_SA_DEFEAT_BODY", "{1_Name} reached space before you. On Ruthless, only the winner of the space race goes on to the stars. Your game is over."),
+        ("LOC_SA_DEFEAT_BODY", "{1_Name} completed the Moon Landing before you. On Ruthless, only the winner of the space race goes to the stars, so this game is over."),
         ("LOC_SA_RIVAL_SPACE_TITLE", "A rival reached space"),
-        ("LOC_SA_RIVAL_SPACE_BODY", "{1_Name} reached space first. Any natural wonders on this map will become their rare star systems in Stellaris."),
+        ("LOC_SA_RIVAL_SPACE_BODY", "{1_Name} completed the Moon Landing first. In Stellaris they will start out owning the rare star systems made from this map's natural wonders."),
         ("LOC_SA_POPUP_OK", "Continue"),
     ]
     files.append(write("Data/SA_Gameplay.sql", "\n".join(data) + "\n"))
     files.append(write("Text/SA_Text.xml", text_xml(text)))
+    files.append(write("Text/SA_TechText.sql", "\n".join(tech_text) + "\n"))
 
     # --- Lua: data tables generated from sheets, logic from civ6/*.lua templates ---
     triggers = "{ " + ", ".join(f"[{lua_str(t)}] = true" for t in trig) + " }"
@@ -122,7 +135,11 @@ def main():
       <File>Data/SA_Gameplay.sql</File>
     </UpdateDatabase>
     <UpdateText id="SA_Text">
+      <Properties>
+        <LoadOrder>1000</LoadOrder>
+      </Properties>
       <File>Text/SA_Text.xml</File>
+      <File>Text/SA_TechText.sql</File>
     </UpdateText>
     <AddGameplayScripts id="SA_Scripts">
       <File>Scripts/SA_Gameplay.lua</File>

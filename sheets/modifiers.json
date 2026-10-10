@@ -258,7 +258,7 @@
       "scope": "country",
       "stellaris_modifier": "country_alloys_produces_mult",
       "value": 0.15,
-      "name": "Won the Race to Space",
+      "name": "Ahead in the Space Race",
       "effect_text": "+15% Alloys"
     },
     {

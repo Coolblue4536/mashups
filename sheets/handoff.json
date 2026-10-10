@@ -22,8 +22,8 @@
     },
     {
       "record": "CIV",
-      "fields": "slot|is_player|space_order|name|adjective|leader",
-      "civ_source": "PlayerConfigurations + Game:GetProperty(SA_SpaceOrder)",
+      "fields": "slot|is_player|space_order|name|adjective|leader|sex",
+      "civ_source": "PlayerConfigurations, GameInfo.Leaders.Sex + Game:GetProperty(SA_SpaceOrder)",
       "stellaris_use": "one prescripted empire per civ"
     },
     {

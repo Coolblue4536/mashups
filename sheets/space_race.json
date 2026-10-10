@@ -16,7 +16,7 @@
     {
       "level": "relaxed",
       "label": "Relaxed",
-      "description": "Losing the space race costs you the rare star systems, nothing more.",
+      "description": "If a rival reaches space first, they start in Stellaris owning the rare star systems made from this map's natural wonders. Nothing else changes.",
       "civ_defeat_if_beaten": false,
       "rival_lead_modifiers": "none",
       "player_first_modifiers": "sa_space_race_victor"
@@ -24,7 +24,7 @@
     {
       "level": "standard",
       "label": "Standard",
-      "description": "Rivals who reach space before you also start with stronger industry and fleets.",
+      "description": "Rivals who reach space before you also start in Stellaris with +15% alloys and +10 naval capacity. Whoever is first owns the rare star systems.",
       "civ_defeat_if_beaten": false,
       "rival_lead_modifiers": "sa_space_race_leader sa_space_race_leader_fleet",
       "player_first_modifiers": "sa_space_race_victor"
@@ -32,7 +32,7 @@
     {
       "level": "ruthless",
       "label": "Ruthless",
-      "description": "If a rival reaches space first, you lose. Only the winner of the race goes on to the stars.",
+      "description": "If a rival reaches space first, you lose this game and there is no Stellaris act. Only the winner of the space race goes to the stars.",
       "civ_defeat_if_beaten": true,
       "rival_lead_modifiers": "sa_space_race_leader sa_space_race_leader_fleet",
       "player_first_modifiers": "sa_space_race_victor"

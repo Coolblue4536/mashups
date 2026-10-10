@@ -47,7 +47,9 @@ local function CivInfo(id)
 	local name = row and Lookup(row.Description) or Lookup(cfg:GetCivilizationDescription())
 	local adjective = row and Lookup(row.Adjective) or Lookup(cfg:GetCivilizationShortDescription())
 	local leader = Lookup(cfg:GetLeaderName())
-	return name, adjective, leader
+	local leaderRow = GameInfo.Leaders[cfg:GetLeaderTypeName()]
+	local sex = (leaderRow and leaderRow.Sex) or "Male"
+	return name, adjective, leader, sex
 end
 
 local function CityNames(player)
@@ -82,8 +84,8 @@ local function WriteHandoff(localID)
 		if id ~= localID and #ids <= SA_MAX_RIVALS then table.insert(ids, id) end
 	end
 	for slot, id in ipairs(ids) do
-		local name, adjective, leader = CivInfo(id)
-		emit("CIV", slot, (id == localID) and 1 or 0, Contains(order, id) or 0, name, adjective, leader)
+		local name, adjective, leader, sex = CivInfo(id)
+		emit("CIV", slot, (id == localID) and 1 or 0, Contains(order, id) or 0, name, adjective, leader, sex)
 		for _, city in ipairs(CityNames(Players[id])) do emit("CITY", slot, city) end
 	end
 

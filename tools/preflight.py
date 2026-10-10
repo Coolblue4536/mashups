@@ -9,7 +9,11 @@ Cells that can only be confirmed inside the running game (Civ VI type names) are
 reported as "pending in-game check": the mod tolerates a missing one, but they
 are not ticked until a test run confirms them.
 
-Usage: tools/preflight.py [--stellaris-docs <cwtools-stellaris-config/config/logs>]
+Usage: tools/preflight.py [--stellaris-docs <dir>] [--civ6 <Civ VI install folder>]
+  --stellaris-docs: Stellaris's own logs/script_documentation folder (written by the
+                    game at startup), or cwtools-stellaris-config/config/logs.
+  --civ6:           confirms the Civ VI type names against the installed game's data
+                    and records them in sheets/verified/ingame.json.
 Exit code 1 when anything is unfilled, unresolved or invalid.
 """
 import json, os, sys, glob, re
@@ -26,12 +30,35 @@ def load():
         out[d["sheet"]] = d
     return out
 
+def record_civ6_types(sheets, civ6):
+    """Look up every civ6-in-game cell in the installed game's gameplay data."""
+    files = glob.glob(os.path.join(civ6, "Base", "Assets", "Gameplay", "Data", "*.xml")) + \
+        glob.glob(os.path.join(civ6, "DLC", "*", "Data", "*.xml"))
+    if not files:
+        sys.exit(f"--civ6: no gameplay data under {civ6}")
+    text = "\n".join(open(p, encoding="utf-8", errors="ignore").read() for p in files)
+    found = {}
+    for s in sheets.values():
+        for c, rule in s.get("verify", {}).items():
+            if rule != "civ6-in-game":
+                continue
+            for r in s["rows"]:
+                v = str(r[c])
+                if v != "DEFAULT" and re.search(r'"%s"' % re.escape(v), text):
+                    found.setdefault(c, []).append(v)
+    os.makedirs(os.path.dirname(INGAME), exist_ok=True)
+    json.dump({"source": "Civ VI install gameplay data (Base + DLC)", **{k: sorted(v) for k, v in found.items()}},
+              open(INGAME, "w"), indent=1)
+
 def main(argv):
     docs = None
     if "--stellaris-docs" in argv:
         docs = argv[argv.index("--stellaris-docs") + 1]
+    civ6 = argv[argv.index("--civ6") + 1] if "--civ6" in argv else None
     sheets = load()
     errors, pending = [], []
+    if civ6:
+        record_civ6_types(sheets, civ6)
     lock = json.load(open(LOCK)) if os.path.exists(LOCK) else {"modifiers": [], "keywords": []}
     ingame = json.load(open(INGAME)) if os.path.exists(INGAME) else {}
 
@@ -113,7 +140,10 @@ def main(argv):
     if os.path.exists(kwfile):
         words = [w.strip() for w in open(kwfile) if w.strip() and not w.startswith("#")]
         if docs:
-            docs_text = open(os.path.join(docs, "trigger_docs.log"), encoding="utf-8", errors="replace").read()
+            docs_text = ""
+            for f in ("trigger_docs.log", "triggers.log", "effects.log"):
+                if os.path.exists(os.path.join(docs, f)):
+                    docs_text += open(os.path.join(docs, f), encoding="utf-8", errors="replace").read()
             known = set(re.findall(r"^([a-z_0-9]+) - ", docs_text, re.M))
             for w in words:
                 if w not in known:
@@ -124,7 +154,7 @@ def main(argv):
                     errors.append(f"unverified launcher keyword '{w}' (run with --stellaris-docs)")
         if docs and not errors:
             os.makedirs(os.path.dirname(LOCK), exist_ok=True)
-            json.dump({"source": "cwtools-stellaris-config logs (Stellaris script_documentation)",
+            json.dump({"source": "Stellaris script_documentation (the game's logs/script_documentation, or cwtools-stellaris-config)",
                        "modifiers": sorted(used_mods), "keywords": sorted(words)}, open(LOCK, "w"), indent=1)
 
     cells = sum(len(s["rows"]) * len(s["columns"]) for s in sheets.values())

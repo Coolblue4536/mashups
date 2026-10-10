@@ -4,13 +4,13 @@ events: SA_EVENT|SPACE|1|1
 events: SA_EVENT|SPACE|0|2
 events: SA|BEGIN|1
 events: SA|LEVEL|standard
-events: SA|CIV|1|1|2|Roman Empire|Roman|Trajan
+events: SA|CIV|1|1|2|Roman Empire|Roman|Trajan|Male
 events: SA|CITY|1|Rome
 events: SA|CITY|1|Cumae pipe
 events: SA|CITY|1|Antium
-events: SA|CIV|2|0|1|Japanese Empire|Japanese|Hojo Tokimune
+events: SA|CIV|2|0|1|Japanese Empire|Japanese|Hojo Tokimune|Male
 events: SA|CITY|2|Kyōto
-events: SA|CIV|3|0|0|Scythian Empire|Scythian|Tomyris
+events: SA|CIV|3|0|0|Scythian Empire|Scythian|Tomyris|Female
 events: SA|TECH|TECH_ASTROLOGY
 events: SA|TECH|TECH_ROCKETRY
 events: SA|WONDER|BUILDING_PYRAMIDS|Pyramids|+25% Production toward districts.

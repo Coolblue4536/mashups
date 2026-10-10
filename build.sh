@@ -17,6 +17,20 @@ cp LICENSE.txt build/launcher/LICENSE.txt 2>/dev/null || true
 mkdir -p dist
 ZIP="dist/StellarAscension-$VERSION.zip"
 rm -f "$ZIP"
-(cd build && cp -r civ6/StellarAscension . && zip -qr -X "../$ZIP" StellarAscension launcher && rm -rf StellarAscension)
+if command -v zip >/dev/null; then
+  (cd build && cp -r civ6/StellarAscension . && zip -qr -X "../$ZIP" StellarAscension launcher -x launcher/launcher.log && rm -rf StellarAscension)
+else # Git Bash on Windows has no zip
+  "$PY" - "$ZIP" <<'EOF'
+import os, sys, zipfile
+with zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED) as z:
+    for src, arc in (("build/civ6/StellarAscension", "StellarAscension"), ("build/launcher", "launcher")):
+        for d, _, fs in os.walk(src):
+            for f in sorted(fs):
+                if f == "launcher.log":
+                    continue
+                p = os.path.join(d, f)
+                z.write(p, os.path.join(arc, os.path.relpath(p, src)).replace(os.sep, "/"))
+EOF
+fi
 echo "built $ZIP ($(stat -c %s "$ZIP") bytes)"
 unzip -l "$ZIP"

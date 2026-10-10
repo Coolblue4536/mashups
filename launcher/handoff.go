@@ -15,6 +15,7 @@ type Civ struct {
 	Name       string
 	Adjective  string
 	Leader     string
+	Sex        string // "male" or "female" (Civ VI Leaders.Sex); empty in older handoffs
 	Cities     []string
 }
 
@@ -105,7 +106,7 @@ func (r *HandoffReader) line(line string) {
 	case "LEVEL":
 		h.Level = at(1)
 	case "CIV":
-		h.Civs = append(h.Civs, &Civ{Slot: num(1), IsPlayer: at(2) == "1", SpaceOrder: num(3), Name: at(4), Adjective: at(5), Leader: at(6)})
+		h.Civs = append(h.Civs, &Civ{Slot: num(1), IsPlayer: at(2) == "1", SpaceOrder: num(3), Name: at(4), Adjective: at(5), Leader: at(6), Sex: strings.ToLower(at(7))})
 	case "CITY":
 		for _, c := range h.Civs {
 			if c.Slot == num(1) && at(2) != "" {

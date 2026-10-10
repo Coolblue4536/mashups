@@ -9,7 +9,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -45,6 +44,49 @@ func start(exe string) error {
 }
 
 type paths struct{ civ6, stellaris, mygames, documents string }
+
+// luaLogs lists where Civ VI may write Lua.log. Current Windows builds write their
+// logs under %LOCALAPPDATA%\Firaxis Games; older ones under Documents/My Games.
+func luaLogs(p paths) []string {
+	var out []string
+	if la := os.Getenv("LOCALAPPDATA"); la != "" {
+		out = append(out, filepath.Join(la, "Firaxis Games", "Sid Meier's Civilization VI", "Logs", "Lua.log"))
+	}
+	if p.mygames != "" {
+		out = append(out, filepath.Join(p.mygames, "Sid Meier's Civilization VI", "Logs", "Lua.log"))
+	}
+	return out
+}
+
+// logTail follows one Lua.log from where it was when the launcher started.
+type logTail struct {
+	path   string
+	offset int64
+	reader HandoffReader
+}
+
+func (t *logTail) poll() []*Handoff {
+	fi, err := os.Stat(t.path)
+	if err != nil {
+		return nil
+	}
+	if fi.Size() < t.offset { // Civ VI starts a new log each launch
+		t.offset = 0
+		t.reader.Reset()
+	}
+	if fi.Size() > t.offset {
+		if f, err := os.Open(t.path); err == nil {
+			f.Seek(t.offset, io.SeekStart)
+			b, _ := io.ReadAll(f)
+			f.Close()
+			t.offset += int64(len(b))
+			t.reader.Feed(string(b))
+		}
+	}
+	done := t.reader.Done
+	t.reader.Done = nil
+	return done
+}
 
 func stellarisInstall(p paths) *StellarisInstall {
 	return &StellarisInstall{Game: p.stellaris, UserDir: filepath.Join(p.documents, "Paradox Interactive", "Stellaris")}
@@ -122,10 +164,13 @@ func main() {
 	if p.civ6 == "" || p.mygames == "" || p.documents == "" || p.stellaris == "" {
 		log.Fatal("missing --civ6, --stellaris, --mygames or --documents (Melty passes these on Play)")
 	}
-	luaLog := filepath.Join(p.mygames, "Sid Meier's Civilization VI", "Logs", "Lua.log")
-	var offset int64
-	if fi, err := os.Stat(luaLog); err == nil {
-		offset = fi.Size() // only handoffs written from now on count
+	var tails []*logTail
+	for _, l := range luaLogs(p) {
+		t := &logTail{path: l}
+		if fi, err := os.Stat(l); err == nil {
+			t.offset = fi.Size() // only handoffs written from now on count
+		}
+		tails = append(tails, t)
 	}
 
 	civ := firstExisting(p.civ6, civExes)
@@ -137,29 +182,17 @@ func main() {
 			log.Fatalf("starting Civilization VI: %v", err)
 		}
 	}
-	log.Printf("Act 1: Civilization VI started (%s). Watching %s", civ, luaLog)
+	log.Printf("Act 1: Civilization VI started (%s). Watching %s", civ, strings.Join(luaLogs(p), " and "))
 
-	var reader HandoffReader
 	var handoff *Handoff
 	seen, lastSeen := false, time.Now()
 	for {
 		time.Sleep(2 * time.Second)
-		if fi, err := os.Stat(luaLog); err == nil {
-			if fi.Size() < offset { // Civ VI rewrote the log
-				offset = 0
-				reader.Reset()
-			}
-			if fi.Size() > offset {
-				if f, err := os.Open(luaLog); err == nil {
-					f.Seek(offset, io.SeekStart)
-					b, _ := io.ReadAll(f)
-					f.Close()
-					offset += int64(len(b))
-					reader.Feed(string(b))
-				}
-			}
+		var done []*Handoff
+		for _, t := range tails {
+			done = append(done, t.poll()...)
 		}
-		for _, h := range reader.Done {
+		for _, h := range done {
 			if h.Defeat != "" {
 				log.Printf("You lost the space race to %s (Ruthless). No Act 2 this time.", h.Defeat)
 				handoff = nil
@@ -172,16 +205,16 @@ func main() {
 				}
 			}
 		}
-		reader.Done = nil
 
 		if running(civProcs) {
 			seen, lastSeen = true, time.Now()
 			continue
 		}
-		// Civ VI may restart itself through its store; wait a little before deciding it closed.
+		// Civ VI restarts itself through Steam, which can take minutes on a first launch
+		// (it runs the install scripts first); wait before deciding it closed.
 		wait := 15 * time.Second
 		if !seen {
-			wait = 90 * time.Second
+			wait = 5 * time.Minute
 		}
 		if time.Since(lastSeen) > wait {
 			break
@@ -202,5 +235,5 @@ func startStellaris(p paths) {
 	if err := start(exe); err != nil {
 		log.Fatalf("starting Stellaris: %v", err)
 	}
-	log.Printf("Act 2: Stellaris started. Pick your empire (%s) in the empire list.", strings.TrimSpace(fmt.Sprint("Stellar Ascension")))
+	log.Printf("Act 2: Stellaris started. Start a new game and pick your civilization's empire in the empire list.")
 }

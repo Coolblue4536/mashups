@@ -32,6 +32,8 @@ GameInfo = {
 	Civilizations = Indexed({ { CivilizationType = "CIVILIZATION_ROME", Description = "LOC_CIVILIZATION_ROME_DESCRIPTION", Adjective = "LOC_CIVILIZATION_ROME_ADJECTIVE" },
 		{ CivilizationType = "CIVILIZATION_JAPAN", Description = "LOC_CIVILIZATION_JAPAN_DESCRIPTION", Adjective = "LOC_CIVILIZATION_JAPAN_ADJECTIVE" },
 		{ CivilizationType = "CIVILIZATION_SCYTHIA", Description = "LOC_CIVILIZATION_SCYTHIA_DESCRIPTION", Adjective = "LOC_CIVILIZATION_SCYTHIA_ADJECTIVE" } }, "CivilizationType"),
+	-- the real table defaults Sex to "Male"; only female leaders set it
+	Leaders = Indexed({ { LeaderType = "LEADER_TRAJAN", Sex = "Male" }, { LeaderType = "LEADER_HOJO", Sex = "Male" }, { LeaderType = "LEADER_TOMYRIS", Sex = "Female" } }, "LeaderType"),
 }
 
 local TEXT = {
@@ -83,10 +85,10 @@ Players = {
 	[2] = Player(2, false, {}),
 }
 PlayerManager = { GetAliveMajorIDs = function() return { 0, 1, 2 } end }
-local CFG = { [0] = { "CIVILIZATION_ROME", "LOC_LEADER_TRAJAN_NAME" }, [1] = { "CIVILIZATION_JAPAN", "LOC_LEADER_HOJO_NAME" }, [2] = { "CIVILIZATION_SCYTHIA", "LOC_LEADER_TOMYRIS_NAME" } }
+local CFG = { [0] = { "CIVILIZATION_ROME", "LOC_LEADER_TRAJAN_NAME", "LEADER_TRAJAN" }, [1] = { "CIVILIZATION_JAPAN", "LOC_LEADER_HOJO_NAME", "LEADER_HOJO" }, [2] = { "CIVILIZATION_SCYTHIA", "LOC_LEADER_TOMYRIS_NAME", "LEADER_TOMYRIS" } }
 PlayerConfigurations = setmetatable({}, { __index = function(_, id)
 	local c = CFG[id]
-	return { GetCivilizationTypeName = function() return c[1] end, GetLeaderName = function() return c[2] end,
+	return { GetCivilizationTypeName = function() return c[1] end, GetLeaderName = function() return c[2] end, GetLeaderTypeName = function() return c[3] end,
 		GetCivilizationShortDescription = function() return c[1]:gsub("CIVILIZATION_", "LOC_CIVILIZATION_") .. "_NAME" end,
 		GetCivilizationDescription = function() return c[1]:gsub("CIVILIZATION_", "LOC_CIVILIZATION_") .. "_DESCRIPTION" end }
 end })
