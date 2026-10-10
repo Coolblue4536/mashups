@@ -26,7 +26,7 @@ public sealed class EmpireSave
 {
     public string Id = "", Status = "peace", WarGoal = "";
     public bool Contacted, TheyDeclared;
-    public int Intel, GoalSystem = -1, WarSince, HumiliatedUntil, LastRaid, Area = -1;
+    public int Intel, GoalSystem = -1, WarSince, HumiliatedUntil, LastRaid, Area = -1, LastSabotage = -1;
     public float IntelProgress, StrengthLoss;
     public List<string> SystemNames = new(), SystemPlanets = new();
     public List<bool> SystemCapital = new(), SystemOccupied = new();
@@ -91,7 +91,7 @@ public sealed partial class Sim
             Empires = Empires.Select(e => new EmpireSave
             {
                 Id = e.Def.Id, Status = e.Status, WarGoal = e.WarGoal, Contacted = e.Contacted, TheyDeclared = e.TheyDeclared, Intel = e.Intel,
-                GoalSystem = e.GoalSystem, WarSince = e.WarSince, HumiliatedUntil = e.HumiliatedUntil, LastRaid = e.LastRaid, Area = e.Area,
+                GoalSystem = e.GoalSystem, WarSince = e.WarSince, HumiliatedUntil = e.HumiliatedUntil, LastRaid = e.LastRaid, Area = e.Area, LastSabotage = e.LastSabotage,
                 IntelProgress = e.IntelProgress, StrengthLoss = e.StrengthLoss, SystemNames = e.Systems.Select(x => x.Name).ToList(),
                 SystemPlanets = e.Systems.Select(x => string.Join(",", x.Planets)).ToList(), SystemCapital = e.Systems.Select(x => x.Capital).ToList(),
                 SystemOccupied = e.Systems.Select(x => x.Occupied).ToList(),
@@ -136,7 +136,7 @@ public sealed partial class Sim
         {
             if (Defs.Empires.FirstOrDefault(x => x.Id == es.Id) is not { } def) continue;
             var e = new Empire { Def = def, Status = es.Status, WarGoal = es.WarGoal, Contacted = es.Contacted, TheyDeclared = es.TheyDeclared, Intel = es.Intel,
-                                 GoalSystem = es.GoalSystem, WarSince = es.WarSince, HumiliatedUntil = es.HumiliatedUntil, LastRaid = es.LastRaid, Area = es.Area,
+                                 GoalSystem = es.GoalSystem, WarSince = es.WarSince, HumiliatedUntil = es.HumiliatedUntil, LastRaid = es.LastRaid, Area = es.Area, LastSabotage = es.LastSabotage,
                                  IntelProgress = es.IntelProgress, StrengthLoss = es.StrengthLoss };
             for (int i = 0; i < es.SystemNames.Count; i++)
             {

@@ -106,17 +106,24 @@ public sealed partial class Sim
     /// <summary>The resources a recipe takes from the pool.</summary>
     public static IEnumerable<RecipeInput> Costs(RecipeDef r) => r.Inputs.Where(i => IsResource(i.Card));
 
+    /// <summary>A recipe's input as it costs right now: infinite research gets dearer with each level.</summary>
+    public RecipeInput InputNow(RecipeDef r, RecipeInput i) =>
+        r.Effect.StartsWith("repeat:") && i.Card == "research" ? i with { N = i.N + Defs.Rules.RepCostStep * RepLevels.GetValueOrDefault(r.Effect[7..]) } : i;
+
+    /// <summary>The resources a recipe takes from the pool right now.</summary>
+    public IEnumerable<RecipeInput> CostsNow(RecipeDef r) => Costs(r).Select(i => InputNow(r, i));
+
     /// <summary>What the pool is short of for a recipe ("Needs 3 Minerals (have 1)"), or null when it can pay.</summary>
     public string? Shortfall(RecipeDef r)
     {
-        var miss = Costs(r).Where(i => Have(i.Card) < i.N).ToList();
+        var miss = CostsNow(r).Where(i => Have(i.Card) < i.N).ToList();
         return miss.Count == 0 ? null : "Needs " + string.Join(", ", miss.Select(i => $"{i.N} {Name(i.Card)} (have {Have(i.Card)})"));
     }
 
     bool Pay(RecipeDef r)
     {
         if (Shortfall(r) != null) return false;
-        foreach (var i in Costs(r)) Res[i.Card] -= i.N;
+        foreach (var i in CostsNow(r)) Res[i.Card] -= i.N;
         return true;
     }
 
@@ -325,7 +332,9 @@ public sealed partial class Sim
             return NewCard(id);
         }
         var c = NewCard(id);
-        var home = SystemAt(pos + new Vector2(CardW / 2, CardH / 2));
+        // Cards always land inside a system: one spawned in a gap goes to the nearest system.
+        var home = SystemAt(pos + new Vector2(CardW / 2, CardH / 2))
+                   ?? Systems.OrderBy(z => Vector2.DistanceSquared(z.Center, pos)).FirstOrDefault();
         var want = pos + (jitter ? new Vector2(Rng.Next(-40, 41), Rng.Next(-40, 41)) : Vector2.Zero);
         var s = NewStack(want);
         Add(s, c);

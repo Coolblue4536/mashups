@@ -341,6 +341,45 @@ public static class SelfTest
             }
         }
 
+        Log.Info("Self-test: espionage, empire events, infinite research costs");
+        {
+            var s = Fresh();
+            var e = s.Empires[0];
+            e.Contacted = true;
+            Check(s.SabotageBlock(e)?.Contains("intel level 3") == true, "sabotage needs intel level 3");
+            e.Intel = 3;
+            var cap = Build(s, new[] { "empire_capital" }, new Vector2(400, 400));
+            cap.Root.EmpireId = e.Def.Id;
+            Check(s.SabotageBlock(e)?.Contains("Envoy") == true, "sabotage needs an Envoy at their capital");
+            s.StackOnto(Build(s, new[] { "envoy" }, new Vector2(800, 400)), cap);
+            s.Res["energy"] = 100;
+            int before = s.EmpireStrength(e);
+            s.Sabotage(e);
+            Check(s.EmpireStrength(e) < before && s.Have("energy") == 100 - Defs.Rules.SabotageCost && s.SabotageBlock(e) != null,
+                  $"sabotage costs {Defs.Rules.SabotageCost} Energy, cuts their strength ({before} -> {s.EmpireStrength(e)}) and waits a moon");
+            var deal = new EmpireEvent { Emp = e, Kind = "deal", Text = "", Give = "minerals", GiveN = 5, Get = "alloys", GetN = 3 };
+            s.Pending.Add(deal);
+            s.Res["minerals"] = 5;
+            s.Resolve(deal, true);
+            Check(s.Pending.Count == 0 && s.Have("minerals") == 0 && s.Have("alloys") == 3, "accepting an empire's deal swaps the goods");
+            var pact = new EmpireEvent { Emp = e, Kind = "pact", Text = "", Give = "research", GiveN = 8 };
+            s.Res["research"] = 8;
+            int bps = s.AllCards.Count(c => c.Def.Category == "tech");
+            s.Resolve(pact, true);
+            Check(s.AllCards.Count(c => c.Def.Category == "tech") == bps + 1, "a research pact sends a blueprint");
+            var tribute = new EmpireEvent { Emp = e, Kind = "tribute", Text = "", Give = "energy", GiveN = 10 };
+            int en = s.Have("energy");
+            s.Resolve(tribute, true);
+            Check(s.Have("energy") == en - 10, "paying tribute costs Energy");
+            int seen = 0;
+            for (int i = 0; i < 40; i++) { s.Pending.Clear(); e.Status = "peace"; s.MoonTime = s.MoonSeconds - 0.01f; s.Res["food"] = 999; s.Res["energy"] = 999; s.Update(0.05f); seen += s.Pending.Count; }
+            Check(seen > 3, $"contacted empires send events over the moons ({seen} in 40 moons)");
+            var rr = Defs.Recipes.First(r => r.Id == "rr_damage");
+            int c0 = s.CostsNow(rr).First(i => i.Card == "research").N;
+            s.RepLevels["tech_rep_damage"] = 2;
+            Check(s.CostsNow(rr).First(i => i.Card == "research").N == c0 + 2 * Defs.Rules.RepCostStep, $"infinite research gets dearer each level ({c0} -> {c0 + 2 * Defs.Rules.RepCostStep})");
+        }
+
         Log.Info("Self-test: endless play after a win");
         {
             var s = Fresh();

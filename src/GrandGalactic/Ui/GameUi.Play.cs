@@ -90,7 +90,7 @@ public sealed partial class GameUi
         sim.TutorialOn = TutorialShown;
         // The book, menus, diplomacy and trade pause the game; an invasion runs on its own while home stands still.
         if (sim.War != null) { if (!_escMenu) sim.UpdateWar(dt * _speed); }
-        else if (!_paused && !_escMenu && !_codex && _diplo == null && !_intro && _screen == Screen.Play) sim.Update(dt * _speed);
+        else if (!_paused && !_escMenu && !_codex && _diplo == null && !_intro && !EventOpen && _screen == Screen.Play) sim.Update(dt * _speed);
 
         foreach (var msg in sim.Messages) Toast(msg);
         sim.Messages.Clear();
@@ -339,6 +339,8 @@ public sealed partial class GameUi
         var view = BoardView;
         var b = Table;
         _uiRects.Clear();
+        int eatNow = sim.AllCards.Where(c => c.Def.Category == "person").Sum(c => c.Def.FoodUpkeep);
+        _foodShort = sim.Moon >= Defs.Rules.UpkeepFromMoon && eatNow > 0 && sim.Have("food") < eatNow;
 
         // The table: each star system is an area, drawn on the Stacklands board texture (or plain space).
         Raylib.BeginScissorMode((int)view.X, (int)view.Y, (int)view.Width, (int)view.Height);
@@ -402,6 +404,7 @@ public sealed partial class GameUi
         if (_diplo != null && sim.War == null) DrawDiplomacy();
         if (sim.War != null) DrawInvasion();
         if (_intro && _screen == Screen.Play) DrawIntro();
+        if (EventOpen && !_escMenu) DrawEvent();
         if (_paused && !_escMenu && sim.War == null && _diplo == null) Text("PAUSED (Space)", view.Width / 2 - 100, TopBar + 14, 30, Color.Yellow);
         if (_screen == Screen.End) DrawEnd();
         if (_escMenu) DrawEscMenu();
@@ -423,16 +426,24 @@ public sealed partial class GameUi
         return false;
     }
 
-    void Glow(Rectangle r)
+    void Glow(Rectangle r) => Glow(r, new Color(255, 215, 90, 255));
+
+    void Glow(Rectangle r, Color c)
     {
         float k = 0.5f + 0.5f * MathF.Sin(_clock * 5);
-        Raylib.DrawRectangleRoundedLinesEx(new Rectangle(r.X - 5, r.Y - 5, r.Width + 10, r.Height + 10), 0.12f, 6, 3 + 2 * k, new Color(255, 215, 90, (int)(140 + 115 * k)));
+        Raylib.DrawRectangleRoundedLinesEx(new Rectangle(r.X - 5, r.Y - 5, r.Width + 10, r.Height + 10), 0.12f, 6, 3 + 2 * k, new Color((int)c.R, (int)c.G, (int)c.B, (int)(140 + 115 * k)));
     }
+
+    /// <summary>The pool can't feed everyone at this moon's end (upkeep has started).</summary>
+    bool _foodShort;
 
     void DrawStack(Stack s)
     {
         for (int i = 0; i < s.Cards.Count; i++)
             DrawCard(s.Cards[i], new Rectangle(s.Pos.X, s.Pos.Y + i * Sim.StackStep, Sim.CardW, Sim.CardH), s.Dragging);
+        // Starving soon: farms pulse red while the pool can't feed everyone at the moon's end.
+        if (!s.Dragging && _foodShort && s.Cards.FirstOrDefault(c => c.Def.Yield == "food" && (!c.Def.IsPlanet || c.Claimed)) is { } farm)
+            Glow(new Rectangle(s.Pos.X, s.Pos.Y, Sim.CardW, Sim.StackHeight(s)), new Color(255, 80, 70, 255));
         if (!s.Dragging)
             for (int i = 0; i < s.Cards.Count; i++)
                 if (Highlighted(s.Cards[i], s))

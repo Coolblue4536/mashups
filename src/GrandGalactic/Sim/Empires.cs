@@ -20,6 +20,7 @@ public sealed class Empire
     public float StrengthLoss;
     public int HumiliatedUntil;
     public int LastRaid;
+    public int LastSabotage = -1;
     public readonly List<EmpireSystem> Systems = new();
     public readonly List<TradeOffer> Offers = new();
     /// <summary>The table area of their home system, once contacted (its Index).</summary>
@@ -32,6 +33,16 @@ public sealed class EmpireSystem
     public readonly List<string> Planets = new();
     public bool Capital;
     public bool Occupied;
+}
+
+/// <summary>Something a rival empire asks of you (or offers): accept or refuse.</summary>
+public sealed class EmpireEvent
+{
+    public required Empire Emp;
+    public required string Kind;
+    public required string Text;
+    public string Give = "", Get = "";
+    public int GiveN, GetN;
 }
 
 public sealed record TradeOffer(string Give, int GiveN, string Get, int GetN)
@@ -163,6 +174,117 @@ public sealed partial class Sim
         return null;
     }
 
+    // ---------- espionage ----------
+
+    /// <summary>Why a sabotage mission can't go now, or null when it can.</summary>
+    public string? SabotageBlock(Empire e)
+    {
+        if (e.Intel < 3) return "Sabotage needs intel level 3 on them.";
+        if (!Table.Stacks.Any(s => s.Cards.Any(c => c.EmpireId == e.Def.Id) && s.Cards.Any(c => c.Def.HasTag("envoy"))))
+            return "Sabotage needs an Envoy at their capital.";
+        if (e.LastSabotage == Moon) return "Your agents need a moon before the next mission.";
+        if (Have("energy") < Defs.Rules.SabotageCost) return $"Sabotage costs {Defs.Rules.SabotageCost} Energy (you have {Have("energy")}).";
+        return null;
+    }
+
+    /// <summary>Sabotage their fleet: it loses rules.sabotage_pct of its strength. Agents may be caught.</summary>
+    public string Sabotage(Empire e)
+    {
+        if (SabotageBlock(e) is { } why) return why;
+        Res["energy"] -= Defs.Rules.SabotageCost;
+        e.LastSabotage = Moon;
+        int lost = EmpireStrength(e) * Defs.Rules.SabotagePct / 100;
+        e.StrengthLoss += lost;
+        string msg = $"Sabotage! The {e.Def.Name} lose about {lost} fleet strength.";
+        if (Rng.Next(100) < Defs.Rules.SabotageCaughtPct)
+        {
+            msg += " But your agents were caught";
+            if (e.Status == "peace" && e.Def.Personality != "peaceful")
+            {
+                e.Status = "war"; e.WarGoal = "humiliation"; e.TheyDeclared = true; e.WarSince = Moon; e.LastRaid = Moon;
+                msg += $" - the {e.Def.Name} declare war!";
+                Events.Add(SimEvent.Warning);
+            }
+            else { foreach (var o in e.Offers) o.Used = true; msg += $" - the {e.Def.Name} won't trade with you this moon."; }
+        }
+        Messages.Add(msg);
+        return msg;
+    }
+
+    // ---------- empire events: demands, deals, gifts and pacts ----------
+
+    public readonly List<EmpireEvent> Pending = new();
+
+    /// <summary>Maybe an event from a contacted empire at peace (called each moon).</summary>
+    void EmpireEvents(Empire e)
+    {
+        if (e.Status == "war" || Rng.Next(100) >= Defs.Rules.EmpireEventChancePct || Pending.Count >= 3) return;
+        int str = EmpireStrength(e);
+        var kinds = new List<string> { "deal", "pact" };
+        if (e.Def.Personality == "peaceful") kinds.Add("gift");
+        if (e.Def.Personality != "peaceful" && e.Status != "tributary" && str > PlayerStrength * 1.2f) { kinds.Add("tribute"); kinds.Add("tribute"); }
+        var kind = kinds[Rng.Next(kinds.Count)];
+        var res = new[] { "minerals", "food", "alloys", "research" };
+        switch (kind)
+        {
+            case "tribute":
+                int pay = 8 + Moon;
+                Pending.Add(new EmpireEvent { Emp = e, Kind = kind, Give = "energy", GiveN = pay,
+                    Text = $"The {e.Def.Name} demand tribute: {pay} Energy, \"or else\". Refusing may mean war{(e.Def.Personality == "aggressive" ? " - they are aggressive" : "")}." });
+                break;
+            case "deal":
+                string give = res[Rng.Next(res.Length)], get = give == "alloys" ? "energy" : "alloys";
+                int gn = 6 + Rng.Next(6), getn = Math.Max(2, (int)(gn * (get == "alloys" ? 0.6f : 2.2f)));
+                Pending.Add(new EmpireEvent { Emp = e, Kind = kind, Give = give, GiveN = gn, Get = get, GetN = getn,
+                    Text = $"The {e.Def.Name} offer a special deal: {gn} {Name(give)} for {getn} {Name(get)}." });
+                break;
+            case "pact":
+                Pending.Add(new EmpireEvent { Emp = e, Kind = kind, Give = "research", GiveN = 8,
+                    Text = $"The {e.Def.Name} propose a research pact: share 8 Research and they send you a blueprint you can use." });
+                break;
+            case "gift":
+                var g = res[Rng.Next(res.Length)];
+                int n = 4 + Moon / 2;
+                Gain(g, n, Home.Center, made: false);
+                Messages.Add($"A gift from the {e.Def.Name}: {n} {Name(g)}.");
+                break;
+        }
+        if (Pending.Count > 0) Events.Add(SimEvent.Warning);
+    }
+
+    /// <summary>Answer an empire's event. Returns what happened.</summary>
+    public string Resolve(EmpireEvent ev, bool accept)
+    {
+        Pending.Remove(ev);
+        var e = ev.Emp;
+        if (accept && Have(ev.Give) < ev.GiveN) return $"You don't have {ev.GiveN} {Name(ev.Give)}.";
+        switch (ev.Kind)
+        {
+            case "tribute":
+                if (accept) { Res[ev.Give] -= ev.GiveN; return $"You paid the {e.Def.Name}. They leave you alone - for now."; }
+                if (e.Status == "peace" && Rng.Next(100) < (e.Def.Personality == "aggressive" ? 50 : 20))
+                {
+                    e.Status = "war"; e.WarGoal = "humiliation"; e.TheyDeclared = true; e.WarSince = Moon; e.LastRaid = Moon;
+                    Events.Add(SimEvent.Warning);
+                    return $"You refused. The {e.Def.Name} declare war!";
+                }
+                return $"You refused. The {e.Def.Name} grumble, but do nothing.";
+            case "deal":
+                if (!accept) return "You turned the deal down.";
+                Res[ev.Give] -= ev.GiveN;
+                Gain(ev.Get, ev.GetN, Home.Center, made: false);
+                return $"Deal done: {ev.GetN} {Name(ev.Get)} received.";
+            case "pact":
+                if (!accept) return "You turned the pact down.";
+                Res[ev.Give] -= ev.GiveN;
+                var bp = Defs.Cards.Where(c => c.Category == "tech" && !c.HasTag("repeatable") && UsefulDraw(c.Id)).Select(c => c.Id).OrderBy(_ => Rng.Next()).FirstOrDefault();
+                if (bp == null) { Gain("research", ev.GiveN * 2, Home.Center, made: false); return "They had nothing new to share, and paid you back double."; }
+                Spawn(bp, Home.Center);
+                return $"The {e.Def.Name} sent the {Name(bp)} blueprint (it's in your capital).";
+        }
+        return "";
+    }
+
     // ---------- war ----------
 
     /// <summary>Declare war with a goal: humiliation, claim (one of their systems) or tributary. Returns why not, or null.</summary>
@@ -213,6 +335,7 @@ public sealed partial class Sim
         foreach (var e in Empires.Where(x => x.Contacted))
         {
             NewTradeOffers(e);
+            EmpireEvents(e);
             int str = EmpireStrength(e);
             if (e.Status == "tributary")
             {

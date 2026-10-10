@@ -10,7 +10,7 @@ public sealed partial class GameUi
     Empire? _diplo;
     bool _trade, _goalPick;
 
-    bool EmpireScreenOpen => _diplo != null || _sim?.War != null || _intro;
+    bool EmpireScreenOpen => _diplo != null || _sim?.War != null || _intro || EventOpen;
 
     void CloseDiplomacy() { _diplo = null; _trade = false; _goalPick = false; }
 
@@ -49,6 +49,27 @@ public sealed partial class GameUi
         Text("Everyone eats at the end of each moon (the first is free). Space pauses, Tab opens the blueprint book, Esc the menu.",
              r.X + 30, r.Y + r.Height - 92, 15, Color.Gray);
         if (Button(new Rectangle(r.X + r.Width / 2 - 110, r.Y + r.Height - 66, 220, 50), "Let's go", false, 24)) _intro = false;
+    }
+
+    bool EventOpen => _sim != null && _sim.Pending.Count > 0 && _sim.War == null && _screen == Screen.Play && !_intro;
+
+    /// <summary>An empire's demand, deal or pact: accept or refuse. Time waits.</summary>
+    void DrawEvent()
+    {
+        var sim = _sim!;
+        var ev = sim.Pending[0];
+        int sw = Raylib.GetScreenWidth(), sh = Raylib.GetScreenHeight();
+        var r = new Rectangle(sw / 2f - 330, sh / 2f - 170, 660, 340);
+        DrawPanelFrame(r, Hex(ev.Emp.Def.Color));
+        if (Tex(ev.Emp.Def.Art) is { } art) DrawFit(art, new Rectangle(r.X + 24, r.Y + 22, 72, 72), Color.White);
+        var title = ev.Kind switch { "tribute" => "A demand for tribute", "deal" => "A special offer", "pact" => "A research pact", _ => "A message" };
+        Text(title, r.X + 112, r.Y + 26, 28, Color.RayWhite);
+        Text($"from the {ev.Emp.Def.Name}", r.X + 114, r.Y + 62, 17, Color.LightGray);
+        Wrapped(ev.Text, r.X + 30, r.Y + 116, r.Width - 60, 19, Color.RayWhite, 4);
+        Text($"You have {sim.Have(ev.Give)} {_res.CardName(ev.Give)}.", r.X + 30, r.Y + 210, 16, sim.Have(ev.Give) >= ev.GiveN ? Color.LightGray : new Color(255, 150, 130, 255));
+        string yes = ev.Kind == "tribute" ? $"Pay {ev.GiveN} Energy" : "Accept", no = ev.Kind == "tribute" ? "Refuse" : "Decline";
+        if (Button(new Rectangle(r.X + 30, r.Y + r.Height - 74, 280, 50), yes, false, 20)) Toast(sim.Resolve(ev, true));
+        else if (Button(new Rectangle(r.X + r.Width - 310, r.Y + r.Height - 74, 280, 50), no, false, 20)) Toast(sim.Resolve(ev, false));
     }
 
     void DrawPanelFrame(Rectangle r, Color edge)
@@ -112,6 +133,12 @@ public sealed partial class GameUi
         if (_trade) { DrawTrade(e, new Rectangle(r.X + 20, y, r.Width - 40, r.Y + r.Height - y - 16)); return; }
         if (_goalPick) { DrawGoalPick(e, new Rectangle(r.X + 20, y, r.Width - 40, r.Y + r.Height - y - 16)); return; }
         float bx = r.X + 24;
+        // Espionage: available at intel 3 with an Envoy at their capital, once a moon.
+        var spy = sim.SabotageBlock(e);
+        if (Button(new Rectangle(bx + 520, y, 260, 50), $"Sabotage fleet ({Defs.Rules.SabotageCost} Energy)", false, 18))
+            Toast(spy ?? sim.Sabotage(e));
+        Text(spy ?? $"Destroys {Defs.Rules.SabotagePct}% of their fleet strength. {Defs.Rules.SabotageCaughtPct}% chance your agents are caught.",
+             bx + 520, y + 56, 13, spy == null ? new Color(140, 230, 150, 255) : Color.Gray);
         if (e.Status != "war")
         {
             if (Button(new Rectangle(bx, y, 220, 50), "Trade", false, 22)) _trade = true;

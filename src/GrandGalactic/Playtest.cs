@@ -14,13 +14,21 @@ public static class Playtest
         public Dictionary<string, int> AtCrisis { get; } = new();
     }
 
-    /// <summary>--balance N: N scripted runs on every difficulty (the ethics take turns), summarised.</summary>
+    /// <summary>--balance N: N scripted runs on every difficulty (the ethics take turns), summarised, plus any glitches seen.</summary>
     public static int Balance(int n)
     {
+        Glitches.Reset();
         foreach (var d in Defs.Difficulties)
         {
             var reports = new List<Report>();
-            for (int i = 0; i < n; i++) reports.Add(Play(Defs.Ethics[i % Defs.Ethics.Length], 100 + i, d));
+            for (int i = 0; i < n; i++)
+            {
+                try { reports.Add(Play(Defs.Ethics[i % Defs.Ethics.Length], 100 + i, d)); }
+                catch (Exception ex)
+                {
+                    Glitches.Crash($"{d.Id} {Defs.Ethics[i % Defs.Ethics.Length].Id} seed {100 + i}: {ex.GetType().Name}: {ex.Message} @ {ex.StackTrace?.Split('\n').FirstOrDefault()?.Trim()}");
+                }
+            }
             int wins = reports.Count(r => r.State == RunState.Won);
             Log.Info($"== {d.Name}: {wins}/{n} won (act 2 moon {d.Act2Moon}, crisis moon {d.CrisisMoon}, boss by moon {d.CrisisMoon + d.BossDelayMoons})");
             foreach (var g in reports.Where(r => r.State != RunState.Won).GroupBy(r => r.End)) Log.Info($"     lost x{g.Count()}: {g.Key} (moons {string.Join(",", g.Select(r => r.Moon))})");
@@ -35,6 +43,7 @@ public static class Playtest
                 Log.Info("     at crisis (avg): " + string.Join(", ", crisis[0].AtCrisis.Keys.Select(k => $"{k} {crisis.Average(r => r.AtCrisis.GetValueOrDefault(k)):0.#}")));
             foreach (var r in reports) Log.Info($"     {r.Ethic,-12} seed {r.Seed}: {r.State} moon {r.Moon} - {r.End}");
         }
+        Glitches.Report();
         return 0;
     }
 
@@ -148,6 +157,7 @@ public static class Playtest
             if (s.Moon != lastMoon)
             {
                 lastMoon = s.Moon;
+                Glitches.Check(s, ethic.Id, seed);
                 int people = s.AllCards.Count(c => c.Def.Category == "person");
                 int ships = s.AllCards.Count(c => c.Def.HasTag("warship"));
                 log.Add($"moon {s.Moon,2} start: {people} people, {ships} warships, {s.Techs.Count} techs, {s.Systems.Count} systems | " +
@@ -260,6 +270,24 @@ public static class Playtest
                       ?? Mine(s).Where(x => x.Active?.Id != "x_survey" && x.Cards.Any(c => c.Def.Id == "science_ship")).Select(x => Lift(s, x.Cards.First(c => c.Def.Id == "science_ship"))).FirstOrDefault();
             if (sci != null && s.SystemAt(Sim.CardCenter(sci)) == s.SystemAt(Sim.CardCenter(envoy))) s.StackOnto(envoy, sci);
         }
+        // Empire events: pay tribute only to a much stronger empire; take deals and pacts we can afford.
+        while (s.Pending.Count > 0)
+        {
+            var ev = s.Pending[0];
+            bool yes = s.Have(ev.Give) >= ev.GiveN && (ev.Kind != "tribute" || s.EmpireStrength(ev.Emp) > s.PlayerStrength * 1.5f);
+            var said = s.Resolve(ev, yes);
+            if (said.Contains("declare war")) mark("refused" + s.Moon, said);
+            Glitches.Note(ev.Kind + (yes ? " accepted" : " refused"));
+        }
+        // Envoys go to a rival capital to gather intel; at war with intel 3, sabotage.
+        if (Lone(s, c => c.Def.Id == "envoy") is { } spyStack && s.Empires.FirstOrDefault(x => x.Contacted && x.Intel < 3) is { } spyOn
+            && s.Systems.FirstOrDefault(z => z.Index == spyOn.Area) is { } area)
+        {
+            var cap = s.StacksIn(area).FirstOrDefault(x => x.Root.EmpireId == spyOn.Def.Id);
+            if (cap != null && s.SystemAt(Sim.CardCenter(spyStack)) == area) s.StackOnto(spyStack, cap);
+            else if (cap != null && !s.Empires.Any(x => !x.Contacted)) s.StartTravel(spyStack, cap.Pos + new Vector2(Sim.CardW + 30, 0));
+        }
+        foreach (var e in s.Empires.Where(x => x.Contacted && x.Status == "war" && s.SabotageBlock(x) == null)) { s.Sabotage(e); Glitches.Note("sabotage"); }
         foreach (var e in s.Empires.Where(x => x.Contacted))
         {
             if (e.Contacted) mark("contact" + e.Def.Id, $"meets the {e.Def.Name}");
@@ -457,4 +485,65 @@ public static class Playtest
         }
     }
 
+}
+
+/// <summary>Invariant checks run on every bot game: anything here is a bug to fix.</summary>
+public static class Glitches
+{
+    static readonly Dictionary<string, int> Counts = new();
+    static readonly Dictionary<string, string> First = new();
+    static readonly Dictionary<string, int> Notes = new();
+    static readonly List<string> Crashes = new();
+
+    public static void Reset() { Counts.Clear(); First.Clear(); Notes.Clear(); Crashes.Clear(); }
+    public static void Note(string what) => Notes[what] = Notes.GetValueOrDefault(what) + 1;
+    public static void Crash(string what) { Crashes.Add(what); Log.Info("  CRASH " + what); }
+
+    static void Bad(string kind, string detail)
+    {
+        Counts[kind] = Counts.GetValueOrDefault(kind) + 1;
+        First.TryAdd(kind, detail);
+    }
+
+    public static void Check(Sim s, string ethic, int seed)
+    {
+        string at = $"{ethic} seed {seed} moon {s.Moon}";
+        foreach (var kv in s.Res) if (kv.Value < 0) Bad("negative resource", $"{at}: {kv.Key}={kv.Value}");
+        var seen = new HashSet<Card>();
+        foreach (var st in s.Table.Stacks)
+        {
+            if (st.Cards.Count == 0) Bad("empty stack", at);
+            if (float.IsNaN(st.Pos.X) || float.IsNaN(st.Pos.Y) || float.IsInfinity(st.Pos.X)) Bad("NaN position", at);
+            if (!st.Traveling && st.Glide == null && !st.Dragging && s.SystemAt(Sim.CardCenter(st)) == null) Bad("card outside every system", $"{at}: {st.Root.Def.Id} @ {st.Pos}");
+            foreach (var c in st.Cards)
+            {
+                if (c.Stack != st) Bad("card/stack link broken", $"{at}: {c.Def.Id}");
+                if (c.Battle != null) Bad("card in a stack and a battle", $"{at}: {c.Def.Id}");
+                if (!seen.Add(c)) Bad("card in two stacks", $"{at}: {c.Def.Id}");
+                if (c.Hp <= 0 && c.MaxHp > 0) Bad("dead card still on the table", $"{at}: {c.Def.Id} hp {c.Hp}");
+                if (c.MaxHp < 0 || c.MaxShield < 0 || c.MaxArmor < 0) Bad("negative max stats", $"{at}: {c.Def.Id}");
+            }
+            if (st.Cards.Count > Defs.Rules.MaxStack) Bad("stack over the size limit", $"{at}: {st.Cards.Count}");
+            if (Sim.Warships(st) > s.FleetSize) Bad("fleet over the fleet limit", $"{at}: {Sim.Warships(st)}/{s.FleetSize}");
+        }
+        foreach (var bt in s.Table.Battles)
+        {
+            if (bt.Players.Count == 0 || bt.Hostiles.Count == 0) Bad("battle with an empty side", at);
+            foreach (var c in bt.Players.Concat(bt.Hostiles)) if (!seen.Add(c)) Bad("card in two places", $"{at}: {c.Def.Id}");
+        }
+        foreach (var z in s.Systems)
+            foreach (var o in s.Systems)
+                if (z != o && z.Slot == o.Slot) Bad("two systems in one slot", $"{at}: {z.Name}/{o.Name}");
+        if (s.War != null) Bad("invasion left open", at);
+        foreach (var e in s.Empires) if (s.EmpireStrength(e) <= 0) Bad("empire strength not positive", $"{at}: {e.Def.Id}");
+    }
+
+    public static void Report()
+    {
+        Log.Info("== Glitch report");
+        if (Crashes.Count == 0 && Counts.Count == 0) Log.Info("     none found");
+        foreach (var c in Crashes) Log.Info("     CRASH " + c);
+        foreach (var kv in Counts.OrderByDescending(kv => kv.Value)) Log.Info($"     {kv.Key} x{kv.Value} (first: {First[kv.Key]})");
+        Log.Info("     events/actions seen: " + string.Join(", ", Notes.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key} {kv.Value}")));
+    }
 }

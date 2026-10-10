@@ -153,7 +153,7 @@ public sealed partial class GameUi
                 var t = $"{o.Time:0}s";
                 Text(t, row.X + row.Width - Measure(t, 15).X - 10, row.Y + 8, 15, Color.LightGray);
                 float cx = row.X + rowH + 4;
-                foreach (var i in o.Inputs) cx += Chip(i, cx, row.Y + 30, 22, true) + 5;
+                foreach (var i in o.Inputs) cx += Chip(sim.InputNow(o, i), cx, row.Y + 30, 22, true) + 5;
                 if (hover && click)
                 {
                     bool queued = s.Order != null && s.Order.Tag == "build" && o.Tag == "build";
@@ -470,7 +470,7 @@ public sealed partial class GameUi
             float cw = Measure(i.Card.StartsWith("tag:") ? sim.InputName(i) : _res.CardName(i.Card), 14).X + 40;
             if (cx + cw > t.X + t.Width - 8) { cx = x; cy += 28; }
             if (cy > t.Y + t.Height - 26) break;
-            cx += Chip(i, cx, cy, 24, false) + 6;
+            cx += Chip(sim.InputNow(e, i), cx, cy, 24, false) + 6;
         }
         if (e.Outputs.Length > 1)
             Wrapped("Finds one of: " + string.Join(" / ", e.Outputs.Select(o => string.Join(" + ", o.Give.Select(g => (g.N > 1 ? $"{g.N} " : "") + _res.CardName(g.Card))))),
