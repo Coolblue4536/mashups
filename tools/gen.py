@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""Generate src/GrandGalactic/Generated/Defs.g.cs from sheets/design.json: one C# record per row.
+
+Run tools/preflight.py first; this script refuses to run when preflight is not clean.
+"""
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "tools"))
+import design  # noqa: E402
+OUT = ROOT / "src" / "GrandGalactic" / "Generated" / "Defs.g.cs"
+
+FLOATS = {"chance", "shield", "armor", "shield_regen", "hull_regen", "armor_regen", "evasion", "cooldown", "vs_shield", "vs_armor", "vs_hull",
+          "pierce_shield", "pierce_armor", "hull", "attack_cd", "boost_mult", "yield_time", "time", "spawn_every", "enemy_hp_mult", "enemy_attack_mult",
+          "rift_spawn_mult", "pack_cost_mult", "food_mult", "minerals_mult", "energy_mult", "alloys_mult", "research_mult", "babies_mult",
+          "pop_hp_mult", "mult", "growth"}
+
+# sheet -> (record type, collection name, columns in constructor order, nested list element types)
+SPEC = {
+    "categories": ("CategoryDef", "Categories", ["id", "label", "color", "frame_ref", "draggable", "is_combatant_default"], {}),
+    "cards": ("CardDef", "Cards", ["id", "name_loc", "name", "category", "tags", "art", "scene", "value", "hp", "attack", "attack_cd",
+                                   "shield", "armor", "shield_regen", "hull_regen", "evasion", "slots", "weapon",
+                                   "food_upkeep", "energy_upkeep", "boost_tag", "boost_mult", "yield", "yield_time",
+                                   "colonize_with", "desc"], {}),
+    "components": ("ComponentDef", "Components", ["id", "name_loc", "name", "kind", "tech_name_loc", "tech_name", "requires_tech", "damage", "cooldown",
+                   "vs_shield", "vs_armor", "vs_hull", "pierce_shield", "pierce_armor", "shield", "shield_regen", "armor", "armor_regen", "hull",
+                   "hull_regen", "evasion", "special", "min_slots", "desc"], {}),
+    "recipes": ("RecipeDef", "Recipes", ["id", "station", "station_keep", "inputs", "requires_flag", "requires_system", "requires_tech", "time", "tag",
+                                         "outputs", "effect", "order", "desc"],
+                {"inputs": ("RecipeInput", ["card", "n", "keep"]),
+                 "outputs": ("Outcome", ["weight", "give"]),
+                 "give": ("Amount", ["card", "n"])}),
+    "loot": ("LootDef", "Loot", ["card", "drops"], {"drops": ("Amount", ["card", "n"])}),
+    "packs": ("PackDef", "Packs", ["id", "name", "cost", "draws", "unlock_act", "art", "color", "contents", "desc"],
+              {"contents": ("PackEntry", ["card", "weight"])}),
+    "ethics": ("EthicDef", "Ethics", ["id", "name_loc", "name", "art", "worker_card", "bonus_cards", "start_techs", "free_pack", "desc"],
+               {"bonus_cards": ("Amount", ["card", "n"])}),
+    "systems": ("SystemDef", "Systems", ["id", "name", "kind", "weight", "fixed_cards", "star_cards", "planets_min", "planets_max",
+                                         "planet_pool", "extras", "desc"],
+                {"fixed_cards": ("Amount", ["card", "n"]), "planet_pool": ("PackEntry", ["card", "weight"]),
+                 "extras": ("Extra", ["card", "chance", "n"])}),
+    "crises": ("CrisisDef", "Crises", ["id", "name_loc", "name", "rift_card", "minion_card", "boss_card", "spawn_every", "warning", "desc"], {}),
+    "difficulties": ("DifficultyDef", "Difficulties", ["id", "name", "enemy_hp_mult", "enemy_attack_mult", "raid_every_moons",
+                     "act2_moon", "crisis_moon", "boss_delay_moons", "rift_spawn_mult", "pack_cost_mult", "bonus_cards", "desc"],
+                     {"bonus_cards": ("Amount", ["card", "n"])}),
+    "moon_lengths": ("MoonLengthDef", "MoonLengths", ["id", "name", "seconds", "desc"], {}),
+    "tutorial": ("TutorialStep", "Tutorial", ["id", "text", "hint", "done_when", "highlight"], {}),
+    "species": ("SpeciesDef", "Species", ["id", "name", "art", "food_mult", "minerals_mult", "energy_mult", "alloys_mult", "research_mult",
+                                          "babies_mult", "pop_hp_mult", "desc"], {}),
+    "empires": ("EmpireDef", "Empires", ["id", "name", "adjective", "art", "color", "personality", "base_strength", "growth", "systems", "desc"], {}),
+    "bonuses": ("BonusDef", "Bonuses", ["id", "tech", "applies", "mult", "desc"], {}),
+    "asset_refs": ("AssetRefDef", "AssetRefs", ["id", "game", "kind", "lookup", "used_by", "verified", "note"], {}),
+    "game_systems": ("GameSystemDef", "GameSystems", ["id", "game", "what", "source", "method", "impl", "verified"], {}),
+}
+
+
+def cs_str(s):
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
+
+
+def cs_val(col, v, nested):
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)) and col in FLOATS:
+        return f"{float(v)}f"
+    if isinstance(v, int):
+        return str(v)
+    if isinstance(v, float):
+        return f"{v}f"
+    if isinstance(v, str):
+        return cs_str(v)
+    if isinstance(v, list):
+        if col in nested:
+            t, cols = nested[col]
+            items = ", ".join(f"new {t}(" + ", ".join(cs_val(c, e[c], nested) for c in cols) + ")" for e in v)
+            return f"new {t}[] {{ {items} }}"
+        return "new string[] { " + ", ".join(cs_str(x) for x in v) + " }"
+    raise TypeError(f"{col}: unsupported value {v!r}")
+
+
+def main():
+    if subprocess.run([sys.executable, str(ROOT / "tools" / "preflight.py")]).returncode != 0:
+        print("gen: preflight is not clean; fix the sheets first")
+        return 1
+    lines = ["// <auto-generated> by tools/gen.py from sheets/design.json. Edit the sheet, not this file. </auto-generated>",
+             "namespace GrandGalactic;", "", "public static partial class Defs", "{"]
+    sections = design.expand(design.load())
+    for sheet, (rec, coll, cols, nested) in SPEC.items():
+        data = sections[sheet]
+        lines.append(f"    public static readonly {rec}[] {coll} =")
+        lines.append("    {")
+        for row in data["rows"]:
+            lines.append(f"        new {rec}(" + ", ".join(cs_val(c, row[c], nested) for c in cols) + "),")
+        lines.append("    };")
+        lines.append("")
+    rules = sections["rules"]["rows"]
+    lines.append("    public static class Rules")
+    lines.append("    {")
+    for r in rules:
+        name = "".join(p.capitalize() for p in r["id"].split("_"))
+        v = r["value"]
+        if isinstance(v, list) and v and isinstance(v[0], dict) and "tab" in v[0]:
+            items = ", ".join("new BlueprintTab(" + cs_str(t["tab"]) + ", " + cs_val("x", t["prefixes"], {}) + ")" for t in v)
+            lines.append(f"        public static readonly BlueprintTab[] {name} = {{ {items} }};")
+        elif isinstance(v, list) and all(isinstance(x, str) for x in v):
+            lines.append(f"        public static readonly string[] {name} = " + cs_val("x", v, {}) + ";")
+        elif isinstance(v, list):
+            lines.append(f"        public static readonly Amount[] {name} = " + cs_val("x", v, {"x": ("Amount", ["card", "n"])}) + ";")
+        elif isinstance(v, str):
+            lines.append(f"        public const string {name} = {cs_str(v)};")
+        else:
+            lines.append(f"        public const int {name} = {v};")
+    lines.append("    }")
+    lines.append("}")
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    OUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"gen: wrote {OUT.relative_to(ROOT)}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
