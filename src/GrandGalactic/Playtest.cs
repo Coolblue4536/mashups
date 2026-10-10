@@ -18,7 +18,7 @@ public static class Playtest
     public static int Balance(int n)
     {
         Glitches.Reset();
-        foreach (var d in Defs.Difficulties)
+        foreach (var d in Defs.Difficulties.Where(d => Environment.GetEnvironmentVariable("GG_PT_DIFF") is not { } only || d.Id == only))
         {
             var reports = new List<Report>();
             for (int i = 0; i < n; i++)
@@ -407,8 +407,8 @@ public static class Playtest
         Expand(s, mark);
         Megastructures(s, mark);
         Diplomacy(s, mark);
-        // Infinite research once every blueprint is known.
-        if (s.AllBlueprintsKnown && Mine(s).FirstOrDefault(x => x.Root.Def.Id == "research_lab" && x.Order == null && x.Cards.Any(c => c.Def.HasTag("researcher"))) is { } lab)
+        // Infinite research once it opens, on a lab no blueprint needs.
+        if (s.InfiniteOpen && s.Have("research") >= 12 && Mine(s).FirstOrDefault(x => x.Root.Def.Id == "research_lab" && x.Order == null && x.Cards.Any(c => c.Def.HasTag("researcher"))) is { } lab)
         {
             var reps = Defs.Recipes.Where(r => r.Id.StartsWith("rr_")).ToList();
             s.SetOrder(lab, reps[s.Rng.Next(reps.Count)]);

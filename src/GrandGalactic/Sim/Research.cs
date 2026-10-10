@@ -6,7 +6,13 @@ public sealed partial class Sim
     /// <summary>Every regular blueprint is researched: repeatable research opens.</summary>
     public bool AllBlueprintsKnown => Defs.Cards.Where(c => c.Category == "tech" && !c.HasTag("repeatable")).All(c => Techs.Contains(c.Id));
 
-    public bool TechOk(RecipeDef r) => r.RequiresTech == "none" || (r.RequiresTech == "all" ? AllBlueprintsKnown : Techs.Contains(r.RequiresTech));
+    /// <summary>Regular blueprints researched so far.</summary>
+    public int BlueprintsKnown => Techs.Count(t => Defs.Card.TryGetValue(t, out var c) && !c.HasTag("repeatable"));
+
+    /// <summary>Infinite research opens once enough blueprints are known (or all of them).</summary>
+    public bool InfiniteOpen => BlueprintsKnown >= Defs.Rules.InfiniteUnlockBlueprints || AllBlueprintsKnown;
+
+    public bool TechOk(RecipeDef r) => r.RequiresTech == "none" || (r.RequiresTech == "all" ? InfiniteOpen : Techs.Contains(r.RequiresTech));
 
     float RepMult(string tech) => 1 + Defs.Rules.RepStepPct / 100f * RepLevels.GetValueOrDefault(tech);
 

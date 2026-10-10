@@ -35,9 +35,9 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
   - **Ships:** hulls, and weapon and defence chains such as Red, Blue, UV and Gamma Lasers, or Mass Driver,
     Coilgun and Railgun.
 
-  Blueprints come from packs at random, and higher tiers need the lower ones first. Once every blueprint is
+  Blueprints come from packs at random, and higher tiers need the lower ones first. Once 12 blueprints are
   researched, infinite research opens at Research Labs: each level gives +5% hull, shields, armour,
-  damage, output, construction speed or research speed. Each level costs 5 more Research than the last.
+  damage, output, construction speed or research speed. The first level costs 12 Research; each level costs 3 more than the last.
 - **Rival empires.** Three rival empires share the galaxy and grow stronger with the moons.
   - **Contact:** stack an Envoy (from Exploration packs) with a Science Ship to make first contact; their
     home system joins your table. Click their capital card for diplomacy.
@@ -115,7 +115,7 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
 - **Act 2, Guardians (from moon 10).** Three Guardian Signals lead to the Ether Drake, the Dimensional
   Horror and the Enigmatic Fortress. Beating them earns Living Metal, Dark Matter and Zro. The Frontier
   and Strategic Resources packs go on sale.
-- **Act 3, Crisis (from moon 20).** A random endgame crisis comes through a rift on your capital board:
+- **Act 3, Crisis (from moon 21 on Captain).** A random endgame crisis comes through a rift on your capital board:
   the Prethoryn Scourge, the Unbidden or the Contingency. Destroy its leader to win. Killing the rift
   early brings the leader at once.
 - **Difficulty and moon length.** Pick Ensign, Captain, Admiral or Grand Admiral (enemy strength, raids, pack prices and when each act starts), and a moon length of 60, 90, 120 or 180 seconds.

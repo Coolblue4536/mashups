@@ -498,7 +498,7 @@ public sealed partial class Sim
 
     bool Available(RecipeDef r, Stack s)
     {
-        if (r.RequiresTech == "all" ? !AllBlueprintsKnown : r.RequiresTech != "none" && !Techs.Contains(r.RequiresTech)) return false;
+        if (r.RequiresTech == "all" ? !InfiniteOpen : r.RequiresTech != "none" && !Techs.Contains(r.RequiresTech)) return false;
         if (r.Effect == "learn" && Techs.Contains(r.Station)) return false;
         if (r.Effect == "contact" && !Empires.Any(e => !e.Contacted)) return false;
         if (r.RequiresSystem != "any")
@@ -579,7 +579,7 @@ public sealed partial class Sim
     {
         if (s.Order is { } o)
         {
-            if (!TechOk(o)) return o.RequiresTech == "all" ? "Opens once every blueprint is researched" : $"{o.Desc}: needs {Name(o.RequiresTech)} research";
+            if (!TechOk(o)) return o.RequiresTech == "all" ? $"Opens once {Defs.Rules.InfiniteUnlockBlueprints} blueprints are researched ({BlueprintsKnown} so far)" : $"{o.Desc}: needs {Name(o.RequiresTech)} research";
             var station = s.Cards.FirstOrDefault(c => StationOk(o, c));
             var others = s.Cards.Where(c => c != station).ToList();
             var missing = new List<string>();
@@ -680,7 +680,8 @@ public sealed partial class Sim
                     Techs.Add(st.Def.Id);
                     Flags.Add("researched");
                     RefreshAll();
-                    if (AllBlueprintsKnown) Messages.Add("Every blueprint is researched! Infinite research is open: click a Research Lab.");
+                    if (BlueprintsKnown == Defs.Rules.InfiniteUnlockBlueprints)
+                        Messages.Add($"{BlueprintsKnown} blueprints researched! Infinite research is open: click a Research Lab.");
                     var unlocked = Defs.Recipes.Where(x => x.RequiresTech == st.Def.Id && x.Effect != "learn").ToList();
                     var size = Defs.Rules.FleetSizeTechs.FirstOrDefault(a => a.Card == st.Def.Id);
                     Messages.Add($"Researched {Name(st.Def.Id)}! " + (size != null ? $"Fleets can now hold {size.N} warships."

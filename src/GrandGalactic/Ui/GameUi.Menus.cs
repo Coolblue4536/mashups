@@ -494,7 +494,7 @@ public sealed partial class GameUi
             sim.State = RunState.Playing;
             sim.Endless = true;
             _screen = Screen.Play;
-            Toast("Endless play: your empire carries on. Rival empires keep growing; infinite research waits once every blueprint is known.");
+            Toast("Endless play: your empire carries on. Rival empires keep growing; infinite research opens once enough blueprints are known.");
             return;
         }
         if (Button(new Rectangle(sw / 2f - 130, sh / 2f + (sim.State == RunState.Won ? 104 : 30), 260, 60), "New run", false, 28))

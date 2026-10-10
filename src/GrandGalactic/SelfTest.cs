@@ -267,7 +267,12 @@ public static class SelfTest
                   "species differ: Agrarians farm faster, Lithoids mine faster and are tougher");
             var rr = Defs.Recipes.First(r => r.Id == "rr_hull");
             var all = Fresh();
-            Check(all.Blueprint(rr) == Sim.BlueprintState.Locked, "infinite research stays hidden until every blueprint is researched");
+            Check(all.Blueprint(rr) == Sim.BlueprintState.Locked, "infinite research stays hidden at the start");
+            var regular = Defs.Cards.Where(c => c.Category == "tech" && !c.HasTag("repeatable")).ToList();
+            foreach (var t in regular.Take(Defs.Rules.InfiniteUnlockBlueprints - 1)) all.Techs.Add(t.Id);
+            Check(!all.InfiniteOpen, $"infinite research is shut with {Defs.Rules.InfiniteUnlockBlueprints - 1} blueprints");
+            all.Techs.Add(regular[Defs.Rules.InfiniteUnlockBlueprints - 1].Id);
+            Check(all.InfiniteOpen && all.Blueprint(rr) != Sim.BlueprintState.Locked, $"infinite research opens at {Defs.Rules.InfiniteUnlockBlueprints} blueprints of {regular.Count}");
             foreach (var t in Defs.Cards.Where(c => c.Category == "tech" && !c.HasTag("repeatable"))) all.Techs.Add(t.Id);
             var ship = all.Spawn("battleship", new Vector2(300, 600), jitter: false);
             float hp0 = ship.MaxHp;
