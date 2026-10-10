@@ -9,7 +9,7 @@ public sealed partial class GameUi
 {
     enum Screen { Loading, Missing, Empire, Play, End }
 
-    const int TopBar = 58, RightPanel = 230;
+    const int TopBar = 100, RightPanel = 230;
     readonly Settings _settings;
     string? _stellarisPath, _stacklandsPath;
     readonly bool _dev;
@@ -59,12 +59,13 @@ public sealed partial class GameUi
         Raylib.SetConfigFlags(ConfigFlags.ResizableWindow | ConfigFlags.Msaa4xHint | ConfigFlags.VSyncHint);
         Raylib.InitWindow(1600, 900, "Grand Galactic - Stellaris x Stacklands");
         Raylib.SetWindowMinSize(1100, 700);
+        if (_settings.Fullscreen) Raylib.ToggleBorderlessWindowed();
         Raylib.InitAudioDevice();
         Raylib.SetExitKey(KeyboardKey.Null);
         _font = Raylib.GetFontDefault();
         _cam = new Camera2D { Zoom = 0.75f };
 
-        while (!Raylib.WindowShouldClose())
+        while (!Raylib.WindowShouldClose() && !_quit)
         {
             float dt = Math.Min(Raylib.GetFrameTime(), 0.1f);
             _clock += dt;
@@ -224,7 +225,7 @@ public sealed partial class GameUi
         _camZoomGoal = null;
         _cam = new Camera2D { Zoom = 0.62f, Target = _sim.Home.Center };
         _screen = Screen.Play;
-        Toast($"{_ethic.Name} empire founded. Stack Pops on your Homeworld to earn Energy, and buy packs on the right. Z zooms out to your whole empire.");
+        Toast($"{_ethic.Name} empire founded. Your pool (top bar) is empty: put Pops to work on the Homeworld and districts, then click a pack to buy it. Esc opens the menu.");
     }
 
     // ---------- content ----------
@@ -458,6 +459,7 @@ public sealed partial class GameUi
         }
         bool ready = _portrait >= 0 || ports.Count == 0;
         if (Button(new Rectangle(ex, ey + 10, 260, 64), ready ? "Begin" : "Pick a species", false, 30) && ready) StartRun();
+        if (Sim.HasSave && Button(new Rectangle(ex + 500, ey + 10, 220, 64), "Continue", false, 28)) LoadGame();
         Text($"Stellaris: {_stellarisPath ?? "-"}", ex, sh - 58, 16, Color.Gray);
         Text($"Stacklands: {_stacklandsPath ?? "-"}", ex, sh - 36, 16, Color.Gray);
     }

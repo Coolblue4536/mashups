@@ -27,7 +27,7 @@ SPEC = {
                    "vs_shield", "vs_armor", "vs_hull", "pierce_shield", "pierce_armor", "shield", "shield_regen", "armor", "armor_regen", "hull",
                    "hull_regen", "evasion", "special", "min_slots", "desc"], {}),
     "recipes": ("RecipeDef", "Recipes", ["id", "station", "station_keep", "inputs", "requires_flag", "requires_system", "requires_tech", "time", "tag",
-                                         "outputs", "effect", "desc"],
+                                         "outputs", "effect", "order", "desc"],
                 {"inputs": ("RecipeInput", ["card", "n", "keep"]),
                  "outputs": ("Outcome", ["weight", "give"]),
                  "give": ("Amount", ["card", "n"])}),

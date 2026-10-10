@@ -11,27 +11,46 @@ public sealed partial class GameUi
     void GoTo(StarSystem z) => _camGoal = z.Center;
     Rectangle BoardView => new(0, TopBar, Raylib.GetScreenWidth() - RightPanel, Raylib.GetScreenHeight() - TopBar);
 
+    /// <summary>Screen areas drawn over the board last frame (tutorial, menus, buttons): clicks there aren't board clicks.</summary>
+    readonly List<Rectangle> _uiRects = new();
+    bool OverUi(Vector2 m) => _uiRects.Any(r => Raylib.CheckCollisionPointRec(m, r));
+
+    // A press on a card becomes a drag once the mouse moves; a press and release in place is a click (opens its menu).
+    (Stack s, int i, Vector2 at)? _press;
+    Vector2 _rightDown;
+
     void Update(float dt)
     {
         if (_music is { } m) Raylib.UpdateMusicStream(m);
         if (_screen is not (Screen.Play or Screen.End) || _sim == null) return;
         var sim = _sim;
 
-        if (Raylib.IsKeyPressed(KeyboardKey.Space)) _paused = !_paused;
-        if (Raylib.IsKeyPressed(KeyboardKey.Tab)) { _codex = !_codex; sim.Flags.Add("opened_book"); }
-        if (Raylib.IsKeyPressed(KeyboardKey.One)) _speed = 1;
-        if (Raylib.IsKeyPressed(KeyboardKey.Two)) _speed = 2;
-        if (Raylib.IsKeyPressed(KeyboardKey.Three)) _speed = 4;
-        for (int i = 0; i < Math.Min(9, sim.Systems.Count); i++)
-            if (Raylib.IsKeyPressed(KeyboardKey.F1 + i)) GoTo(sim.Systems[i]);
-        if (Raylib.IsKeyPressed(KeyboardKey.Z)) _camZoomGoal = _cam.Zoom > 0.3f ? 0.2f : 0.62f; // whole empire / close up
+        if (Raylib.IsKeyPressed(KeyboardKey.Escape))
+        {
+            if (_menuCard != null) CloseCardMenu();
+            else if (_escMenu) _escMenu = false;
+            else if (_codex) _codex = false;
+            else if (_screen == Screen.Play) _escMenu = true;
+        }
+        if (!_escMenu)
+        {
+            if (Raylib.IsKeyPressed(KeyboardKey.Space)) _paused = !_paused;
+            if (Raylib.IsKeyPressed(KeyboardKey.Tab)) { _codex = !_codex; sim.Flags.Add("opened_book"); CloseCardMenu(); }
+            if (Raylib.IsKeyPressed(KeyboardKey.One)) _speed = 1;
+            if (Raylib.IsKeyPressed(KeyboardKey.Two)) _speed = 2;
+            if (Raylib.IsKeyPressed(KeyboardKey.Three)) _speed = 4;
+            for (int i = 0; i < Math.Min(9, sim.Systems.Count); i++)
+                if (Raylib.IsKeyPressed(KeyboardKey.F1 + i)) GoTo(sim.Systems[i]);
+            if (Raylib.IsKeyPressed(KeyboardKey.Z)) _camZoomGoal = _cam.Zoom > 0.3f ? 0.2f : 0.62f; // whole empire / close up
+        }
         foreach (var z in sim.NewSystems) { GoTo(z); Toast($"{z.Name} is now part of your table. Drag cards there freely."); }
         sim.NewSystems.Clear();
 
         // Camera: right or middle drag pans, wheel zooms, WASD pans.
         var view = BoardView;
         _cam.Offset = new Vector2(view.X + view.Width / 2, view.Y + view.Height / 2);
-        if (Raylib.IsMouseButtonDown(MouseButton.Right) || Raylib.IsMouseButtonDown(MouseButton.Middle))
+        bool menus = _escMenu || _codex;
+        if (!menus && (Raylib.IsMouseButtonDown(MouseButton.Right) || Raylib.IsMouseButtonDown(MouseButton.Middle)))
         {
             _cam.Target -= Raylib.GetMouseDelta() / _cam.Zoom;
             _camGoal = null;
@@ -46,31 +65,41 @@ public sealed partial class GameUi
             _cam.Zoom += (zg - _cam.Zoom) * Math.Min(1, dt * 6);
             if (Math.Abs(_cam.Zoom - zg) < 0.005f) _camZoomGoal = null;
         }
-        var pan = new Vector2((Raylib.IsKeyDown(KeyboardKey.D) ? 1 : 0) - (Raylib.IsKeyDown(KeyboardKey.A) ? 1 : 0),
-                              (Raylib.IsKeyDown(KeyboardKey.S) ? 1 : 0) - (Raylib.IsKeyDown(KeyboardKey.W) ? 1 : 0));
-        _cam.Target += pan * 900 * dt / _cam.Zoom;
-        if (pan != Vector2.Zero) _camGoal = null;
-        float wheel = Raylib.GetMouseWheelMove();
-        if (wheel != 0 && !_codex && Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), view))
+        if (!menus)
         {
-            var before = Raylib.GetScreenToWorld2D(Raylib.GetMousePosition(), _cam);
-            _cam.Zoom = Math.Clamp(_cam.Zoom * (1 + wheel * 0.1f), 0.12f, 1.6f);
-            _camZoomGoal = null;
-            _cam.Target += before - Raylib.GetScreenToWorld2D(Raylib.GetMousePosition(), _cam);
+            var pan = new Vector2((Raylib.IsKeyDown(KeyboardKey.D) ? 1 : 0) - (Raylib.IsKeyDown(KeyboardKey.A) ? 1 : 0),
+                                  (Raylib.IsKeyDown(KeyboardKey.S) ? 1 : 0) - (Raylib.IsKeyDown(KeyboardKey.W) ? 1 : 0));
+            _cam.Target += pan * 900 * dt / _cam.Zoom;
+            if (pan != Vector2.Zero) _camGoal = null;
+            float wheel = Raylib.GetMouseWheelMove();
+            if (wheel != 0 && _menuCard == null && Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), view))
+            {
+                var before = Raylib.GetScreenToWorld2D(Raylib.GetMousePosition(), _cam);
+                _cam.Zoom = Math.Clamp(_cam.Zoom * (1 + wheel * 0.1f), 0.12f, 1.6f);
+                _camZoomGoal = null;
+                _cam.Target += before - Raylib.GetScreenToWorld2D(Raylib.GetMousePosition(), _cam);
+            }
         }
         _cam.Target = Vector2.Clamp(_cam.Target, sim.BoundsMin, sim.BoundsMax);
 
-        if (_screen == Screen.Play) HandleMouse();
+        if (_screen == Screen.Play && !menus) HandleMouse();
         sim.TutorialOn = TutorialShown;
-        if (!_paused && _screen == Screen.Play) sim.Update(dt * _speed);
+        if (!_paused && !_escMenu && _screen == Screen.Play) sim.Update(dt * _speed);
 
         foreach (var msg in sim.Messages) Toast(msg);
         sim.Messages.Clear();
+        foreach (var (id, n, at) in sim.Gains) AddFloater(id, n, at);
+        sim.Gains.Clear();
         int hits = 0;
-        foreach (var e in sim.Events) if (e != SimEvent.Hit || hits++ < 1) Play(e);
+        foreach (var e in sim.Events)
+        {
+            if (e != SimEvent.Hit || hits++ < 1) Play(e);
+            if (e == SimEvent.MoonEnd && sim.State == RunState.Playing) SaveGame(quiet: true); // autosave every moon
+        }
         sim.Events.Clear();
         _toasts.RemoveAll(t => _clock - t.t > 7);
-        if (sim.State != RunState.Playing && _screen == Screen.Play) _screen = Screen.End;
+        if (_menuCard != null && (_menuCard.Stack == null || _menuCard.Stack != _menuStack)) CloseCardMenu();
+        if (sim.State != RunState.Playing && _screen == Screen.Play) { _screen = Screen.End; _escMenu = false; }
     }
 
     Vector2 MouseWorld => Raylib.GetScreenToWorld2D(Raylib.GetMousePosition(), _cam);
@@ -100,29 +129,71 @@ public sealed partial class GameUi
         return new Rectangle(p.X, p.Y, s.X, s.Y);
     }
 
+    /// <summary>Where a bought pack's cards land: the middle of the system you're looking at.</summary>
+    Vector2 PackDropPoint()
+    {
+        var sim = _sim!;
+        var z = sim.SystemAt(_cam.Target) ?? sim.Home;
+        return sim.ClampIn(_cam.Target - new Vector2(Sim.CardW / 2, Sim.CardH / 2), z);
+    }
+
     void HandleMouse()
     {
         var sim = _sim!;
         var mouse = Raylib.GetMousePosition();
-        bool overBoard = Raylib.CheckCollisionPointRec(mouse, BoardView);
+        bool overBoard = Raylib.CheckCollisionPointRec(mouse, BoardView) && !OverUi(mouse);
 
-        if (_drag == null && Raylib.IsMouseButtonPressed(MouseButton.Left))
+        // A card's menu takes its own clicks.
+        if (_menuCard != null)
+        {
+            if ((Raylib.IsMouseButtonPressed(MouseButton.Left) || Raylib.IsMouseButtonPressed(MouseButton.Right)) && !Raylib.CheckCollisionPointRec(mouse, _menuRect))
+                CloseCardMenu();
+            else return;
+        }
+
+        if (Raylib.IsMouseButtonPressed(MouseButton.Right)) _rightDown = mouse;
+        if (Raylib.IsMouseButtonReleased(MouseButton.Right) && Vector2.Distance(mouse, _rightDown) < 6 && overBoard && Pick(MouseWorld) is { } rhit)
+            OpenCardMenu(rhit.s, rhit.s.Cards[rhit.i], mouse);
+
+        if (_drag == null && _press == null && Raylib.IsMouseButtonPressed(MouseButton.Left))
         {
             // System names in the top bar scroll the camera there.
             var bar = BarSystems(out _);
             for (int i = 0; i < bar.Count; i++)
                 if (Raylib.CheckCollisionPointRec(mouse, TabRect(i))) { GoTo(bar[i]); return; }
-            if (overBoard && Pick(MouseWorld) is { } hit && !hit.s.Cards[hit.i].Def.IsHostile
-                && Defs.Category[hit.s.Cards[hit.i].Def.Category].Draggable)
+            // Packs are bought with a click.
+            foreach (var (pack, r) in PackRects())
+                if (Raylib.CheckCollisionPointRec(mouse, r))
+                {
+                    if (sim.BuyPack(pack, PackDropPoint()) is { } why) { Toast(why); sim.Events.Add(SimEvent.Warning); }
+                    return;
+                }
+            if (overBoard && Pick(MouseWorld) is { } hit) _press = (hit.s, hit.i, mouse);
+        }
+
+        if (_press is { } p)
+        {
+            var card = p.s.Cards.ElementAtOrDefault(p.i);
+            if (card == null || !Table.Stacks.Contains(p.s)) _press = null;
+            else if (Raylib.IsMouseButtonReleased(MouseButton.Left))
             {
-                _drag = sim.Split(hit.s, hit.i);
-                _dragFrom = _drag.Pos;
-                _drag.Dragging = true;
-                _dragOffset = MouseWorld - _drag.Pos;
-                var b = Table;
-                b.Stacks.Remove(_drag);
-                b.Stacks.Add(_drag); // draw on top
-                sim.Events.Add(SimEvent.Pickup);
+                _press = null;
+                OpenCardMenu(p.s, card, mouse);
+            }
+            else if (Vector2.Distance(mouse, p.at) > 6)
+            {
+                _press = null;
+                if (!card.Def.IsHostile && Defs.Category[card.Def.Category].Draggable)
+                {
+                    var start = Raylib.GetScreenToWorld2D(p.at, _cam);
+                    _drag = sim.Split(p.s, p.i);
+                    _dragFrom = _drag.Pos;
+                    _drag.Dragging = true;
+                    _dragOffset = start - _drag.Pos;
+                    Table.Stacks.Remove(_drag);
+                    Table.Stacks.Add(_drag); // draw on top
+                    sim.Events.Add(SimEvent.Pickup);
+                }
             }
         }
 
@@ -144,24 +215,17 @@ public sealed partial class GameUi
     {
         var sim = _sim!;
         var dropPos = d.Pos;
-        // Right panel: packs and market. The stack goes back where it came from, so packs open (and Energy from
-        // sales appears) in the system the cards were picked up in.
-        bool onPanel = PackRects().Any(pr => Raylib.CheckCollisionPointRec(mouse, pr.Item2)) || Raylib.CheckCollisionPointRec(mouse, MarketRect());
-        if (onPanel) d.Pos = _dragFrom;
-        foreach (var (pack, r) in PackRects())
-            if (Raylib.CheckCollisionPointRec(mouse, r))
-            {
-                var at = _dragFrom + new Vector2(Sim.CardW + 60, 0);
-                if (!sim.BuyPack(d, pack, at))
-                    Toast(d.Cards.All(c => c.Def.Id == "energy") ? $"{pack.Name} costs {sim.PackCost(pack)} Energy Credits." : "Packs are bought with Energy Credits only.");
-                Bounce(d);
-                return;
-            }
+        if (PackRects().Any(pr => Raylib.CheckCollisionPointRec(mouse, pr.Item2)))
+        {
+            d.Pos = _dragFrom;
+            Toast("Packs are bought with Energy from your pool: just click a pack.");
+            return;
+        }
         if (Raylib.CheckCollisionPointRec(mouse, MarketRect()))
         {
+            d.Pos = _dragFrom;
             int got = sim.Sell(d);
-            Toast(got > 0 ? $"Sold for {got} Energy Credits." : "Nothing in that stack can be sold.");
-            Bounce(d);
+            Toast(got > 0 ? $"Sold for {got} Energy." : "Nothing in that stack can be sold.");
             return;
         }
         var w = MouseWorld;
@@ -182,24 +246,32 @@ public sealed partial class GameUi
         {
             var target = hit.s.Cards[hit.i];
             if (target.Def.IsHostile) { sim.Attack(d, target); return; }
-            // A single ship component dropped on a ship fits into a slot; an admiral takes command of a warship.
-            if (d.Cards.Count == 1 && (d.Root.Def.Category == "component" || (d.Root.Def.Id == "admiral" && target.Def.HasTag("warship"))))
+            // A single ship component dropped on a ship fits into a slot (or swaps out a weaker part); an admiral takes
+            // command of a fleet.
+            bool admiral = d.Cards.Count == 1 && d.Root.Def.Id == "admiral" && hit.s.Cards.Any(x => x.Def.HasTag("warship"));
+            if (d.Cards.Count == 1 && (d.Root.Def.Category == "component" || admiral))
             {
-                var host = hit.s.Cards.LastOrDefault(x => d.Root.Def.Id == "admiral" ? x.Def.HasTag("warship") : Sim.CanFit(x)) ?? target;
                 var part = d.Root;
-                var why = part.Def.Id == "admiral" ? sim.AssignAdmiral(part, host) : sim.Fit(part, host);
-                if (why == null) { Toast(part.Def.Id == "admiral" ? $"Admiral now commands the {_res.CardName(host.Def.Id)}." : $"{_res.CardName(part.Def.Id)} fitted to {_res.CardName(host.Def.Id)}."); return; }
-                if (part.Def.Category == "component") { Toast(why); d.Pos = _dragFrom; return; }
+                var host = admiral ? hit.s.Cards.First(x => x.Def.HasTag("warship"))
+                    : Sim.CanFit(target) ? target : hit.s.Cards.LastOrDefault(Sim.CanFit) ?? target;
+                int before = host.Parts.Count;
+                var why = admiral ? sim.AssignAdmiral(part, host) : sim.Fit(part, host);
+                if (why == null)
+                {
+                    Toast(admiral ? $"The Admiral takes command of this fleet ({Sim.Warships(hit.s)}/{sim.FleetSize} warships)."
+                        : host.Parts.Count == before ? $"{_res.CardName(part.Def.Id)} swapped in on the {_res.CardName(host.Def.Id)}; the old part is beside it."
+                        : $"{_res.CardName(part.Def.Id)} fitted to {_res.CardName(host.Def.Id)}.");
+                    return;
+                }
+                Toast(why);
+                d.Pos = _dragFrom;
+                return;
             }
-            if (!sim.StackOnto(d, hit.s) && hit.s.Cards.Count + d.Cards.Count > Defs.Rules.MaxStack) Toast("That stack is full.");
+            if (sim.StackBlock(d, hit.s) is { Length: > 0 } block) { Toast(block); d.Pos = _dragFrom; return; }
+            sim.StackOnto(d, hit.s);
             return;
         }
         sim.Events.Add(SimEvent.Drop);
-    }
-
-    void Bounce(Stack d)
-    {
-        if (d.Cards.Any()) d.Pos = _dragFrom;
     }
 
     Rectangle TabRect(int i) => new(8 + i * 112, 6, 106, 46);
@@ -208,7 +280,7 @@ public sealed partial class GameUi
     List<StarSystem> BarSystems(out int hidden)
     {
         var sim = _sim!;
-        int fit = Math.Max(3, (Raylib.GetScreenWidth() - 820) / 112);
+        int fit = Math.Max(3, (Raylib.GetScreenWidth() - 760) / 112);
         var order = sim.Systems.Where(z => z.Claimed).Concat(sim.Systems.Where(z => !z.Claimed).Reverse()).ToList();
         hidden = Math.Max(0, order.Count - fit);
         return order.Take(fit).ToList();
@@ -219,7 +291,7 @@ public sealed partial class GameUi
         float x = Raylib.GetScreenWidth() - RightPanel + 12, y = TopBar + 40;
         var packs = _sim!.AvailablePacks.ToList();
         // Rows shrink on short windows so every pack stays above the Market.
-        float room = MarketRect().Y - 12 - y, h = Math.Clamp(room / Math.Max(1, packs.Count) - 8, 52, 80);
+        float room = MarketRect().Y - 52 - y, h = Math.Clamp(room / Math.Max(1, packs.Count) - 8, 52, 80);
         foreach (var p in packs)
         {
             yield return (p, new Rectangle(x, y, RightPanel - 24, h));
@@ -236,6 +308,7 @@ public sealed partial class GameUi
         var sim = _sim!;
         var view = BoardView;
         var b = Table;
+        _uiRects.Clear();
 
         // The table: each star system is an area, drawn on the Stacklands board texture (or plain space).
         Raylib.BeginScissorMode((int)view.X, (int)view.Y, (int)view.Width, (int)view.Height);
@@ -277,30 +350,62 @@ public sealed partial class GameUi
         }
         foreach (var s in b.Stacks) if (!s.Dragging) DrawStack(s);
         foreach (var bt in b.Battles) DrawBattle(bt);
+        foreach (var s in b.Stacks) if (!s.Dragging) DrawStackLabels(s);
         foreach (var s in b.Stacks) if (s.Dragging) DrawStack(s);
         Raylib.EndMode2D();
         _inWorld = false;
         Raylib.EndScissorMode();
 
+        DrawSystemPanel();
         DrawTopBar();
         DrawRightPanel();
-        DrawTooltip();
+        DrawFloaters();
+        if (_menuCard == null && !_escMenu) DrawTooltip();
         DrawTutorial();
         DrawToasts();
         if (_codex) DrawCodex();
-        if (_paused) Text("PAUSED (Space)", view.Width / 2 - 100, TopBar + 14, 30, Color.Yellow);
+        if (_menuCard != null) DrawCardMenu();
+        if (_paused && !_escMenu) Text("PAUSED (Space)", view.Width / 2 - 100, TopBar + 14, 30, Color.Yellow);
         if (_screen == Screen.End) DrawEnd();
+        if (_escMenu) DrawEscMenu();
     }
 
     void DrawStack(Stack s)
     {
         for (int i = 0; i < s.Cards.Count; i++)
             DrawCard(s.Cards[i], new Rectangle(s.Pos.X, s.Pos.Y + i * Sim.StackStep, Sim.CardW, Sim.CardH), s.Dragging);
-        if (s.Active != null && s.Duration > 0)
+        if (s.Active != null && s.Duration > 0 && s.Wait == null)
         {
             var r = new Rectangle(s.Pos.X, s.Pos.Y - 18, Sim.CardW, 12);
             Raylib.DrawRectangleRounded(r, 0.5f, 6, new Color(0, 0, 0, 180));
             Raylib.DrawRectangleRounded(new Rectangle(r.X + 2, r.Y + 2, (r.Width - 4) * Math.Clamp(s.Progress / s.Duration, 0, 1), r.Height - 4), 0.5f, 6, new Color(120, 230, 140, 255));
+        }
+    }
+
+    /// <summary>Above a stack: why it is waiting, and for a fleet its size and Admiral.</summary>
+    void DrawStackLabels(Stack s)
+    {
+        var sim = _sim!;
+        if (s.Wait is { } wait)
+        {
+            float size = 13;
+            while (size > 10 && Measure(wait, size).X > 250) size -= 0.5f;
+            var sz = Measure(wait, size);
+            float w = Math.Min(sz.X, 250) + 14, x = s.Pos.X + Sim.CardW / 2 - w / 2;
+            var r = new Rectangle(x, s.Pos.Y - 21, w, sz.Y + 5);
+            Raylib.DrawRectangleRounded(r, 0.5f, 6, new Color(40, 26, 6, 225));
+            Raylib.DrawRectangleRoundedLinesEx(r, 0.5f, 6, 1.5f, new Color(240, 190, 80, 230));
+            Text(wait, r.X + 7, r.Y + 2.5f, size, new Color(255, 220, 140, 255));
+        }
+        int ships = Sim.Warships(s);
+        if (ships > 0 && (ships > 1 || Sim.HasAdmiral(s)) && s.Wait == null && s.Active == null)
+        {
+            var label = $"Fleet {ships}/{sim.FleetSize}" + (Sim.HasAdmiral(s) ? " - Admiral" : "");
+            var sz = Measure(label, 13);
+            var r = new Rectangle(s.Pos.X + Sim.CardW - sz.X - 14, s.Pos.Y - 20, sz.X + 12, 17);
+            Raylib.DrawRectangleRounded(r, 0.5f, 6, new Color(12, 30, 40, 225));
+            Raylib.DrawRectangleRoundedLinesEx(r, 0.5f, 6, 1.5f, Sim.HasAdmiral(s) ? new Color(255, 215, 100, 230) : new Color(140, 210, 230, 200));
+            Text(label, r.X + 6, r.Y + 2, 13, Sim.HasAdmiral(s) ? new Color(255, 225, 140, 255) : new Color(190, 235, 245, 255));
         }
     }
 
@@ -312,6 +417,29 @@ public sealed partial class GameUi
         float s = Math.Max(box.Width / t.Width, box.Height / t.Height);
         float sw = box.Width / s, sh = box.Height / s;
         Raylib.DrawTexturePro(t, new Rectangle((t.Width - sw) / 2, (t.Height - sh) / 2, sw, sh), box, Vector2.Zero, 0, tint);
+    }
+
+    /// <summary>A card's picture in a box: its painted scene (with the icon as a badge), or its art.</summary>
+    void DrawCardArt(CardDef d, Rectangle art, Color frame)
+    {
+        if (d.Scene != "none" && Tex(d.Scene) is { } scene)
+        {
+            DrawCover(scene, art, Color.White);
+            if (Tex(d.Art) is { } badge)
+            {
+                float bs = art.Width * 0.46f;
+                var br = new Rectangle(art.X + art.Width - bs - 4, art.Y + art.Height - bs - 4, bs, bs);
+                Raylib.DrawRectangleRounded(new Rectangle(br.X - 2, br.Y - 2, br.Width + 4, br.Height + 4), 0.2f, 6, new Color(10, 12, 24, 235));
+                if (_iconTex.Contains(d.Art)) DrawFit(badge, new Rectangle(br.X + 3, br.Y + 3, br.Width - 6, br.Height - 6), Color.White);
+                else DrawCover(badge, br, Color.White);
+                Raylib.DrawRectangleRoundedLinesEx(new Rectangle(br.X - 2, br.Y - 2, br.Width + 4, br.Height + 4), 0.2f, 6, 2, Shade(frame, 1.2f));
+            }
+        }
+        else if (Tex(d.Art) is { } t)
+        {
+            if (_iconTex.Contains(d.Art)) DrawFit(t, new Rectangle(art.X + art.Width * 0.06f, art.Y + art.Height * 0.06f, art.Width * 0.88f, art.Height * 0.88f), Color.White);
+            else DrawCover(t, art, Color.White);
+        }
     }
 
     void DrawCard(Card c, Rectangle r, bool lifted)
@@ -335,34 +463,27 @@ public sealed partial class GameUi
         while (size > 10 && Measure(name, size).X > r.Width - 18) size -= 0.5f;
         Text(name, r.X + 9, r.Y + 8 + (16 - size) / 2, size, Ink);
 
-        // Art window: a rounded pane of space with the picture inside. Wide pictures fill it; icons sit with a margin.
+        // Art window: a rounded pane of space with the picture inside.
         var art = new Rectangle(r.X + 9, r.Y + 28, r.Width - 18, r.Height - 60);
         Raylib.DrawRectangleRounded(art, 0.12f, 6, new Color(16, 20, 38, 255));
-        if (c.Def.Scene != "none" && Tex(c.Def.Scene) is { } scene)
-        {
-            // A painted scene for the card's kind of thing, with its own icon as a framed badge in the corner.
-            DrawCover(scene, art, Color.White);
-            if (Tex(c.Def.Art) is { } badge)
-            {
-                float bs = art.Width * 0.46f;
-                var br = new Rectangle(art.X + art.Width - bs - 4, art.Y + art.Height - bs - 4, bs, bs);
-                Raylib.DrawRectangleRounded(new Rectangle(br.X - 2, br.Y - 2, br.Width + 4, br.Height + 4), 0.2f, 6, new Color(10, 12, 24, 235));
-                if (_iconTex.Contains(c.Def.Art)) DrawFit(badge, new Rectangle(br.X + 3, br.Y + 3, br.Width - 6, br.Height - 6), Color.White);
-                else DrawCover(badge, br, Color.White);
-                Raylib.DrawRectangleRoundedLinesEx(new Rectangle(br.X - 2, br.Y - 2, br.Width + 4, br.Height + 4), 0.2f, 6, 2, Shade(col, 1.2f));
-            }
-        }
-        else if (Tex(c.Def.Art) is { } t)
-        {
-            if (_iconTex.Contains(c.Def.Art)) DrawFit(t, new Rectangle(art.X + 7, art.Y + 7, art.Width - 14, art.Height - 14), Color.White);
-            else DrawCover(t, art, Color.White);
-        }
+        DrawCardArt(c.Def, art, col);
         Raylib.DrawRectangleRoundedLinesEx(art, 0.12f, 6, 2, new Color(col.R / 3, col.G / 3, col.B / 3, 200));
 
         // Footer: hull and bars for fighting cards, else the value; planets say whether they are yours.
         float fy = r.Y + r.Height - 27;
         bool fighter = c.MaxHp > 0 && (c.Def.Attack > 0 || c.MaxShield > 0 || c.MaxArmor > 0 || c.Def.IsHostile || c.Def.Slots > 0);
-        if (fighter)
+        if (c.Def.HasTag("baby"))
+        {
+            // A Baby shows how far it has grown (it only grows on a City District).
+            float k = Math.Clamp(c.Grow / Defs.Rules.BabyGrowSeconds, 0, 1);
+            var bar = new Rectangle(r.X + 10, fy + 9, r.Width - 20, 9);
+            Raylib.DrawRectangleRounded(bar, 1f, 4, new Color(0, 0, 0, 110));
+            Raylib.DrawRectangleRounded(new Rectangle(bar.X, bar.Y, Math.Max(9, bar.Width * k), bar.Height), 1f, 4, new Color(240, 150, 190, 255));
+            bool onCity = c.Stack?.Cards.Any(x => x.Def.Id == "city_district") == true;
+            var t = onCity ? $"grows in {Math.Max(0, Defs.Rules.BabyGrowSeconds - c.Grow):0}s" : "put on a City District";
+            Text(t, r.X + r.Width / 2 - Measure(t, 11).X / 2, fy - 4, 11, Ink);
+        }
+        else if (fighter)
         {
             float bx = r.X + 34, bw = r.Width - 44;
             void Bar(float y, float v, float max, Color fill)
@@ -389,9 +510,10 @@ public sealed partial class GameUi
             }
             if (c.Admiral != null)
             {
-                var tag = new Rectangle(art.X + 4, art.Y + art.Height - 20, Measure("Admiral", 12).X + 10, 16);
+                const string label = "Fleet Admiral";
+                var tag = new Rectangle(art.X + 4, art.Y + art.Height - 20, Measure(label, 12).X + 10, 16);
                 Raylib.DrawRectangleRounded(tag, 0.5f, 4, new Color(30, 24, 8, 220));
-                Text("Admiral", tag.X + 5, tag.Y + 2, 12, new Color(255, 215, 100, 255));
+                Text(label, tag.X + 5, tag.Y + 2, 12, new Color(255, 215, 100, 255));
             }
         }
         else if (c.Def.Value > 0)
@@ -403,6 +525,12 @@ public sealed partial class GameUi
         {
             var tag = c.Claimed ? "Colonised" : "Unclaimed";
             Text(tag, r.X + r.Width - 10 - Measure(tag, 12).X, fy + 6, 12, c.Claimed ? new Color(20, 100, 40, 255) : new Color(110, 70, 20, 255));
+        }
+        if (c.Def.Category == "tech" && _sim != null)
+        {
+            var known = _sim.Techs.Contains(c.Def.Id);
+            var tag = known ? "Known" : "Blueprint";
+            Text(tag, r.X + r.Width - 10 - Measure(tag, 12).X, fy + 6, 12, known ? new Color(110, 70, 20, 255) : new Color(20, 80, 40, 255));
         }
     }
 
@@ -418,11 +546,21 @@ public sealed partial class GameUi
             DrawCard(bt.Players[i], new Rectangle(r.X + 20 + i * (Sim.CardW + 12), r.Y + 50 + Sim.CardH, Sim.CardW, Sim.CardH), false);
     }
 
+    // ---------- top bar: systems, the resource pool, the moon ----------
+
+    static readonly string[] CoreResources = { "energy", "food", "minerals", "alloys", "consumer_goods", "research", "unity", "influence" };
+    readonly Dictionary<string, Rectangle> _chip = new();
+    readonly Dictionary<string, float> _chipPulse = new();
+
+    IEnumerable<string> ShownResources() =>
+        CoreResources.Concat(Defs.Cards.Where(c => c.Category == "resource" && !CoreResources.Contains(c.Id) && _sim!.Have(c.Id) > 0).Select(c => c.Id));
+
     void DrawTopBar()
     {
         var sim = _sim!;
         int sw = Raylib.GetScreenWidth();
         Raylib.DrawRectangle(0, 0, sw, TopBar, new Color(14, 16, 34, 255));
+        Raylib.DrawLine(0, TopBar - 1, sw, TopBar - 1, new Color(60, 70, 120, 255));
         var listed = BarSystems(out int hidden);
         if (hidden > 0) Text($"+{hidden} more (Z to see all)", TabRect(listed.Count).X + 4, 20, 15, Color.LightGray);
         for (int i = 0; i < listed.Count; i++)
@@ -442,15 +580,89 @@ public sealed partial class GameUi
             while (ks > 9 && Measure(kind, ks).X > r.Width - 12) ks -= 1;
             Text(kind, r.X + 6, r.Y + 27, ks, new Color(200, 210, 255, 200));
         }
-        int food = sim.AllCards.Count(c => c.Def.Id == "food");
-        int eat = sim.AllCards.Where(c => c.Def.Category == "person").Sum(c => c.Def.FoodUpkeep);
-        int energy = sim.AllCards.Count(c => c.Def.Id == "energy");
-        var info = $"{sim.Diff.Name}  |  Owned {sim.ClaimedCount}/{Defs.Rules.ClaimLimit}  |  Moon {sim.Moon}  |  Act {sim.Act}  |  Food {food}/{eat} needed  |  Energy {energy}  |  x{_speed:0}";
+        var info = $"{sim.Diff.Name}  |  Owned {sim.ClaimedCount}/{Defs.Rules.ClaimLimit}  |  Moon {sim.Moon}  |  Act {sim.Act}  |  x{_speed:0}";
         var w = Measure(info, 20).X;
-        Text(info, sw - w - 20, 8, 20, food < eat ? new Color(255, 160, 120, 255) : Color.RayWhite);
+        Text(info, sw - w - 20, 8, 20, Color.RayWhite);
         var bar = new Rectangle(sw - w - 20, 36, w, 10);
         Raylib.DrawRectangleRec(bar, new Color(40, 44, 70, 255));
         Raylib.DrawRectangleRec(new Rectangle(bar.X, bar.Y, bar.Width * sim.MoonTime / sim.MoonSeconds, bar.Height), new Color(240, 210, 120, 255));
+        Text($"{Math.Max(0, sim.MoonSeconds - sim.MoonTime):0}s", bar.X - 40, 32, 15, new Color(240, 210, 120, 255));
+
+        // The resource pool: one counter per resource, usable from every system.
+        int eat = sim.AllCards.Where(c => c.Def.Category == "person").Sum(c => c.Def.FoodUpkeep);
+        int power = sim.AllCards.Where(c => c.Def.Category == "person").Sum(c => c.Def.EnergyUpkeep);
+        float x = 12, y = 60;
+        _chip.Clear();
+        foreach (var id in ShownResources())
+        {
+            int n = sim.Have(id);
+            string sub = id == "food" && eat > 0 ? $"-{eat}/moon" : id == "energy" && power > 0 ? $"-{power}/moon" : "";
+            bool shortOf = (id == "food" && n < eat) || (id == "energy" && n < power);
+            float tw = Math.Max(Measure($"{n}", 22).X, sub.Length > 0 ? Measure(sub, 12).X : 0);
+            var r = new Rectangle(x, y, 44 + tw, 34);
+            float pulse = _chipPulse.GetValueOrDefault(id);
+            Raylib.DrawRectangleRounded(r, 0.4f, 6, pulse > 0 ? new Color((byte)50, (byte)(70 + 80 * pulse), (byte)60, (byte)255) : new Color(28, 32, 58, 255));
+            Raylib.DrawRectangleRoundedLinesEx(r, 0.4f, 6, 1.5f, shortOf ? new Color(255, 120, 100, 255) : new Color(80, 90, 140, 255));
+            if (Tex(Defs.Card[id].Art) is { } icon) DrawFit(icon, new Rectangle(r.X + 5, r.Y + 3, 28, 28), n > 0 ? Color.White : new Color(255, 255, 255, 110));
+            if (sub.Length > 0)
+            {
+                Text($"{n}", r.X + 38, r.Y + 1, 20, shortOf ? new Color(255, 150, 130, 255) : Color.RayWhite);
+                Text(sub, r.X + 38, r.Y + 20, 12, shortOf ? new Color(255, 150, 130, 255) : new Color(190, 195, 220, 255));
+            }
+            else Text($"{n}", r.X + 38, r.Y + 6, 22, n > 0 ? Color.RayWhite : new Color(150, 155, 180, 255));
+            _chip[id] = r;
+            x += r.Width + 8;
+            if (x > sw - RightPanel - 60) break;
+        }
+        foreach (var k in _chipPulse.Keys.ToList()) _chipPulse[k] = Math.Max(0, _chipPulse[k] - Raylib.GetFrameTime() * 2);
+        // Hovering a counter names it.
+        var m = Raylib.GetMousePosition();
+        foreach (var (id, r) in _chip)
+            if (Raylib.CheckCollisionPointRec(m, r))
+            {
+                var tip = $"{_res.CardName(id)}: {Defs.Card[id].Desc}";
+                var sz = Measure(tip, 16);
+                var tr = new Rectangle(Math.Min(r.X, sw - sz.X - 30), r.Y + r.Height + 6, sz.X + 16, 26);
+                Raylib.DrawRectangleRounded(tr, 0.3f, 6, new Color(10, 12, 26, 240));
+                Text(tip, tr.X + 8, tr.Y + 4, 16, Color.RayWhite);
+            }
+    }
+
+    // Resources flying from where they were made up to their counter.
+    readonly List<(string id, int n, Vector2 from, float t)> _floaters = new();
+
+    void AddFloater(string id, int n, Vector2 world)
+    {
+        var from = Raylib.GetWorldToScreen2D(world, _cam);
+        if (!Raylib.CheckCollisionPointRec(from, BoardView)) { _chipPulse[id] = 1; return; }
+        _floaters.Add((id, n, from, 0));
+    }
+
+    void DrawFloaters()
+    {
+        float dt = Raylib.GetFrameTime();
+        for (int i = _floaters.Count - 1; i >= 0; i--)
+        {
+            var (id, n, from, t) = _floaters[i];
+            t += dt;
+            const float rise = 0.55f, fly = 0.6f;
+            if (t > rise + fly) { _floaters.RemoveAt(i); _chipPulse[id] = 1; continue; }
+            _floaters[i] = (id, n, from, t);
+            var lifted = from - new Vector2(0, 46 * Math.Min(1, t / rise));
+            Vector2 at = lifted;
+            if (t > rise && _chip.TryGetValue(id, out var chip))
+            {
+                float k = (t - rise) / fly;
+                k = k * k * (3 - 2 * k);
+                at = Vector2.Lerp(lifted, new Vector2(chip.X + 19, chip.Y + 17), k);
+            }
+            if (Tex(Defs.Card[id].Art) is { } icon) DrawFit(icon, new Rectangle(at.X - 15, at.Y - 15, 30, 30), Color.White);
+            if (t < rise + fly * 0.5f)
+            {
+                var txt = $"+{n}";
+                Text(txt, at.X + 16, at.Y - 11, 22, new Color(255, 255, 255, (int)(255 * Math.Clamp(1.6f - t, 0, 1))));
+            }
+        }
     }
 
     static Color Shade(Color c, float k) =>
@@ -499,38 +711,66 @@ public sealed partial class GameUi
         var sim = _sim!;
         int sw = Raylib.GetScreenWidth(), sh = Raylib.GetScreenHeight();
         Raylib.DrawRectangle(sw - RightPanel, TopBar, RightPanel, sh - TopBar, new Color(14, 16, 34, 245));
-        Text("Packs - drop Energy", sw - RightPanel + 12, TopBar + 10, 19, Color.LightGray);
+        Text("Packs - click to buy", sw - RightPanel + 12, TopBar + 10, 19, Color.LightGray);
+        var mouse = Raylib.GetMousePosition();
+        (PackDef p, Rectangle r)? hovered = null;
         foreach (var (p, r) in PackRects())
         {
-            bool hover = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), r) && _drag != null;
-            Raylib.DrawRectangleRounded(r, 0.12f, 6, hover ? new Color(80, 110, 200, 255) : new Color(36, 42, 74, 255));
-            DrawBooster(new Rectangle(r.X + 6, r.Y + 3, 60, r.Height - 6), Hex(p.Color), Tex(p.Art), hover);
+            bool hover = Raylib.CheckCollisionPointRec(mouse, r) && _drag == null && !_escMenu;
+            bool afford = sim.Have("energy") >= sim.PackCost(p);
+            if (hover) hovered = (p, r);
+            Raylib.DrawRectangleRounded(r, 0.12f, 6, hover ? (afford ? new Color(80, 110, 200, 255) : new Color(90, 60, 70, 255)) : new Color(36, 42, 74, 255));
+            DrawBooster(new Rectangle(r.X + 6, r.Y + 3, 60, r.Height - 6), Hex(p.Color), Tex(p.Art), hover && afford);
             float ts = 20;
             while (ts > 13 && Measure(p.Name, ts).X > r.Width - 82) ts -= 0.5f;
+            var costCol = afford ? new Color(240, 210, 120, 255) : new Color(200, 130, 120, 255);
             if (r.Height >= 72)
             {
                 Text(p.Name, r.X + 74, r.Y + 13, ts, Color.RayWhite);
-                Text($"{sim.PackCost(p)} Energy", r.X + 74, r.Y + 41, 15, new Color(240, 210, 120, 255));
+                Text($"{sim.PackCost(p)} Energy", r.X + 74, r.Y + 41, 15, costCol);
                 Text($"{p.Draws} cards", r.X + 74, r.Y + 58, 14, new Color(200, 205, 230, 255));
             }
             else
             {
                 Text(p.Name, r.X + 74, r.Y + 6, ts, Color.RayWhite);
-                Text($"{sim.PackCost(p)} Energy, {p.Draws} cards", r.X + 74, r.Y + r.Height - 22, 14, new Color(240, 210, 120, 255));
+                Text($"{sim.PackCost(p)} Energy, {p.Draws} cards", r.X + 74, r.Y + r.Height - 22, 14, costCol);
             }
         }
         var m = MarketRect();
-        bool mh = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), m) && _drag != null;
+        bool mh = Raylib.CheckCollisionPointRec(mouse, m) && _drag != null;
         Raylib.DrawRectangleRounded(m, 0.12f, 6, mh ? new Color(160, 130, 50, 255) : new Color(70, 58, 30, 255));
         Text(Defs.Rules.SellSlotName, m.X + 14, m.Y + 12, 26, Color.RayWhite);
-        Wrapped("Drop cards here to sell them for Energy Credits", m.X + 14, m.Y + 46, m.Width - 28, 16, Color.LightGray);
+        Wrapped("Drop cards here to sell them for Energy", m.X + 14, m.Y + 46, m.Width - 28, 16, Color.LightGray);
         Text("Tab blueprints - Space pause", sw - RightPanel + 12, m.Y - 44, 14, Color.Gray);
-        Text("1-3 speed - Z zoom out/in", sw - RightPanel + 12, m.Y - 24, 14, Color.Gray);
+        Text("1-3 speed - Z zoom - Esc menu", sw - RightPanel + 12, m.Y - 24, 14, Color.Gray);
+
+        if (hovered is { } h)
+        {
+            // What's in the pack.
+            var names = h.p.Contents.OrderByDescending(e => e.Weight).Select(e => _res.CardName(e.Card)).Distinct().Take(10).ToList();
+            var lines = $"{h.p.Name} pack - {sim.PackCost(h.p)} Energy (you have {sim.Have("energy")})\n{h.p.Desc}\nMay contain: {string.Join(", ", names)}" +
+                        (h.p.Contents.Count() > 10 ? "..." : "");
+            DrawTipBox(lines, new Vector2(h.r.X - 360, h.r.Y), 340);
+        }
+    }
+
+    void DrawTipBox(string lines, Vector2 at, float width)
+    {
+        var parts = lines.Split('\n');
+        float h = 16 + parts.Sum(p => 26 + (Measure(p, 18).X > width - 20 ? 22 * (int)(Measure(p, 18).X / (width - 20)) : 0));
+        if (at.X + width > Raylib.GetScreenWidth()) at.X -= width + 36;
+        if (at.X < 4) at.X = 4;
+        if (at.Y + h > Raylib.GetScreenHeight()) at.Y = Raylib.GetScreenHeight() - h - 8;
+        Raylib.DrawRectangleRounded(new Rectangle(at.X, at.Y, width, h), 0.1f, 6, new Color(10, 12, 26, 240));
+        Raylib.DrawRectangleRoundedLinesEx(new Rectangle(at.X, at.Y, width, h), 0.1f, 6, 1.5f, new Color(90, 100, 160, 200));
+        float y = at.Y + 8;
+        for (int i = 0; i < parts.Length; i++)
+            y += Wrapped(parts[i], at.X + 10, y, width - 20, i == 0 ? 20 : 17, i == 0 ? Color.RayWhite : Color.LightGray) + 4;
     }
 
     void DrawTooltip()
     {
-        if (_drag != null || !Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), BoardView)) return;
+        if (_drag != null || !Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), BoardView) || OverUi(Raylib.GetMousePosition())) return;
         var w = MouseWorld;
         Card? c = null;
         Stack? s = null;
@@ -543,6 +783,7 @@ public sealed partial class GameUi
             if (col >= 0 && col < row.Count) c = row[col];
         }
         if (c == null) return;
+        var sim = _sim!;
         var lines = _res.CardName(c.Def.Id) + "\n" + c.Def.Desc;
         if (c.MaxHp > 0 && (c.MaxShield > 0 || c.MaxArmor > 0 || c.Guns.Count > 0 || c.Def.Slots > 0))
         {
@@ -550,25 +791,33 @@ public sealed partial class GameUi
                    + (c.MaxShield > 0 ? $"  Shields {MathF.Ceiling(c.Shield)}/{c.MaxShield} (+{c.ShieldRegen:0.#}/s)" : "")
                    + (c.HullRegen > 0 ? $"  Heals {c.HullRegen:0.#}/s" : "") + (c.Evasion > 0 ? $"  Dodge {c.Evasion:P0}" : "");
             if (c.Guns.Count > 0) lines += "\nWeapons: " + string.Join(", ", c.Guns.Select(g => $"{g.Profile?.Name ?? "Guns"} {g.Damage:0}/{g.Cooldown:0.#}s"));
-            if (c.Def.Slots > 0) lines += $"\nSlots {c.Parts.Count}/{c.Def.Slots}" + (c.Parts.Count < c.Def.Slots ? " - drop ship components here to fit them" : "")
-                                       + (c.Def.HasTag("warship") ? (c.Admiral != null ? " - Admiral aboard" : " - drop an Admiral here to assign them") : "");
+            if (c.Def.Slots > 0) lines += $"\nSlots {c.Parts.Count}/{c.Def.Slots}" + (c.Parts.Count < c.Def.Slots ? " - drop ship components here to fit them" : " - drop a better part to swap, or click to take one off");
+            if (c.Def.HasTag("warship"))
+                lines += c.Admiral != null ? $"\nFleet Admiral aboard: this fleet's ships hit {Defs.Card["admiral"].BoostMult - 1:P0} harder."
+                    : $"\nStack up to {sim.FleetSize} warships into a fleet; drop an Admiral on it to command it.";
         }
-        var uses = _sim!.UsedIn(c.Def).Take(4).ToList();
-        if (uses.Count > 0) lines += "\nUsed in: " + string.Join(" | ", uses.Select(BlueprintLine));
+        if (c.Def.Category == "tech")
+        {
+            var r = Defs.Recipes.FirstOrDefault(x => x.Effect == "learn" && x.Station == c.Def.Id);
+            if (sim.Techs.Contains(c.Def.Id)) lines += "\nAlready researched: sell it at the Market.";
+            else if (r != null)
+                lines += $"\nResearch: put a Pop ({r.Time:0}s) or a Scientist ({r.Time / Defs.Card["scientist"].BoostMult:0}s) on it; costs {string.Join(", ", Sim.Costs(r).Select(i => $"{i.N} {_res.CardName(i.Card)}"))}."
+                         + (r.RequiresTech != "none" && !sim.Techs.Contains(r.RequiresTech) ? $"\nNeeds {_res.CardName(r.RequiresTech)} researched first." : "");
+        }
+        var orders = sim.OrdersFor(c).Where(r => sim.Blueprint(r) != Sim.BlueprintState.Locked).ToList();
+        if (orders.Count > 0) lines += $"\nClick to choose what it makes ({orders.Count} blueprints).";
+        else
+        {
+            var uses = sim.UsedIn(c.Def).Take(4).ToList();
+            if (uses.Count > 0) lines += "\nUsed in: " + string.Join(" | ", uses.Select(BlueprintLine));
+        }
         if (Defs.Component.TryGetValue(c.Def.Id, out var cp) && cp.Kind == "weapon")
             lines += $"\nDamage {cp.Damage} every {cp.Cooldown:0.#}s - vs shields x{cp.VsShield:0.##}, armour x{cp.VsArmor:0.##}, hull x{cp.VsHull:0.##}"
                    + (cp.PierceShield >= 1 ? (cp.PierceArmor >= 1 ? " - ignores shields and armour" : " - flies past shields") : "");
-        if (s?.Active != null) lines += $"\nWorking: {s.Active.Desc} ({Math.Max(0, s.Duration - s.Progress):0}s)";
-        var m = Raylib.GetMousePosition() + new Vector2(18, 18);
-        float width = 340;
-        var parts = lines.Split('\n');
-        float h = 16 + parts.Length * 26 + parts.Sum(p => Measure(p, 18).X > width - 20 ? 22 * (int)(Measure(p, 18).X / (width - 20)) : 0);
-        if (m.X + width > Raylib.GetScreenWidth()) m.X -= width + 36;
-        if (m.Y + h > Raylib.GetScreenHeight()) m.Y -= h + 36;
-        Raylib.DrawRectangleRounded(new Rectangle(m.X, m.Y, width, h), 0.1f, 6, new Color(10, 12, 26, 235));
-        float y = m.Y + 8;
-        for (int i = 0; i < parts.Length; i++)
-            y += Wrapped(parts[i], m.X + 10, y, width - 20, i == 0 ? 22 : 18, i == 0 ? Color.RayWhite : Color.LightGray) + 4;
+        if (s?.Order != null) lines += $"\nOrder: {s.Order.Desc}";
+        if (s?.Active != null && s.Wait == null) lines += $"\nWorking: {s.Active.Desc} ({Math.Max(0, s.Duration - s.Progress):0}s)";
+        if (s?.Wait != null) lines += $"\nWaiting: {s.Wait}";
+        DrawTipBox(lines, Raylib.GetMousePosition() + new Vector2(18, 18), 360);
     }
 
     void DrawToasts()
@@ -597,10 +846,10 @@ public sealed partial class GameUi
 
     readonly HashSet<string> _tutorialSeen = new();
 
-    /// <summary>The tutorial checklist: the current step, its hint, progress, and Skip / Hide.</summary>
     /// <summary>The player's tutorial setting, except in --screenshot captures, which show the game without it.</summary>
     bool TutorialShown => _settings.Tutorial && _shot == null;
 
+    /// <summary>The tutorial checklist: the current step, its hint, progress, and Skip / Hide.</summary>
     void DrawTutorial()
     {
         var sim = _sim!;
@@ -609,82 +858,47 @@ public sealed partial class GameUi
             if (sim.StepDone(t) && !sim.SkippedSteps.Contains(t.Id) && _tutorialSeen.Add(t.Id) && _clock > 1) Toast($"Tutorial: {t.Text} - done!");
         var step = sim.CurrentStep;
         if (step == null) return;
-        int done = Defs.Tutorial.Count(sim.StepDone), n = Array.IndexOf(Defs.Tutorial, step) + 1;
-        var r = new Rectangle(16, TopBar + 12, 430, 150);
+        int done = Defs.Tutorial.Count(sim.StepDone);
+        var r = new Rectangle(16, TopBar + 12, 440, 150);
+        _uiRects.Add(r);
         Raylib.DrawRectangleRounded(r, 0.08f, 6, new Color(12, 16, 38, 235));
         Raylib.DrawRectangleRoundedLinesEx(r, 0.08f, 6, 2, new Color(240, 200, 90, 200));
         Text($"Tutorial  {done}/{Defs.Tutorial.Length}", r.X + 14, r.Y + 10, 18, new Color(240, 200, 90, 255));
         Text(step.Text, r.X + 14, r.Y + 34, 21, Color.RayWhite);
-        Wrapped(step.Hint, r.X + 14, r.Y + 62, r.Width - 28, 16, Color.LightGray, 3);
-        if (sim.MoonHeld) Text("The first moon waits until you have grown Food.", r.X + 14, r.Y + r.Height - 24, 15, new Color(240, 200, 90, 255));
+        Wrapped(step.Hint, r.X + 14, r.Y + 62, r.Width - 28, 16, Color.LightGray, 4);
         if (Button(new Rectangle(r.X + r.Width - 150, r.Y + 8, 66, 24), "Skip", false, 15)) sim.SkippedSteps.Add(step.Id);
-        if (Button(new Rectangle(r.X + r.Width - 78, r.Y + 8, 64, 24), "Hide", false, 15)) { _settings.Tutorial = false; _settings.Save(); Toast("Tutorial hidden. Turn it back on from the empire screen."); }
+        if (Button(new Rectangle(r.X + r.Width - 78, r.Y + 8, 64, 24), "Hide", false, 15)) { _settings.Tutorial = false; _settings.Save(); Toast("Tutorial hidden. Turn it back on from the Esc menu."); }
     }
 
-    int _bookTab;
-    float _bookScroll;
+    // ---------- the system you're looking at: abandon an unwanted one ----------
 
-    /// <summary>The Blueprint book: every recipe by tab, known ones in full, locked ones with what unlocks them.</summary>
-    void DrawCodex()
+    StarSystem? _abandonArmed;
+    float _abandonAt;
+
+    void DrawSystemPanel()
     {
         var sim = _sim!;
-        int sw = Raylib.GetScreenWidth(), sh = Raylib.GetScreenHeight();
-        var r = new Rectangle(60, 70, sw - RightPanel - 120, sh - 130);
-        Raylib.DrawRectangleRounded(r, 0.02f, 6, new Color(10, 12, 26, 248));
-        Raylib.DrawRectangleRoundedLinesEx(r, 0.02f, 6, 2, new Color(120, 140, 220, 160));
-        Text("Blueprint book", r.X + 24, r.Y + 14, 30, Color.RayWhite);
-        Text("Tab closes - Q/E or click to change tab - wheel scrolls", r.X + 270, r.Y + 24, 16, Color.Gray);
-
-        var tabs = Defs.Rules.BlueprintTabs.Select(t => t.Tab).ToList();
-        if (Raylib.IsKeyPressed(KeyboardKey.Q)) { _bookTab = (_bookTab + tabs.Count - 1) % tabs.Count; _bookScroll = 0; }
-        if (Raylib.IsKeyPressed(KeyboardKey.E)) { _bookTab = (_bookTab + 1) % tabs.Count; _bookScroll = 0; }
-        float tx = r.X + 24;
-        for (int i = 0; i < tabs.Count; i++)
+        if (_screen != Screen.Play || _escMenu || _codex || _cam.Zoom < 0.3f) return;
+        var z = sim.SystemAt(_cam.Target);
+        if (z == null || z == sim.Home || z.Claimed) return;
+        var view = BoardView;
+        var r = new Rectangle(view.X + view.Width - 316, view.Y + 10, 300, 74);
+        _uiRects.Add(r);
+        Raylib.DrawRectangleRounded(r, 0.15f, 6, new Color(12, 16, 38, 225));
+        Raylib.DrawRectangleRoundedLinesEx(r, 0.15f, 6, 1.5f, new Color(120, 130, 170, 200));
+        Text($"{z.Name} - unclaimed", r.X + 12, r.Y + 8, 18, Color.RayWhite);
+        bool armed = _abandonArmed == z && _clock - _abandonAt < 4;
+        var why = sim.AbandonBlock(z);
+        if (Button(new Rectangle(r.X + 12, r.Y + 36, r.Width - 24, 30), armed ? "Click again to abandon it" : "Abandon this system", armed, 16))
         {
-            var list = Defs.Recipes.Where(x => Sim.BlueprintTab(x) == tabs[i]).ToList();
-            int known = list.Count(x => sim.Blueprint(x) != Sim.BlueprintState.Locked);
-            var label = $"{tabs[i]} {known}/{list.Count}";
-            float w = Measure(label, 19).X + 28;
-            if (Button(new Rectangle(tx, r.Y + 56, w, 38), label, i == _bookTab, 19)) { _bookTab = i; _bookScroll = 0; }
-            tx += w + 8;
-        }
-
-        var entries = Defs.Recipes.Where(x => Sim.BlueprintTab(x) == tabs[_bookTab])
-            .OrderBy(x => sim.Blueprint(x) == Sim.BlueprintState.Locked ? 1 : 0).ToList();
-        var area = new Rectangle(r.X + 20, r.Y + 106, r.Width - 40, r.Height - 120);
-        float rowH = 30, total = entries.Count * rowH;
-        _bookScroll = Math.Clamp(_bookScroll - Raylib.GetMouseWheelMove() * 60, 0, Math.Max(0, total - area.Height));
-        Raylib.BeginScissorMode((int)area.X, (int)area.Y, (int)area.Width, (int)area.Height);
-        float y = area.Y - _bookScroll;
-        foreach (var e in entries)
-        {
-            if (y > area.Y - rowH && y < area.Y + area.Height)
+            if (why != null) Toast(why);
+            else if (!armed) { _abandonArmed = z; _abandonAt = _clock; }
+            else
             {
-                var st = sim.Blueprint(e);
-                string mark = st switch { Sim.BlueprintState.Made => "[made]", Sim.BlueprintState.Known => "[ ok ]", _ => "[lock]" };
-                var col = st switch { Sim.BlueprintState.Made => new Color(140, 230, 150, 255), Sim.BlueprintState.Known => Color.RayWhite, _ => new Color(130, 130, 150, 255) };
-                Text(mark, area.X, y, 17, col);
-                float time = e.Time < 0 ? 0 : e.Time;
-                var line = BlueprintLine(e) + (time > 0 ? $"  ({time:0}s)" : "");
-                if (st == Sim.BlueprintState.Locked) line += $"  - needs {_res.CardName(e.RequiresTech)}";
-                float size = 18;
-                while (size > 12 && Measure(line, size).X > area.Width - 90) size -= 1;
-                Text(line, area.X + 80, y, size, col);
+                _abandonArmed = null;
+                sim.Abandon(z);
+                GoTo(sim.Home);
             }
-            y += rowH;
         }
-        Raylib.EndScissorMode();
-    }
-
-    void DrawEnd()
-    {
-        var sim = _sim!;
-        int sw = Raylib.GetScreenWidth(), sh = Raylib.GetScreenHeight();
-        Raylib.DrawRectangle(0, 0, sw, sh, new Color(0, 0, 0, 170));
-        var title = sim.State == RunState.Won ? "THE GALAXY IS SAVED" : "YOUR EMPIRE HAS FALLEN";
-        Text(title, sw / 2f - Measure(title, 56).X / 2, sh / 2f - 120, 56, sim.State == RunState.Won ? Color.Gold : new Color(255, 110, 100, 255));
-        var why = $"{sim.EndReason}  (Moon {sim.Moon}, {sim.Systems.Count} systems)";
-        Text(why, sw / 2f - Measure(why, 24).X / 2, sh / 2f - 40, 24, Color.RayWhite);
-        if (Button(new Rectangle(sw / 2f - 130, sh / 2f + 30, 260, 60), "New run", false, 28)) { _sim = null; _screen = Screen.Empire; }
     }
 }

@@ -46,18 +46,21 @@ def expand(sections):
                                       tags=["component", c["kind"]], art="st_comp_" + cid,
                                       value=max(1, sum(values.get(b["card"], 1) * b["n"] for b in c["build_cost"]) // 2), desc=c["desc"]))
         s["cards"]["rows"].append(dict(blank, id=tech, name_loc=c["tech_name_loc"], name=c["tech_name"], category="tech",
-                                      tags=["tech"], art="st_tech_" + cid, scene=c.get("tech_scene", "none"), value=3, desc=f"Shipyard + {cost} = {c['name']}."))
+                                      tags=["tech"], art="st_tech_" + cid, scene=c.get("tech_scene", "none"), value=3,
+                                      desc=f"Blueprint. Put a Pop (slow) or a Scientist (fast) on it to research it; then Shipyard + {cost} = {c['name']}."))
+        # Research: the blueprint card is the station; a Pop or a Scientist works on it and the costs come from the pool.
         n = sum(i["n"] for i in c["research_inputs"] if i["card"] == "research")
-        studied = [i["card"] for i in c["research_inputs"] if i["keep"]]
-        s["recipes"]["rows"].append({"id": "r_" + cid, "station": "scientist", "station_keep": True, "inputs": c["research_inputs"],
-            "requires_flag": "none", "requires_system": "any", "requires_tech": c["requires_tech"], "time": 10 + 2 * n, "tag": "research",
-            "outputs": [{"weight": 1, "give": [{"card": tech, "n": 1}]}], "effect": "none",
-            "desc": f"Scientist + {n} Research" + "".join(f" + {i['n']} {i['card'].replace('_', ' ').title()}" for i in c["research_inputs"] if i["card"] != "research")
-                    + (f" (studies the {', '.join(x.replace('_', ' ').title() for x in studied)})" if studied else "") + f" = {c['tech_name']}"})
+        costs = [i for i in c["research_inputs"] if not i["keep"]]
+        s["recipes"]["rows"].append({"id": "r_" + cid, "station": tech, "station_keep": False,
+            "inputs": [{"card": "tag:researcher", "n": 1, "keep": True}] + costs,
+            "requires_flag": "none", "requires_system": "any", "requires_tech": c["requires_tech"], "time": 2 * (10 + 2 * n), "tag": "research",
+            "outputs": [], "effect": "learn", "order": False,
+            "desc": f"{c['tech_name']} blueprint + a Pop or Scientist + {n} Research"
+                    + "".join(f" + {i['n']} {i['card'].replace('_', ' ').title()}" for i in costs if i["card"] != "research")})
         s["recipes"]["rows"].append({"id": "s_" + cid, "station": "shipyard", "station_keep": True,
             "inputs": [{"card": b["card"], "n": b["n"], "keep": False} for b in c["build_cost"]],
             "requires_flag": "none", "requires_system": "any", "requires_tech": tech, "time": 12, "tag": "build",
-            "outputs": [{"weight": 1, "give": [{"card": cid, "n": 1}]}], "effect": "none", "desc": f"Shipyard + {cost} = {c['name']}"})
+            "outputs": [{"weight": 1, "give": [{"card": cid, "n": 1}]}], "effect": "none", "order": True, "desc": f"Shipyard + {cost} = {c['name']}"})
         for aid, look, used, ok in (("st_comp_" + cid, c["icon"], c["name"] + " card", c.get("icon_verified", False)),
                                     ("st_tech_" + cid, c["tech_icon"], c["tech_name"] + " tech card", c.get("tech_icon_verified", False))):
             s["asset_refs"]["rows"].append({"id": aid, "game": "stellaris", "kind": "image", "lookup": look, "used_by": used, "verified": ok,

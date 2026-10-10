@@ -117,7 +117,7 @@ def main(argv):
                     card_ref(f"{w}.outputs", g["card"])
                     obtainable[g["card"]] += 1
         eff = r["effect"]
-        if not (eff == "none" or eff in ("open_board:random", "open_board:guardian", "set_flag:claimed", "claim_system", "repair")):
+        if not (eff == "none" or eff in ("open_board:random", "open_board:guardian", "set_flag:claimed", "claim_system", "repair", "learn")):
             errors.append(f"{w}.effect: unknown effect '{eff}'")
         sig = (st, tuple(sorted((i["card"], i["n"]) for i in r["inputs"])))
         if sig in sigs:

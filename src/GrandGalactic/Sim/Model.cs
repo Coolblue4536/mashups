@@ -19,6 +19,10 @@ public sealed class Card
     public float AttackTimer;
     public float AggroTimer;
     public float SpawnTimer;
+    /// <summary>Seconds a Baby has spent growing on a City District.</summary>
+    public float Grow;
+    /// <summary>The fleet (stack id) a card fought from: its fleet's Admiral boosts it, and survivors regroup by it.</summary>
+    public int Fleet;
     public Stack? Stack;
     public Battle? Battle;
     public override string ToString() => $"{Def.Id}#{Uid}";
@@ -42,8 +46,14 @@ public sealed class Stack
     public float Progress;
     public float Duration;
     public bool Dirty = true;
-    /// <summary>How long the stack has been stuck overlapping something; past a moment it jumps to a free spot.</summary>
+    /// <summary>How long the stack has been stuck overlapping something; past a moment it moves to a free spot.</summary>
     public float Jam;
+    /// <summary>The build the player chose for a station whose blueprints only need resources (Construction Ship, Shipyard...).</summary>
+    public RecipeDef? Order;
+    /// <summary>Where the stack is gliding to (it moves there smoothly instead of jumping).</summary>
+    public Vector2? Glide;
+    /// <summary>Why the stack isn't working right now (shown above it), or null.</summary>
+    public string? Wait;
     // Travel between star systems: a ship carries the stack from TravelFrom to TravelTo over TravelDur seconds.
     public Vector2 TravelFrom, TravelTo;
     public float TravelT, TravelDur;

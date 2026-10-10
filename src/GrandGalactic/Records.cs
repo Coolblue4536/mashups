@@ -30,7 +30,7 @@ public sealed record RecipeInput(string Card, int N, bool Keep);
 public sealed record Outcome(int Weight, Amount[] Give);
 
 public sealed record RecipeDef(string Id, string Station, bool StationKeep, RecipeInput[] Inputs, string RequiresFlag,
-    string RequiresSystem, string RequiresTech, float Time, string Tag, Outcome[] Outputs, string Effect, string Desc);
+    string RequiresSystem, string RequiresTech, float Time, string Tag, Outcome[] Outputs, string Effect, bool Order, string Desc);
 
 public sealed record LootDef(string Card, Amount[] Drops);
 public sealed record PackEntry(string Card, int Weight);

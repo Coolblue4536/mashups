@@ -49,6 +49,7 @@ public sealed class Settings
     public string? MoonLength { get; set; }
     public bool Tutorial { get; set; } = true;
     public float MusicVolume { get; set; } = 0.35f;
+    public bool Fullscreen { get; set; }
 
     static string FilePath => Path.Combine(Paths.DataDir, "settings.json");
 
