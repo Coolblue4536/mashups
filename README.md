@@ -17,7 +17,10 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
 
 ## What you do
 
-- **Found your empire.** Pick a species and one ethic. The species are:
+- **Title screen.** Continue your saved game (it shows the empire and moon), start a New Empire, change
+  Settings or quit.
+- **Found your empire.** On the New Empire screen: 1) pick a species, 2) pick one ethic, 3) set the
+  difficulty and moon length, then Begin. The species are:
   - Agrarian Mammalians, who farm fast;
   - Industrious Lithoids, who mine fast and have tough Pops;
   - Intelligent Avians, who research fast.
@@ -134,7 +137,7 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
   long it takes. Unresearched blueprints stay out of the book. The game pauses while the book is open,
   and Tab or Esc closes it.
 - **Save, load and settings (Esc).** Save, load, music and sound volume, tutorial, fullscreen, main menu
-  and quit. The game also saves at the end of every moon, and Continue on the empire screen resumes.
+  and quit. The game also saves at the end of every moon, and Continue on the title screen resumes.
 - **Packs and market.** 7 booster packs, bought with a click. At the Market you can drop cards to sell
   them, or click it to trade surplus resources from your pool for Energy.
 

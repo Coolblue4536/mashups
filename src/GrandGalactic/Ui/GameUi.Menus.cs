@@ -304,27 +304,9 @@ public sealed partial class GameUi
         y += 64;
         Text("Settings", x, y, 22, new Color(240, 200, 90, 255));
         y += 34;
-        void Volume(string label, Func<float> get, Action<float> set)
-        {
-            Text(label, x, y + 8, 19, Color.LightGray);
-            var v = $"{get() * 100:0}%";
-            Text(v, x + w - 130 + 33 - Measure(v, 19).X / 2 + 32, y + 8, 19, Color.RayWhite);
-            if (Button(new Rectangle(x + w - 130, y, 40, 36), "-", false, 22)) { set(Math.Clamp(MathF.Round(get() * 10 - 1) / 10, 0, 1)); _settings.Save(); }
-            if (Button(new Rectangle(x + w - 40, y, 40, 36), "+", false, 22)) { set(Math.Clamp(MathF.Round(get() * 10 + 1) / 10, 0, 1)); _settings.Save(); }
-            y += 46;
-        }
-        Volume("Music volume", () => _settings.MusicVolume, v => { _settings.MusicVolume = v; if (_music is { } m) Raylib.SetMusicVolume(m, v); });
-        Volume("Sound volume", () => _settings.Volume, v => _settings.Volume = v);
-        void Toggle(string label, bool on, Action flip)
-        {
-            Text(label, x, y + 8, 19, Color.LightGray);
-            if (Button(new Rectangle(x + w - 130, y, 130, 36), on ? "On" : "Off", on, 18)) { flip(); _settings.Save(); }
-            y += 46;
-        }
-        Toggle("Tutorial", _settings.Tutorial, () => _settings.Tutorial = !_settings.Tutorial);
-        Toggle("Fullscreen", _settings.Fullscreen, () => { _settings.Fullscreen = !_settings.Fullscreen; ApplyWindowMode(); });
+        y = SettingsRows(x, y, w);
         y += 14;
-        if (Button(new Rectangle(x, y, w / 2 - 6, 46), "Main menu", false, 20)) { SaveGame(quiet: true); _escMenu = false; _sim = null; _screen = Screen.Empire; return; }
+        if (Button(new Rectangle(x, y, w / 2 - 6, 46), "Main menu", false, 20)) { SaveGame(quiet: true); _escMenu = false; _sim = null; ShowTitle(); return; }
         if (Button(new Rectangle(x + w / 2 + 6, y, w / 2 - 6, 46), "Quit game", false, 20)) { SaveGame(quiet: true); _quit = true; }
         Text("Main menu and Quit save your game first. Esc resumes.", x, r.Y + r.Height - 30, 15, Color.Gray);
     }

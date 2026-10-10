@@ -7,7 +7,7 @@ namespace GrandGalactic;
 /// <summary>The window: missing-game screen, empire pick, the card boards, and the end screen.</summary>
 public sealed partial class GameUi
 {
-    enum Screen { Loading, Missing, Empire, Play, End }
+    enum Screen { Loading, Missing, Title, Empire, Play, End }
 
     const int TopBar = 100, RightPanel = 230;
     readonly Settings _settings;
@@ -61,6 +61,8 @@ public sealed partial class GameUi
         Raylib.SetConfigFlags(ConfigFlags.ResizableWindow | ConfigFlags.Msaa4xHint | ConfigFlags.VSyncHint);
         Raylib.InitWindow(1600, 900, "Grand Galactic - Stellaris x Stacklands");
         Raylib.SetWindowMinSize(1100, 700);
+        if (_shot != null && Environment.GetEnvironmentVariable("GG_SHOT_SIZE") is { } size && size.Split('x') is [var w, var h]) // test aid: small windows
+            Raylib.SetWindowSize(int.Parse(w), int.Parse(h));
         if (_settings.Fullscreen) Raylib.ToggleBorderlessWindowed();
         Raylib.InitAudioDevice();
         Raylib.SetExitKey(KeyboardKey.Null);
@@ -79,6 +81,7 @@ public sealed partial class GameUi
             switch (_screen)
             {
                 case Screen.Missing: DrawMissing(); break;
+                case Screen.Title: DrawTitle(); break;
                 case Screen.Empire: DrawEmpire(); break;
                 case Screen.Play:
                 case Screen.End: DrawPlay(); break;
@@ -133,7 +136,12 @@ public sealed partial class GameUi
             _customFont = true;
         }
         if (_res.Sound(Defs.Asset["sl_music"]) is { } mus) LoadMusic(mus.data, mus.ext);
-        _screen = Screen.Empire;
+        ShowTitle();
+        if (_shot != null && Environment.GetEnvironmentVariable("GG_SHOT_SETUP") is { } shotScreen) // test aid: capture the setup screen or settings
+        {
+            if (shotScreen == "settings") _titleSettings = true;
+            else _screen = Screen.Empire;
+        }
         AutoStart();
     }
 
@@ -393,97 +401,5 @@ public sealed partial class GameUi
             _loadError = null;
             _screen = Screen.Loading;
         }
-    }
-
-    // ---------- empire pick ----------
-
-    void DrawEmpire()
-    {
-        int sw = Raylib.GetScreenWidth(), sh = Raylib.GetScreenHeight();
-        if (Tex("st_title_background") is { } bg)
-            Raylib.DrawTexturePro(bg, new Rectangle(0, 0, bg.Width, bg.Height), new Rectangle(0, 0, sw, sh), Vector2.Zero, 0, new Color(255, 255, 255, 90));
-        Text("GRAND GALACTIC", 50, 30, 54, Color.RayWhite);
-        Text("Found your empire", 54, 90, 26, new Color(170, 190, 255, 255));
-
-        // Portraits from the player's Stellaris.
-        var ports = _res.St?.Portraits ?? new List<PortraitInfo>();
-        const int cols = 6, rows = 4, cell = 112;
-        float px = 50, py = 140;
-        Text("Species", px, py, 24, Color.LightGray);
-        py += 34;
-        int perPage = cols * rows, pages = Math.Max(1, (ports.Count + perPage - 1) / perPage);
-        if (ports.Count == 0)
-        {
-            // No flat portraits in current Stellaris: pick a species by its traits instead.
-            for (int i = 0; i < Defs.Species.Length; i++)
-            {
-                var sp = Defs.Species[i];
-                var r = new Rectangle(px, py + i * 112, cols * cell - 8, 104);
-                bool sel = sp == _species, hover = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), r);
-                Raylib.DrawRectangleRounded(r, 0.12f, 8, sel ? new Color(60, 90, 170, 255) : hover ? new Color(40, 46, 80, 255) : new Color(24, 28, 50, 230));
-                if (Tex(sp.Art) is { } icon) DrawFit(icon, new Rectangle(r.X + 12, r.Y + 14, 76, 76), Color.White);
-                Text(sp.Name, r.X + 104, r.Y + 12, 26, Color.RayWhite);
-                Wrapped(sp.Desc, r.X + 104, r.Y + 46, r.Width - 120, 18, Color.LightGray, 3);
-                if (hover && Raylib.IsMouseButtonPressed(MouseButton.Left)) _species = sp;
-            }
-        }
-        for (int i = 0; i < perPage; i++)
-        {
-            int idx = _portraitPage * perPage + i;
-            if (idx >= ports.Count) break;
-            var r = new Rectangle(px + (i % cols) * cell, py + (i / cols) * cell, cell - 8, cell - 8);
-            bool hover = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), r);
-            Raylib.DrawRectangleRec(r, idx == _portrait ? new Color(70, 110, 200, 255) : hover ? new Color(50, 56, 90, 255) : new Color(26, 30, 52, 255));
-            if (PortraitTex(idx) is { } t) DrawFit(t, new Rectangle(r.X + 4, r.Y + 4, r.Width - 8, r.Height - 8), Color.White);
-            if (hover && Raylib.IsMouseButtonPressed(MouseButton.Left)) _portrait = idx;
-        }
-        float gy = py + rows * cell + 6;
-        if (pages > 1)
-        {
-            if (Button(new Rectangle(px, gy, 60, 40), "<")) _portraitPage = (_portraitPage + pages - 1) % pages;
-            Text($"{_portraitPage + 1}/{pages}", px + 76, gy + 8, 22, Color.LightGray);
-            if (Button(new Rectangle(px + 150, gy, 60, 40), ">")) _portraitPage = (_portraitPage + 1) % pages;
-        }
-        if (_portrait >= 0) Text(ports[_portrait].Group + " / " + ports[_portrait].Name, px + 230, gy + 8, 20, Color.LightGray);
-
-        // Difficulty and moon length.
-        float oy = gy + 56, bw = (cols * cell - 24) / 4f;
-        Text("Difficulty", px, oy, 22, Color.LightGray);
-        Text(_diff.Desc, px + 130, oy + 3, 17, Color.Gray);
-        for (int i = 0; i < Defs.Difficulties.Length; i++)
-            if (Button(new Rectangle(px + i * (bw + 8), oy + 28, bw, 40), Defs.Difficulties[i].Name, Defs.Difficulties[i] == _diff, 19))
-                _diff = Defs.Difficulties[i];
-        oy += 84;
-        Text("Moon length", px, oy, 22, Color.LightGray);
-        Text(_moon.Desc, px + 150, oy + 3, 17, Color.Gray);
-        for (int i = 0; i < Defs.MoonLengths.Length; i++)
-            if (Button(new Rectangle(px + i * (bw + 8), oy + 28, bw, 40), $"{Defs.MoonLengths[i].Name} ({Defs.MoonLengths[i].Seconds}s)", Defs.MoonLengths[i] == _moon, 18))
-                _moon = Defs.MoonLengths[i];
-
-        // Ethics.
-        float ex = px + cols * cell + 60, ey = 174, ew = Math.Max(420, sw - ex - 60);
-        Text("Ethics", ex, 140, 24, Color.LightGray);
-        foreach (var e in Defs.Ethics)
-        {
-            var r = new Rectangle(ex, ey, ew, 104);
-            bool sel = e == _ethic, hover = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), r);
-            Raylib.DrawRectangleRounded(r, 0.12f, 8, sel ? new Color(60, 90, 170, 255) : hover ? new Color(40, 46, 80, 255) : new Color(24, 28, 50, 230));
-            if (Tex(e.Art) is { } icon) DrawFit(icon, new Rectangle(r.X + 12, r.Y + 14, 76, 76), Color.White);
-            var name = _res.St?.Text(e.NameLoc) ?? e.Name;
-            Text(name, r.X + 104, r.Y + 12, 28, Color.RayWhite);
-            Wrapped(e.Desc, r.X + 104, r.Y + 48, r.Width - 120, 19, Color.LightGray, 2);
-            if (hover && Raylib.IsMouseButtonPressed(MouseButton.Left)) _ethic = e;
-            ey += 116;
-        }
-        if (Button(new Rectangle(ex + 280, ey + 20, 200, 44), _settings.Tutorial ? "Tutorial: On" : "Tutorial: Off", _settings.Tutorial, 19))
-        {
-            _settings.Tutorial = !_settings.Tutorial;
-            _settings.Save();
-        }
-        bool ready = _portrait >= 0 || ports.Count == 0;
-        if (Button(new Rectangle(ex, ey + 10, 260, 64), ready ? "Begin" : "Pick a species", false, 30) && ready) StartRun();
-        if (Sim.HasSave && Button(new Rectangle(ex + 500, ey + 10, 220, 64), "Continue", false, 28)) LoadGame();
-        Text($"Stellaris: {_stellarisPath ?? "-"}", ex, sh - 58, 16, Color.Gray);
-        Text($"Stacklands: {_stacklandsPath ?? "-"}", ex, sh - 36, 16, Color.Gray);
     }
 }
