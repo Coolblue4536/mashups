@@ -555,6 +555,20 @@ public static class SelfTest
             Run(s, 20);
             Check(!s.AllCards.Any(c => c.Def.Id == "pop") || raider.Battle != null || !s.AllCards.Contains(raider), "raiders attack your Pops");
         }
+        {
+            // The first raid comes before most players have warships: the Homeworld's defences (and its Pop) must hold.
+            int held = 0;
+            for (int seed = 0; seed < 5; seed++)
+            {
+                var s = Fresh(seed: 300 + seed);
+                Build(s, new[] { "homeworld", "pop" }, s.Home.Center);
+                s.Spawn("pirate_raider", s.Home.Center + new Vector2(300, 0), jitter: false);
+                Run(s, 90, () => s.State != RunState.Playing || (s.Table.Battles.Count == 0 && !s.AllCards.Any(c => c.Def.Id == "pirate_raider")));
+                if (s.State == RunState.Playing && !s.AllCards.Any(c => c.Def.Id == "pirate_raider")) held++;
+            }
+            Check(held == 5, $"a Homeworld with one Pop beats a lone pirate raid ({held}/5)");
+            Check(Defs.Difficulties.All(d => Defs.Rules.FirstRaidMoon >= 5), $"no raids before moon {Defs.Rules.FirstRaidMoon}");
+        }
 
         Log.Info("Self-test: moons");
         {

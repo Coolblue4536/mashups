@@ -11,6 +11,8 @@ public static class Program
             return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
         }
         if (args.Contains("--selftest")) return SelfTest.Run();
+        if (args.Contains("--playtest")) return Playtest.RunCli(args);
+        if (args.Contains("--bossprobe")) return Playtest.BossProbe();
 
         var settings = Settings.Load();
         var stellaris = GameLocator.FindStellaris(Arg("--stellaris") ?? Environment.GetEnvironmentVariable("GRANDGALACTIC_STELLARIS"), settings);

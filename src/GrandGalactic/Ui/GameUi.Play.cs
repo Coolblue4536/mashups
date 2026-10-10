@@ -27,7 +27,8 @@ public sealed partial class GameUi
 
         if (Raylib.IsKeyPressed(KeyboardKey.Escape))
         {
-            if (_menuCard != null) CloseCardMenu();
+            if (_market) _market = false;
+            else if (_menuCard != null) CloseCardMenu();
             else if (_escMenu) _escMenu = false;
             else if (_codex) _codex = false;
             else if (_screen == Screen.Play) _escMenu = true;
@@ -84,7 +85,7 @@ public sealed partial class GameUi
 
         if (_screen == Screen.Play && !menus) HandleMouse();
         sim.TutorialOn = TutorialShown;
-        if (!_paused && !_escMenu && _screen == Screen.Play) sim.Update(dt * _speed);
+        if (!_paused && !_escMenu && !_codex && _screen == Screen.Play) sim.Update(dt * _speed); // the book and the menu pause the game
 
         foreach (var msg in sim.Messages) Toast(msg);
         sim.Messages.Clear();
@@ -143,7 +144,12 @@ public sealed partial class GameUi
         var mouse = Raylib.GetMousePosition();
         bool overBoard = Raylib.CheckCollisionPointRec(mouse, BoardView) && !OverUi(mouse);
 
-        // A card's menu takes its own clicks.
+        // The trade panel and a card's menu take their own clicks.
+        if (_market)
+        {
+            if (Raylib.IsMouseButtonPressed(MouseButton.Left) && !Raylib.CheckCollisionPointRec(mouse, _marketRect) && !Raylib.CheckCollisionPointRec(mouse, MarketRect())) _market = false;
+            else if (Raylib.IsMouseButtonPressed(MouseButton.Left)) return;
+        }
         if (_menuCard != null)
         {
             if ((Raylib.IsMouseButtonPressed(MouseButton.Left) || Raylib.IsMouseButtonPressed(MouseButton.Right)) && !Raylib.CheckCollisionPointRec(mouse, _menuRect))
@@ -161,7 +167,8 @@ public sealed partial class GameUi
             var bar = BarSystems(out _);
             for (int i = 0; i < bar.Count; i++)
                 if (Raylib.CheckCollisionPointRec(mouse, TabRect(i))) { GoTo(bar[i]); return; }
-            // Packs are bought with a click.
+            // The Market trades surplus from the pool; packs are bought with a click.
+            if (Raylib.CheckCollisionPointRec(mouse, MarketRect())) { _market = !_market; return; }
             foreach (var (pack, r) in PackRects())
                 if (Raylib.CheckCollisionPointRec(mouse, r))
                 {
@@ -174,8 +181,9 @@ public sealed partial class GameUi
         if (_press is { } p)
         {
             var card = p.s.Cards.ElementAtOrDefault(p.i);
+            // Moved far enough (even in the frame it was let go, for a quick flick): a drag. Else a release is a click.
             if (card == null || !Table.Stacks.Contains(p.s)) _press = null;
-            else if (Raylib.IsMouseButtonReleased(MouseButton.Left))
+            else if (Vector2.Distance(mouse, p.at) <= 6 && Raylib.IsMouseButtonReleased(MouseButton.Left))
             {
                 _press = null;
                 OpenCardMenu(p.s, card, mouse);
@@ -365,6 +373,7 @@ public sealed partial class GameUi
         DrawToasts();
         if (_codex) DrawCodex();
         if (_menuCard != null) DrawCardMenu();
+        if (_market) DrawMarket();
         if (_paused && !_escMenu) Text("PAUSED (Space)", view.Width / 2 - 100, TopBar + 14, 30, Color.Yellow);
         if (_screen == Screen.End) DrawEnd();
         if (_escMenu) DrawEscMenu();
@@ -388,11 +397,12 @@ public sealed partial class GameUi
         var sim = _sim!;
         if (s.Wait is { } wait)
         {
-            float size = 13;
-            while (size > 10 && Measure(wait, size).X > 250) size -= 0.5f;
+            // Readable at any zoom: at least ~12 px on screen, wider than the card if it must be.
+            float size = Math.Max(15, 12 / _cam.Zoom), maxW = Math.Max(300, 300 / _cam.Zoom * 0.6f);
+            while (size > 11 && Measure(wait, size).X > maxW) size -= 0.5f;
             var sz = Measure(wait, size);
-            float w = Math.Min(sz.X, 250) + 14, x = s.Pos.X + Sim.CardW / 2 - w / 2;
-            var r = new Rectangle(x, s.Pos.Y - 21, w, sz.Y + 5);
+            float w = Math.Min(sz.X, maxW) + 14, x = s.Pos.X + Sim.CardW / 2 - w / 2;
+            var r = new Rectangle(x, s.Pos.Y - sz.Y - 9, w, sz.Y + 5);
             Raylib.DrawRectangleRounded(r, 0.5f, 6, new Color(40, 26, 6, 225));
             Raylib.DrawRectangleRoundedLinesEx(r, 0.5f, 6, 1.5f, new Color(240, 190, 80, 230));
             Text(wait, r.X + 7, r.Y + 2.5f, size, new Color(255, 220, 140, 255));
@@ -740,7 +750,7 @@ public sealed partial class GameUi
         bool mh = Raylib.CheckCollisionPointRec(mouse, m) && _drag != null;
         Raylib.DrawRectangleRounded(m, 0.12f, 6, mh ? new Color(160, 130, 50, 255) : new Color(70, 58, 30, 255));
         Text(Defs.Rules.SellSlotName, m.X + 14, m.Y + 12, 26, Color.RayWhite);
-        Wrapped("Drop cards here to sell them for Energy", m.X + 14, m.Y + 46, m.Width - 28, 16, Color.LightGray);
+        Wrapped("Drop cards here to sell them; click to trade surplus resources for Energy", m.X + 14, m.Y + 46, m.Width - 28, 15, Color.LightGray);
         Text("Tab blueprints - Space pause", sw - RightPanel + 12, m.Y - 44, 14, Color.Gray);
         Text("1-3 speed - Z zoom - Esc menu", sw - RightPanel + 12, m.Y - 24, 14, Color.Gray);
 

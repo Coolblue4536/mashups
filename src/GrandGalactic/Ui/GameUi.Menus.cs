@@ -14,8 +14,11 @@ public sealed partial class GameUi
     {
         var give = r.Outputs.SelectMany(o => o.Give).FirstOrDefault();
         if (r.Effect == "learn") return $"Research {_res.CardName(r.Station)}";
+        if (r.Effect == "set_flag:claimed") return r.Outputs.Length > 0 ? "Colonise a planet" : "Build an outpost";
+        if (r.Outputs.Length > 1 && r.Inputs.FirstOrDefault(i => !Sim.IsResource(i.Card) && !i.Card.StartsWith("tag:")) is { } what)
+            return $"Explore the {_res.CardName(what.Card)}";
         if (give != null && give.Card != "station.yield")
-            return (r.Outputs.Length > 1 ? "Explore: " : "") + (give.N > 1 ? $"{give.N} " : "") + _res.CardName(give.Card) + (r.Outputs.Length > 1 ? "..." : "");
+            return (give.N > 1 ? $"{give.N} " : "") + _res.CardName(give.Card);
         return r.Effect switch
         {
             "claim_system" => "Claim the system",
@@ -23,7 +26,7 @@ public sealed partial class GameUi
             "repair" => "Repair a warship",
             "open_board:random" => "Survey a new system",
             "open_board:guardian" => "Trace a guardian signal",
-            _ => give?.Card == "station.yield" ? (r.Station == "tag:star" ? "Study a star" : "Work it (its yield)") : r.Desc,
+            _ => give?.Card == "station.yield" ? (r.Station == "tag:star" ? "Study a star" : "Work a district or planet") : r.Desc,
         };
     }
 
@@ -171,6 +174,40 @@ public sealed partial class GameUi
         Raylib.EndScissorMode();
     }
 
+    // ---------- the Market: trade surplus from the pool for Energy ----------
+
+    bool _market;
+    Rectangle _marketRect;
+
+    void DrawMarket()
+    {
+        var sim = _sim!;
+        var items = ShownResources().Where(id => id != "energy" && sim.Have(id) > 0).ToList();
+        var m = MarketRect();
+        float w = 380, h = 64 + Math.Max(1, items.Count) * 44;
+        var r = new Rectangle(m.X - w - 12, Math.Max(TopBar + 8, m.Y + m.Height - h), w, h);
+        _marketRect = r;
+        _uiRects.Add(r);
+        Raylib.DrawRectangleRounded(r, 0.05f, 6, new Color(14, 12, 6, 248));
+        Raylib.DrawRectangleRoundedLinesEx(r, 0.05f, 6, 2, new Color(220, 180, 80, 220));
+        Text("Market - trade for Energy", r.X + 14, r.Y + 10, 20, Color.RayWhite);
+        Text("Half price. Click outside or Esc to close.", r.X + 14, r.Y + 36, 14, Color.Gray);
+        if (items.Count == 0) { Text("Nothing in your pool to trade yet.", r.X + 14, r.Y + 66, 16, Color.LightGray); return; }
+        float y = r.Y + 62;
+        foreach (var id in items)
+        {
+            if (Tex(Defs.Card[id].Art) is { } icon) DrawFit(icon, new Rectangle(r.X + 12, y + 4, 30, 30), Color.White);
+            Text($"{_res.CardName(id)}  {sim.Have(id)}", r.X + 50, y + 10, 17, Color.RayWhite);
+            int n = Math.Min(5, sim.Have(id));
+            if (Button(new Rectangle(r.X + r.Width - 196, y + 4, 92, 32), $"{n} > +{Sim.TradeValue(id, n)}", false, 15))
+                if (sim.SellResource(id, n) is { Length: > 0 } why) Toast(why);
+            int all = sim.Have(id);
+            if (Button(new Rectangle(r.X + r.Width - 98, y + 4, 86, 32), $"All +{Sim.TradeValue(id, all)}", false, 15))
+                if (sim.SellResource(id, all) is { Length: > 0 } why) Toast(why);
+            y += 44;
+        }
+    }
+
     // ---------- Esc menu: save, load, settings, exit ----------
 
     bool _escMenu, _quit;
@@ -228,7 +265,7 @@ public sealed partial class GameUi
     {
         int sw = Raylib.GetScreenWidth(), sh = Raylib.GetScreenHeight();
         Raylib.DrawRectangle(0, 0, sw, sh, new Color(0, 0, 0, 150));
-        var r = new Rectangle(sw / 2f - 240, sh / 2f - 300, 480, 600);
+        var r = new Rectangle(sw / 2f - 240, sh / 2f - 265, 480, 530);
         Raylib.DrawRectangleRounded(r, 0.05f, 6, new Color(12, 14, 32, 250));
         Raylib.DrawRectangleRoundedLinesEx(r, 0.05f, 6, 2, new Color(240, 200, 90, 200));
         Text("Paused", r.X + r.Width / 2 - Measure("Paused", 36).X / 2, r.Y + 18, 36, Color.RayWhite);
@@ -282,7 +319,7 @@ public sealed partial class GameUi
         Raylib.DrawRectangleRounded(r, 0.015f, 6, new Color(12, 14, 30, 250));
         Raylib.DrawRectangleRoundedLinesEx(r, 0.015f, 6, 2, new Color(240, 200, 90, 190));
         Text("Blueprint book", r.X + 24, r.Y + 14, 32, Color.RayWhite);
-        Text("Tab or Esc closes - Q/E or click to change tab - wheel scrolls", r.X + 290, r.Y + 26, 16, Color.Gray);
+        Text("Game paused while open - Tab or Esc closes - Q/E or click to change tab - wheel scrolls", r.X + 290, r.Y + 26, 16, Color.Gray);
 
         var tabs = Defs.Rules.BlueprintTabs.Select(t => t.Tab).ToList();
         if (Raylib.IsKeyPressed(KeyboardKey.Q)) { _bookTab = (_bookTab + tabs.Count - 1) % tabs.Count; _bookScroll = 0; }
@@ -379,8 +416,8 @@ public sealed partial class GameUi
             cx += Chip(i, cx, cy, 24, false) + 6;
         }
         if (e.Outputs.Length > 1)
-            Text("One of: " + string.Join(" / ", e.Outputs.Select(o => string.Join(" + ", o.Give.Select(g => (g.N > 1 ? $"{g.N} " : "") + _res.CardName(g.Card))))),
-                 x, t.Y + t.Height - 22, 13, Color.Gray);
+            Wrapped("Finds one of: " + string.Join(" / ", e.Outputs.Select(o => string.Join(" + ", o.Give.Select(g => (g.N > 1 ? $"{g.N} " : "") + _res.CardName(g.Card))))),
+                    x, cy + 30, w, 13, Color.Gray, 2);
     }
 
     // ---------- end of the run ----------

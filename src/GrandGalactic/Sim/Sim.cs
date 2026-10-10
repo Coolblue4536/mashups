@@ -720,12 +720,42 @@ public sealed partial class Sim
         return null;
     }
 
+    /// <summary>False for a blueprint you already know (or already hold), or can't research yet.</summary>
+    bool UsefulDraw(string id)
+    {
+        if (Defs.Card[id].Category != "tech") return true;
+        if (Techs.Contains(id) || AllCards.Any(c => c.Def.Id == id)) return false;
+        var r = Defs.Recipes.FirstOrDefault(x => x.Effect == "learn" && x.Station == id);
+        return r == null || r.RequiresTech == "none" || Techs.Contains(r.RequiresTech);
+    }
+
     void OpenPack(PackDef pack, Vector2 at, bool free)
     {
         for (int i = 0; i < pack.Draws; i++)
-            Spawn(Roll(pack.Contents.Select(e => (e.Card, e.Weight))), at + new Vector2((i - pack.Draws / 2f) * (CardW + 20), 0));
+        {
+            // Blueprints lean toward ones you can research next: a known one, or one whose prerequisite you lack, is
+            // re-rolled (twice at most), so tech chains like Corvettes > Destroyers > Cruisers can actually be climbed.
+            var id = Roll(pack.Contents.Select(e => (e.Card, e.Weight)));
+            for (int k = 0; k < 2 && !UsefulDraw(id); k++) id = Roll(pack.Contents.Select(e => (e.Card, e.Weight)));
+            Spawn(id, at + new Vector2((i - pack.Draws / 2f) * (CardW + 20), 0));
+        }
         Events.Add(SimEvent.PackOpen);
         if (free) Messages.Add($"Your {Ethic.Name} start: a free {pack.Name} pack.");
+    }
+
+    /// <summary>Energy the Market pays for n of a pooled resource (half its value, at least 1).</summary>
+    public static int TradeValue(string id, int n) => Math.Max(1, Defs.Card[id].Value * n / 2);
+
+    /// <summary>Sell surplus from the pool at the Market for Energy. Returns why not, or null.</summary>
+    public string? SellResource(string id, int n)
+    {
+        if (!IsResource(id) || id == "energy") return "";
+        if (Have(id) < n) return $"You only have {Have(id)} {Name(id)}.";
+        Res[id] -= n;
+        Gain("energy", TradeValue(id, n), Home.Center, made: false);
+        Events.Add(SimEvent.Sell);
+        Flags.Add("sold");
+        return null;
     }
 
     public static int SellValue(Card c) => c.Def.IsHostile ? 0 : c.Def.Value + c.Parts.Sum(p => Defs.Card[p.Id].Value);
@@ -917,6 +947,7 @@ public sealed partial class Sim
                         players.Add(c);
                     }
         }
+        if (players.Any(c => c.Def.Id == "homeworld")) { Messages.Add("Your Homeworld is under attack! Send warships to defend it."); Events.Add(SimEvent.Warning); }
         foreach (var c in players.Distinct())
         {
             c.Battle = battle;
@@ -960,6 +991,19 @@ public sealed partial class Sim
                     if (c.Battle != bt) break;
                 }
             }
+            // The Homeworld's planetary defences fire into every battle in the capital system (it isn't a target there).
+            if (bt.System == Home && AllCards.FirstOrDefault(x => x.Def.Id == "homeworld" && x.Stack != null) is { } hw)
+                foreach (var g in hw.Guns)
+                {
+                    g.Timer -= dt;
+                    if (g.Timer > 0 || bt.Hostiles.Count == 0) continue;
+                    g.Timer = g.Cooldown;
+                    var t = bt.Hostiles[Rng.Next(bt.Hostiles.Count)];
+                    Hit(g, 1f, t, 0);
+                    Events.Add(SimEvent.Hit);
+                    if (t.Hp <= 0) Kill(bt, t);
+                    if (State != RunState.Playing) return;
+                }
             if (bt.Hostiles.Count == 0 || bt.Players.Count == 0) EndBattle(bt);
         }
     }
@@ -1056,6 +1100,16 @@ public sealed partial class Sim
 
     // ---------- moons and acts ----------
 
+    /// <summary>20 seconds before a moon ends: say so if the pool can't feed (or power) everyone.</summary>
+    void WarnUpkeep()
+    {
+        if (Moon < Defs.Rules.UpkeepFromMoon) return;
+        var people = AllCards.Where(c => c.Def.Category == "person").ToList();
+        int eat = people.Sum(c => c.Def.FoodUpkeep), power = people.Sum(c => c.Def.EnergyUpkeep);
+        if (Have("food") < eat) { Messages.Add($"Food is short: {Have("food")} of {eat} needed at the end of this moon. Put Pops on farms, or some will starve!"); Events.Add(SimEvent.Warning); }
+        if (Have("energy") < power) { Messages.Add($"Energy is short: {Have("energy")} of {power} needed at the end of this moon, or Drones shut down!"); Events.Add(SimEvent.Warning); }
+    }
+
     void EndMoon()
     {
         Events.Add(SimEvent.MoonEnd);
@@ -1099,9 +1153,9 @@ public sealed partial class Sim
             Events.Add(SimEvent.Warning);
         }
         if (RiftOpen && !BossArrived && Moon >= CrisisMoon + Diff.BossDelayMoons) SpawnBoss();
-        if (Moon >= 3 && Moon % Diff.RaidEveryMoons == 0)
+        if (Moon >= Defs.Rules.FirstRaidMoon && Moon % Diff.RaidEveryMoons == 0)
         {
-            Spawn(Act >= 2 && Moon % (Diff.RaidEveryMoons * 2) == 0 ? "marauder_raider" : "pirate_raider", Home.Origin + new Vector2(60, 60));
+            Spawn(Moon >= Defs.Rules.MarauderMoon && Moon % (Diff.RaidEveryMoons * 2) == 0 ? "marauder_raider" : "pirate_raider", Home.Origin + new Vector2(60, 60));
             Messages.Add("Raiders have entered your capital system!");
         }
     }
@@ -1130,7 +1184,9 @@ public sealed partial class Sim
     public void Update(float dt)
     {
         if (State != RunState.Playing) return;
+        float before = MoonTime;
         if (!MoonHeld) MoonTime += dt;
+        if (before < MoonSeconds - 20 && MoonTime >= MoonSeconds - 20) WarnUpkeep();
         if (MoonTime >= MoonSeconds) { MoonTime -= MoonSeconds; EndMoon(); }
         TickTravel(dt);
         TickRegen(dt);
