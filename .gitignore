@@ -3,3 +3,7 @@ dist/
 __pycache__/
 *.exe
 launcher/sheets/
+bin/
+obj/
+*.user
+/probe/
