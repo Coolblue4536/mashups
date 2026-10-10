@@ -1,8 +1,8 @@
 # Grand Galactic: Stellaris × Stacklands
 
-Run your Stellaris empire as a game of Stacklands. Every Pop, ship, planet, resource and monster is a card,
-and you stack them to make things happen. Survey star systems to open new boards, buy booster packs with
-Energy Credits, and build a fleet big enough for the endgame crisis.
+Run your Stellaris empire as a game of Stacklands. Every Pop, ship, planet, building and monster is a card,
+and you stack them to make things happen. Resources go into one shared pool. Survey star systems to open
+new boards, buy booster packs with Energy, and build a fleet big enough for the endgame crisis.
 
 It's a mashup in the plain sense: both games are really in it.
 
@@ -20,18 +20,27 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
 - **Found your empire.** Pick one ethic: Militarist, Spiritualist, Materialist or Gestalt Consciousness
   (machine drones). Each one changes your starting cards and gives you a free booster pack. (Current
   Stellaris draws species portraits in 3D, so your people use Stellaris's pop icon instead.)
-- **Work your worlds.** Stack Pops on your Homeworld, districts and colonised planets to make Energy,
-  Minerals, Food, Research, Unity and more.
-- **Build.** Stack a Construction Ship with materials to build districts, labs, foundries, shipyards,
-  temples and starbases. Shipyards build science, construction and colony ships, then Corvettes, and
-  later Titans.
-- **Research.** Stack Research on a Scientist to unlock Corvettes, Destroyers, Cruisers, Battleships,
-  Titans, Colonization, Robotic Workers and Terrestrial Sculpting.
+- **Work your worlds.** You start with an empty pool. Stack Pops on your Homeworld, districts and colonised
+  planets to make Energy, Minerals, Food, Research, Unity and more. Everything goes into one pool, shown
+  as counters in the top bar and usable from every system. Work is slow and steady, as in Stacklands. The
+  first moon is on rations; after that, everyone eats at the end of each moon, and you're warned 20
+  seconds ahead if Food (or the Drones' Energy) will run short.
+- **Build.** Click a Construction Ship to choose what it builds: districts, labs, foundries, shipyards,
+  temples or starbases. The cost comes from your pool. Click a Shipyard to build science, construction
+  and colony ships, warships (Corvettes up to Titans) and ship parts.
+- **Research blueprints.** Packs contain blueprint cards. Put a Pop on one to research it slowly, or a
+  Scientist to research it twice as fast; the Research is paid from your pool. Technologies come in
+  chains: Red Laser before Blue Laser, and Corvettes, then Destroyers, Cruisers, Battleships and Titans.
+  Packs favour blueprints you can research next. Get a Scientist from the Research pack, or click a
+  Research Lab, pick Scientist and add a Pop.
+- **Grow.** Two Pops on a City District (and 2 Food) make a Baby. Keep the Baby on the City District
+  and it grows into a Pop in 60 seconds.
 - **One table for your whole empire.** Every star system you find is added as a new area of the same
   table, around your capital. Zoom out (Z) to see everything at once.
 - **Survey freely, claim carefully.** You can survey as many systems as you like, but you can only own 5,
   counting your capital. To claim a system, clear out its hostiles, then stack a Construction Ship and 2
-  Influence on its star. Planets can only be colonised, outposted and worked in systems you own.
+  Influence on its star. Planets can only be colonised, outposted and worked in systems you own. You can
+  abandon an unclaimed system you don't want, which removes it from the table.
 - **Ships travel.** Moving cards to another system takes a ship in the stack, and the trip takes time:
   8 seconds per step across the table. Pops and cargo ride along with the ship.
 - **Explore.** A Science Ship on an Uncharted System adds a new, randomly rolled star system to the table.
@@ -43,8 +52,8 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
   Matter from black holes, Rare Crystals from neutron stars and Exotic Gases from nebulae.
 - **Design your warships.** Research ship components and build them at a Shipyard, then drop them on a
   ship to fit them. Corvettes have 1 slot, Destroyers 2, Cruisers 3, Battleships 4, Titans 5 and
-  Starbases 2. Upgrades come from studying the part you already have (Scientist + Red Laser + 6
-  Research gives Blue Lasers). The components:
+  Starbases 2. To refit, drop a better part of the same kind on a full ship to swap it, or click the ship
+  to take a part off. The components:
   - **Energy:** Red, Blue and Gamma Lasers, Plasma Cannon and the Tachyon Lance. Strong against armour.
   - **Kinetic:** Mass Driver, Railgun and Kinetic Artillery. Strong against shields.
   - **Explosive:** Torpedo Launcher and Swarmer Missiles. They fly past shields; Flak Batteries shoot
@@ -61,28 +70,35 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
   - the Contingency fires torpedoes.
 
   So the loadout matters.
-- **Admirals command ships.** Drop an Admiral on a warship to assign them. Their battles hit 50% harder,
-  and they're only lost with their ship. Repair a damaged ship with Shipyard + 1 Alloys.
-- **Act 1, Expansion (moons 1–7).** Grow, feed your Pops each moon, and colonise Desert, Arid, Savanna,
-  Ocean, Tropical, Continental, Arctic, Tundra, Alpine, Tomb and Gaia worlds. Build outposts on gas
-  giants, asteroids and barren, molten, frozen and toxic worlds.
-- **Act 2, Guardians (from moon 8).** Three Guardian Signals lead to the Ether Drake, the Dimensional
+- **Fleets and Admirals.** A stack of warships is a fleet. It holds 3 warships, then 6 and 10 once you
+  research Fleet Doctrine and Advanced Fleet Doctrine. Drop an Admiral on a fleet to take command: that
+  fleet's ships hit 50% harder. Fleets regroup after a battle. Repair a damaged ship with Shipyard + 1
+  Alloys.
+- **Defend your capital.** Raiders come from moon 6 (Marauders from moon 12). The Homeworld's planetary
+  defences fire in every battle in the capital system.
+- **Act 1, Expansion (moons 1–9 on Captain).** Grow, feed your Pops each moon, and colonise Desert, Arid,
+  Savanna, Ocean, Tropical, Continental, Arctic, Tundra, Alpine, Tomb and Gaia worlds. Build outposts on
+  gas giants, asteroids and barren, molten, frozen and toxic worlds.
+- **Act 2, Guardians (from moon 10).** Three Guardian Signals lead to the Ether Drake, the Dimensional
   Horror and the Enigmatic Fortress. Beating them earns Living Metal, Dark Matter and Zro. The Frontier
   and Strategic Resources packs go on sale.
-- **Act 3, Crisis (from moon 16).** A random endgame crisis comes through a rift on your capital board:
-  the Prethoryn Scourge, the Unbidden or the Contingency. Destroy its leader to win.
+- **Act 3, Crisis (from moon 20).** A random endgame crisis comes through a rift on your capital board:
+  the Prethoryn Scourge, the Unbidden or the Contingency. Destroy its leader to win. Killing the rift
+  early brings the leader at once.
 - **Difficulty and moon length.** Pick Ensign, Captain, Admiral or Grand Admiral (enemy strength, raids, pack prices and when each act starts), and a moon length of 60, 90, 120 or 180 seconds.
 - **Tutorial.** A 16-step checklist in the corner walks a new player through it all: work the
   Homeworld, buy a pack, grow Food, build a Shipyard, research, survey, study a star, travel, claim,
   colonise, build and fit a warship, assign an Admiral, win a battle and reach Act 2. Steps tick off in
-  any order. You can skip a step, or hide the tutorial; switch it back on from the empire screen. While
-  the tutorial is on, the first moon waits until you have grown Food, so nobody starves while you learn.
-- **Blueprint book (Tab).** Every recipe in the game, sorted into tabs: Build, Ships & Parts, Research,
-  Work, and Explore & Claim. Each entry shows its cards, what it makes and how long it takes. Locked
-  blueprints say which technology unlocks them. Hover any card to see what it's used in, and finishing a
-  technology announces its new blueprints. You never need to memorise a recipe.
-- **Packs and market.** 7 booster packs, a Market for selling cards, 94 cards, 49 stacking recipes and
-  9 kinds of random star system, plus the 3 guardian systems.
+  any order. You can skip a step, or hide the tutorial and switch it back on from the Esc menu. Time
+  keeps running during the tutorial.
+- **Blueprint book (Tab).** Every blueprint you know, as picture tiles, sorted into tabs: Build, Ships &
+  Parts, Research, Work, and Explore & Claim. Each tile shows what it makes, where, what goes in and how
+  long it takes. Unresearched blueprints stay out of the book. The game pauses while the book is open,
+  and Tab or Esc closes it.
+- **Save, load and settings (Esc).** Save, load, music and sound volume, tutorial, fullscreen, main menu
+  and quit. The game also saves at the end of every moon, and Continue on the empire screen resumes.
+- **Packs and market.** 7 booster packs, bought with a click. At the Market you can drop cards to sell
+  them, or click it to trade surplus resources from your pool for Energy.
 
 It's single-player only.
 
@@ -94,8 +110,10 @@ It's single-player only.
 | Send a fleet to another system | Drag a stack with a ship into that system |
 | Stack | Drop onto another card |
 | Fight | Drop ships onto a hostile card or a battle |
-| Buy a pack | Drop Energy Credits onto a pack on the right |
-| Sell | Drop cards onto the Market |
+| Choose what a station builds; refit a ship | Click it (Construction Ship, Shipyard, labs, a warship...) |
+| Buy a pack | Click a pack on the right (Energy comes from your pool) |
+| Sell | Drop cards onto the Market; click the Market to trade resources |
+| Menu: save, load, settings, quit | Esc |
 | Pan | Right or middle drag, or WASD |
 | Zoom | Mouse wheel; Z jumps between your whole empire and close up |
 | Go to a system | Click its name in the top bar, or F1–F9 |

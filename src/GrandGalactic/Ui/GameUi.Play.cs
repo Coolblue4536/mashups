@@ -194,6 +194,7 @@ public sealed partial class GameUi
                 if (!card.Def.IsHostile && Defs.Category[card.Def.Category].Draggable)
                 {
                     var start = Raylib.GetScreenToWorld2D(p.at, _cam);
+                    _dragOrigin = p.i > 0 ? p.s : null;
                     _drag = sim.Split(p.s, p.i);
                     _dragFrom = _drag.Pos;
                     _drag.Dragging = true;
@@ -225,14 +226,14 @@ public sealed partial class GameUi
         var dropPos = d.Pos;
         if (PackRects().Any(pr => Raylib.CheckCollisionPointRec(mouse, pr.Item2)))
         {
-            d.Pos = _dragFrom;
+            Bounce(d);
             Toast("Packs are bought with Energy from your pool: just click a pack.");
             return;
         }
         if (Raylib.CheckCollisionPointRec(mouse, MarketRect()))
         {
-            d.Pos = _dragFrom;
             int got = sim.Sell(d);
+            Bounce(d);
             Toast(got > 0 ? $"Sold for {got} Energy." : "Nothing in that stack can be sold.");
             return;
         }
@@ -240,13 +241,13 @@ public sealed partial class GameUi
         // Into another star system: only a stack with a ship can go, and the trip takes time.
         var fromSys = sim.SystemAt(_dragFrom + new Vector2(Sim.CardW / 2, Sim.CardH / 2));
         var toSys = sim.SystemAt(dropPos + new Vector2(Sim.CardW / 2, Sim.CardH / 2));
-        if (toSys == null && fromSys != null) { d.Pos = _dragFrom; Toast("Cards live inside star systems - drop it on one."); return; }
+        if (toSys == null && fromSys != null) { Bounce(d); Toast("Cards live inside star systems - drop it on one."); return; }
         if (fromSys != null && toSys != null && fromSys != toSys)
         {
             d.Pos = _dragFrom;
             if (sim.StartTravel(d, dropPos))
                 Toast($"En route to {toSys.Name}: arrives in {sim.TravelSeconds(fromSys, toSys):0} seconds.");
-            else Toast($"Only stacks with a ship can travel to {toSys.Name}. Put your Pops and cargo on a ship.");
+            else { Toast($"Only stacks with a ship can travel to {toSys.Name}. Put your Pops and cargo on a ship."); Bounce(d); }
             return;
         }
         if (PickBattle(w) is { } bt) { sim.JoinBattleOf(d, bt); return; }
@@ -272,15 +273,25 @@ public sealed partial class GameUi
                     return;
                 }
                 Toast(why);
-                d.Pos = _dragFrom;
+                Bounce(d);
                 return;
             }
-            if (sim.StackBlock(d, hit.s) is { Length: > 0 } block) { Toast(block); d.Pos = _dragFrom; return; }
+            if (sim.StackBlock(d, hit.s) is { Length: > 0 } block) { Toast(block); Bounce(d); return; }
             sim.StackOnto(d, hit.s);
             return;
         }
         sim.Events.Add(SimEvent.Drop);
     }
+
+    /// <summary>A refused drop goes back where it came from, into its old stack when it was lifted off one.</summary>
+    void Bounce(Stack d)
+    {
+        if (!Table.Stacks.Contains(d)) return;
+        d.Pos = _dragFrom;
+        if (_dragOrigin is { } o && o != d && Table.Stacks.Contains(o) && _sim!.CanStack(d, o)) _sim.StackOnto(d, o);
+    }
+
+    Stack? _dragOrigin;
 
     Rectangle TabRect(int i) => new(8 + i * 112, 6, 106, 46);
 

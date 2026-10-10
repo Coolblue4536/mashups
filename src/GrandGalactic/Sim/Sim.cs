@@ -399,7 +399,9 @@ public sealed partial class Sim
         if (moving == target || moving.HasHostile || target.HasHostile) return "";
         if (moving.Cards.Count + target.Cards.Count > Defs.Rules.MaxStack) return "That stack is full.";
         if (Warships(moving) > 0 && Warships(moving) + Warships(target) > FleetSize)
-            return $"A fleet holds at most {FleetSize} warships. Research Fleet Doctrine to command bigger fleets.";
+            return Defs.Rules.FleetSizeTechs.FirstOrDefault(a => !Techs.Contains(a.Card)) is { } next
+                ? $"A fleet holds at most {FleetSize} warships. Research {Name(next.Card)} for fleets of {next.N}."
+                : $"A fleet holds at most {FleetSize} warships: split them into two fleets.";
         if (HasAdmiral(moving) && HasAdmiral(target)) return "That fleet already has an Admiral; each fleet has one.";
         return null;
     }

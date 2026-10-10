@@ -167,7 +167,7 @@ public sealed partial class GameUi
             _sim!.Update(0.05f); // one tick so the layout has placed everything
             var bt = _sim.Table.Battles.FirstOrDefault();
             _cam.Zoom = 0.9f;
-            _cam.Target = bt != null ? Sim.BattleArea(bt) is var a ? a.Pos + a.Size / 2 - new Vector2(380, 30) : default : _sim.Home.Center;
+            _cam.Target = bt != null ? Sim.BattleArea(bt) is var a ? a.Pos + a.Size / 2 - new Vector2(360, 170) : default : _sim.Home.Center;
             if (Environment.GetEnvironmentVariable("GG_SHOT_TECH") == "1") // test aid: a row of tech cards to look at their art
             {
                 var at = _sim.Home.Origin + new Vector2(700, 760);

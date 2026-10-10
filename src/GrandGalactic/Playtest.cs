@@ -65,7 +65,7 @@ public static class Playtest
         return 0;
     }
 
-    public static Report Play(EthicDef ethic, int seed, DifficultyDef diff)
+    public static Report Play(EthicDef ethic, int seed, DifficultyDef diff, int saveAtMoon = 0)
     {
         var s = new Sim(ethic, seed, null, diff);
         var log = new List<string>();
@@ -77,6 +77,7 @@ public static class Playtest
         {
             s.Update(0.1f);
             t += 0.1f;
+            if (saveAtMoon > 0 && s.Moon >= saveAtMoon) { s.SaveTo(Sim.SavePath); log.Add($"saved at moon {s.Moon} to {Sim.SavePath}"); break; }
             foreach (var m in s.Messages)
             {
                 if (m.Contains("starved")) log.Add($"moon {s.Moon,2}: {m}");
