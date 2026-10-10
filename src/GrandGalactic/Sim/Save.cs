@@ -29,7 +29,7 @@ public sealed class SysSave
 public sealed class CardSave
 {
     public string Id = "";
-    public float Hp, MaxHp, Shield, MaxShield, Armor, MaxArmor, AttackTimer, AggroTimer, SpawnTimer, Grow;
+    public float Hp, MaxHp, Shield, MaxShield, Armor, MaxArmor, AttackTimer, AggroTimer, SpawnTimer, Grow, Passive;
     public List<string> Parts = new();
     public CardSave? Admiral;
     public bool Claimed;
@@ -41,6 +41,7 @@ public sealed class StackSave
     public int Id;
     public float X, Y, FromX, FromY, ToX, ToY, TravelT, TravelDur, Progress;
     public string? Order, Active;
+    public List<string> Queue = new();
     public List<CardSave> Cards = new();
 }
 
@@ -62,7 +63,7 @@ public sealed partial class Sim
         CardSave C(Card c) => new()
         {
             Id = c.Def.Id, Hp = c.Hp, MaxHp = c.MaxHp, Shield = c.Shield, MaxShield = c.MaxShield, Armor = c.Armor, MaxArmor = c.MaxArmor,
-            AttackTimer = c.AttackTimer, AggroTimer = c.AggroTimer, SpawnTimer = c.SpawnTimer, Grow = c.Grow, Parts = c.Parts.Select(p => p.Id).ToList(),
+            AttackTimer = c.AttackTimer, AggroTimer = c.AggroTimer, SpawnTimer = c.SpawnTimer, Grow = c.Grow, Passive = c.Passive, Parts = c.Parts.Select(p => p.Id).ToList(),
             Admiral = c.Admiral != null ? C(c.Admiral) : null, Claimed = c.Claimed, Fleet = c.Fleet,
         };
         return new SaveData
@@ -75,7 +76,7 @@ public sealed partial class Sim
             Stacks = Table.Stacks.Select(s => new StackSave
             {
                 Id = s.Id, X = (s.Glide ?? s.Pos).X, Y = (s.Glide ?? s.Pos).Y, FromX = s.TravelFrom.X, FromY = s.TravelFrom.Y, ToX = s.TravelTo.X, ToY = s.TravelTo.Y,
-                TravelT = s.TravelT, TravelDur = s.TravelDur, Progress = s.Progress, Order = s.Order?.Id, Active = s.Active?.Id, Cards = s.Cards.Select(C).ToList(),
+                TravelT = s.TravelT, TravelDur = s.TravelDur, Progress = s.Progress, Order = s.Order?.Id, Queue = s.Queue.Select(q => q.Id).ToList(), Active = s.Active?.Id, Cards = s.Cards.Select(C).ToList(),
             }).ToList(),
             Battles = Table.Battles.Select(b => new BattleSave
             {
@@ -127,7 +128,7 @@ public sealed partial class Sim
             foreach (var p in s.Parts) if (Defs.Component.TryGetValue(p, out var comp)) c.Parts.Add(comp);
             Recalc(c);
             c.Hp = s.Hp; c.MaxHp = s.MaxHp; c.Shield = s.Shield; c.MaxShield = s.MaxShield; c.Armor = s.Armor; c.MaxArmor = s.MaxArmor;
-            c.AttackTimer = s.AttackTimer; c.AggroTimer = s.AggroTimer; c.SpawnTimer = s.SpawnTimer; c.Grow = s.Grow; c.Claimed = s.Claimed; c.Fleet = s.Fleet;
+            c.AttackTimer = s.AttackTimer; c.AggroTimer = s.AggroTimer; c.SpawnTimer = s.SpawnTimer; c.Grow = s.Grow; c.Passive = s.Passive; c.Claimed = s.Claimed; c.Fleet = s.Fleet;
             if (s.Admiral != null) c.Admiral = C(s.Admiral);
             return c;
         }
@@ -136,6 +137,7 @@ public sealed partial class Sim
         {
             var s = new Stack { Id = ss.Id, Pos = new Vector2(ss.X, ss.Y), TravelFrom = new Vector2(ss.FromX, ss.FromY), TravelTo = new Vector2(ss.ToX, ss.ToY),
                                 TravelT = ss.TravelT, TravelDur = ss.TravelDur, Order = ss.Order != null ? recipes.GetValueOrDefault(ss.Order) : null };
+            foreach (var q in ss.Queue) if (recipes.TryGetValue(q, out var qr)) s.Queue.Add(qr);
             foreach (var cs in ss.Cards) Add(s, C(cs));
             if (s.Cards.Count == 0) continue;
             Table.Stacks.Add(s);

@@ -418,15 +418,29 @@ public sealed partial class GameUi
             Raylib.DrawRectangleRoundedLinesEx(r, 0.5f, 6, 1.5f, new Color(240, 190, 80, 230));
             Text(wait, r.X + 7, r.Y + 2.5f, size, new Color(255, 220, 140, 255));
         }
-        int ships = Sim.Warships(s);
-        if (ships > 0 && (ships > 1 || Sim.HasAdmiral(s)) && s.Wait == null && s.Active == null)
+        // Fleets show their size and strength; hostiles their threat, coloured against your strongest fleet in that system.
+        float ls = Math.Max(14, 11 / _cam.Zoom);
+        void Pill(string label, Color edge, Color ink)
         {
-            var label = $"Fleet {ships}/{sim.FleetSize}" + (Sim.HasAdmiral(s) ? " - Admiral" : "");
-            var sz = Measure(label, 13);
-            var r = new Rectangle(s.Pos.X + Sim.CardW - sz.X - 14, s.Pos.Y - 20, sz.X + 12, 17);
-            Raylib.DrawRectangleRounded(r, 0.5f, 6, new Color(12, 30, 40, 225));
-            Raylib.DrawRectangleRoundedLinesEx(r, 0.5f, 6, 1.5f, Sim.HasAdmiral(s) ? new Color(255, 215, 100, 230) : new Color(140, 210, 230, 200));
-            Text(label, r.X + 6, r.Y + 2, 13, Sim.HasAdmiral(s) ? new Color(255, 225, 140, 255) : new Color(190, 235, 245, 255));
+            var sz = Measure(label, ls);
+            var r = new Rectangle(s.Pos.X + Sim.CardW / 2 - sz.X / 2 - 6, s.Pos.Y - sz.Y - 8, sz.X + 12, sz.Y + 4);
+            Raylib.DrawRectangleRounded(r, 0.5f, 6, new Color(10, 16, 28, 230));
+            Raylib.DrawRectangleRoundedLinesEx(r, 0.5f, 6, 1.5f, edge);
+            Text(label, r.X + 6, r.Y + 2, ls, ink);
+        }
+        int ships = Sim.Warships(s);
+        if (ships > 0 && s.Wait == null && s.Active == null)
+        {
+            var label = $"Fleet {ships}/{sim.FleetSize}  Strength {Sim.FleetStrength(s)}" + (Sim.HasAdmiral(s) ? "  Admiral" : "");
+            Pill(label, Sim.HasAdmiral(s) ? new Color(255, 215, 100, 230) : new Color(140, 210, 230, 200), Sim.HasAdmiral(s) ? new Color(255, 225, 140, 255) : new Color(190, 235, 245, 255));
+        }
+        else if (s.HasHostile && s.Cards.FirstOrDefault(c => c.Def.IsHostile && c.Def.Attack > 0) is { } foe)
+        {
+            int threat = Sim.Threat(foe);
+            var z = sim.SystemAt(Sim.CardCenter(s));
+            int best = z == null ? 0 : sim.StacksIn(z).Where(x => Sim.Warships(x) > 0).Select(Sim.FleetStrength).DefaultIfEmpty(0).Max();
+            var col = threat > best ? new Color(255, 110, 100, 255) : threat > best * 0.6f ? new Color(255, 200, 90, 255) : new Color(130, 230, 140, 255);
+            Pill($"Threat {threat}" + (best > 0 ? $"  (your best fleet {best})" : ""), col, col);
         }
     }
 
@@ -500,8 +514,8 @@ public sealed partial class GameUi
             var bar = new Rectangle(r.X + 10, fy + 9, r.Width - 20, 9);
             Raylib.DrawRectangleRounded(bar, 1f, 4, new Color(0, 0, 0, 110));
             Raylib.DrawRectangleRounded(new Rectangle(bar.X, bar.Y, Math.Max(9, bar.Width * k), bar.Height), 1f, 4, new Color(240, 150, 190, 255));
-            bool onCity = c.Stack?.Cards.Any(x => x.Def.Id == "city_district") == true;
-            var t = onCity ? $"grows in {Math.Max(0, Defs.Rules.BabyGrowSeconds - c.Grow):0}s" : "put on a City District";
+            bool onCity = c.Stack?.Cards.Any(Sim.GrowsBabies) == true;
+            var t = onCity ? $"grows in {Math.Max(0, Defs.Rules.BabyGrowSeconds - c.Grow):0}s" : "needs a City District or colony";
             Text(t, r.X + r.Width / 2 - Measure(t, 11).X / 2, fy - 4, 11, Ink);
         }
         else if (fighter)
@@ -542,9 +556,16 @@ public sealed partial class GameUi
             if (Tex("sl_coin") is { } coin) DrawFit(coin, new Rectangle(r.X + 8, fy + 2, 20, 20), Color.White);
             Text($"{c.Def.Value}", r.X + 31, fy + 4, 16, Ink);
         }
+        if (c.Def.IsPlanet && c.Def.ColonizeWith != "none" && c.Claimed && c.Def.Yield != "none")
+        {
+            // Unworked colonies still yield, slowly: a thin bar along the bottom of the art.
+            float k = Math.Clamp(c.Passive / (c.Def.YieldTime * Defs.Rules.ColonyPassiveMult), 0, 1);
+            Raylib.DrawRectangle((int)art.X + 4, (int)(art.Y + art.Height - 6), (int)(art.Width - 8), 3, new Color(0, 0, 0, 140));
+            Raylib.DrawRectangle((int)art.X + 4, (int)(art.Y + art.Height - 6), (int)((art.Width - 8) * k), 3, new Color(240, 210, 120, 230));
+        }
         if (c.Def.IsPlanet && c.Def.ColonizeWith != "none")
         {
-            var tag = c.Claimed ? "Colonised" : "Unclaimed";
+            var tag = c.Claimed ? (c.Def.HasTag("colony") ? "Colony" : "Outpost") : "Unclaimed";
             Text(tag, r.X + r.Width - 10 - Measure(tag, 12).X, fy + 6, 12, c.Claimed ? new Color(20, 100, 40, 255) : new Color(110, 70, 20, 255));
         }
         if (c.Def.Category == "tech" && _sim != null)
@@ -560,7 +581,9 @@ public sealed partial class GameUi
         var r = BattleRect(bt);
         Raylib.DrawRectangleRounded(r, 0.05f, 6, new Color(120, 20, 30, 110));
         Raylib.DrawRectangleRoundedLinesEx(r, 0.05f, 6, 4, new Color(255, 90, 90, 220));
-        Text("BATTLE - drop ships here to join", r.X + 16, r.Y + 8, 20, Color.RayWhite);
+        int mine = Sim.Strength(bt.Players.Where(c => !c.Def.IsHostile), bt.Players.Any(p => p.Admiral != null) ? Defs.Card["admiral"].BoostMult : 1f);
+        int theirs = Sim.Strength(bt.Hostiles);
+        Text($"BATTLE  you {mine} vs {theirs} - drop ships here to join", r.X + 16, r.Y + 8, 20, mine >= theirs ? new Color(190, 255, 190, 255) : new Color(255, 200, 190, 255));
         for (int i = 0; i < bt.Hostiles.Count; i++)
             DrawCard(bt.Hostiles[i], new Rectangle(r.X + 20 + i * (Sim.CardW + 12), r.Y + 36, Sim.CardW, Sim.CardH), false);
         for (int i = 0; i < bt.Players.Count; i++)
@@ -822,6 +845,10 @@ public sealed partial class GameUi
         if (c.Def.Category == "tech")
         {
             var r = Defs.Recipes.FirstOrDefault(x => x.Effect == "learn" && x.Station == c.Def.Id);
+            var leads = Defs.Recipes.Where(x => x.Effect == "learn" && x.RequiresTech == c.Def.Id).Select(x => _res.CardName(x.Station)).ToList();
+            int hull = Array.IndexOf(Sim.HullLadder, c.Def.Id);
+            if (hull >= 0) lines += $"\nHull {hull + 1} of {Sim.HullLadder.Length}" + (hull + 1 < Sim.HullLadder.Length ? $": leads to {_res.CardName(Sim.HullLadder[hull + 1])} (a bigger hull)." : ": the biggest hull.");
+            else if (leads.Count > 0) lines += $"\nLeads to: {string.Join(", ", leads)}.";
             if (sim.Techs.Contains(c.Def.Id)) lines += "\nAlready researched: sell it at the Market.";
             else if (r != null)
                 lines += $"\nResearch: put a Pop ({r.Time:0}s) or a Scientist ({r.Time / Defs.Card["scientist"].BoostMult:0}s) on it; costs {string.Join(", ", Sim.Costs(r).Select(i => $"{i.N} {_res.CardName(i.Card)}"))}."
@@ -837,7 +864,10 @@ public sealed partial class GameUi
         if (Defs.Component.TryGetValue(c.Def.Id, out var cp) && cp.Kind == "weapon")
             lines += $"\nDamage {cp.Damage} every {cp.Cooldown:0.#}s - vs shields x{cp.VsShield:0.##}, armour x{cp.VsArmor:0.##}, hull x{cp.VsHull:0.##}"
                    + (cp.PierceShield >= 1 ? (cp.PierceArmor >= 1 ? " - ignores shields and armour" : " - flies past shields") : "");
-        if (s?.Order != null) lines += $"\nOrder: {s.Order.Desc}";
+        if (c.Def.IsPlanet && c.Claimed && c.Def.ColonizeWith != "none" && c.Def.Yield != "none")
+            lines += $"\nUnworked it yields 1 {_res.CardName(c.Def.Yield)} every {c.Def.YieldTime * Defs.Rules.ColonyPassiveMult:0}s; a Pop on it every {c.Def.YieldTime:0}s.";
+        if (c.Def.IsHostile && c.Def.Attack > 0) lines += $"\nThreat {Sim.Threat(c)} (compare with your fleets' Strength; damage types still matter).";
+        if (s?.Order != null) lines += $"\nOrder: {s.Order.Desc}" + (s.Queue.Count > 0 ? $"  Then: {string.Join(", ", s.Queue.Select(RecipeTitle))}" : "");
         if (s?.Active != null && s.Wait == null) lines += $"\nWorking: {s.Active.Desc} ({Math.Max(0, s.Duration - s.Progress):0}s)";
         if (s?.Wait != null) lines += $"\nWaiting: {s.Wait}";
         DrawTipBox(lines, Raylib.GetMousePosition() + new Vector2(18, 18), 360);

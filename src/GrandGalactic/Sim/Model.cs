@@ -23,6 +23,8 @@ public sealed class Card
     public float Grow;
     /// <summary>The fleet (stack id) a card fought from: its fleet's Admiral boosts it, and survivors regroup by it.</summary>
     public int Fleet;
+    /// <summary>Seconds toward a colonised planet's next unworked yield.</summary>
+    public float Passive;
     public Stack? Stack;
     public Battle? Battle;
     public override string ToString() => $"{Def.Id}#{Uid}";
@@ -50,6 +52,8 @@ public sealed class Stack
     public float Jam;
     /// <summary>The build the player chose for a station whose blueprints only need resources (Construction Ship, Shipyard...).</summary>
     public RecipeDef? Order;
+    /// <summary>Build orders waiting after the current one (a station queues up to 3 jobs).</summary>
+    public readonly List<RecipeDef> Queue = new();
     /// <summary>Where the stack is gliding to (it moves there smoothly instead of jumping).</summary>
     public Vector2? Glide;
     /// <summary>Why the stack isn't working right now (shown above it), or null.</summary>

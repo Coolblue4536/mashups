@@ -95,7 +95,7 @@ public sealed partial class GameUi
         var orders = sim.OrdersFor(c).Where(r => sim.Blueprint(r) != Sim.BlueprintState.Locked).ToList();
         const float W = 420, rowH = 58;
         float h = 56 + (orders.Count > 0 ? 30 + orders.Count * (rowH + 6) : 0) + (c.Parts.Count > 0 ? 30 + c.Parts.Count * 44 : 0) + (c.Admiral != null ? 74 : 0)
-                  + (s.Order != null ? 40 : 0) + 10;
+                  + (s.Order != null ? 40 + s.Queue.Count * 34 : 0) + 10;
         int sw = Raylib.GetScreenWidth(), sh = Raylib.GetScreenHeight();
         h = Math.Min(h, sh - TopBar - 20);
         var r = new Rectangle(Math.Clamp(_menuAt.X + 14, 8, sw - W - 8), Math.Clamp(_menuAt.Y - 30, TopBar + 8, sh - h - 8), W, h);
@@ -112,13 +112,28 @@ public sealed partial class GameUi
         Raylib.BeginScissorMode((int)r.X, (int)r.Y, (int)r.Width, (int)r.Height);
         if (s.Order != null)
         {
-            Text($"Order: {RecipeTitle(s.Order)}", r.X + 14, y + 6, 17, new Color(140, 230, 150, 255));
-            if (Button(new Rectangle(r.X + r.Width - 104, y, 90, 28), "Cancel", false, 15)) { sim.SetOrder(s, null); Toast("Order cancelled."); }
+            Text($"Now: {RecipeTitle(s.Order)}", r.X + 14, y + 6, 17, new Color(140, 230, 150, 255));
+            if (Button(new Rectangle(r.X + r.Width - 104, y, 90, 28), "Cancel", false, 15))
+            {
+                // Cancelling the current job starts the next queued one.
+                var next = s.Queue.FirstOrDefault();
+                var rest = s.Queue.Skip(1).ToList();
+                sim.SetOrder(s, next);
+                foreach (var q in rest) s.Queue.Add(q);
+                Toast("Order cancelled.");
+            }
             y += 40;
+            for (int i = 0; i < s.Queue.Count; i++)
+            {
+                Text($"{i + 2}. {RecipeTitle(s.Queue[i])}", r.X + 24, y + 4, 16, Color.LightGray);
+                if (Button(new Rectangle(r.X + r.Width - 104, y, 90, 26), "Remove", false, 14)) { s.Queue.RemoveAt(i); break; }
+                y += 34;
+            }
         }
         if (orders.Count > 0)
         {
-            Text("Build - the cost comes from your pool", r.X + 14, y + 4, 16, new Color(240, 200, 90, 255));
+            bool queueing = s.Order != null && s.Order.Tag == "build";
+            Text(queueing ? $"Add to the queue ({1 + s.Queue.Count}/{Sim.QueueMax}) - paid from your pool" : "Build - the cost comes from your pool", r.X + 14, y + 4, 16, new Color(240, 200, 90, 255));
             y += 30;
             foreach (var o in orders)
             {
@@ -134,10 +149,13 @@ public sealed partial class GameUi
                 foreach (var i in o.Inputs) cx += Chip(i, cx, row.Y + 30, 22, true) + 5;
                 if (hover && click)
                 {
-                    sim.SetOrder(s, o);
+                    bool queued = s.Order != null && s.Order.Tag == "build" && o.Tag == "build";
+                    if (sim.QueueOrder(s, o) is { } full) { Toast(full); Raylib.EndScissorMode(); return; }
                     var cards = o.Inputs.Where(i => !Sim.IsResource(i.Card)).ToList();
-                    Toast(cards.Count > 0 ? $"{RecipeTitle(o)}: now add {string.Join(" and ", cards.Select(sim.InputName))} to the stack."
+                    Toast(queued ? $"{RecipeTitle(o)} queued ({1 + s.Queue.Count}/{Sim.QueueMax})."
+                        : cards.Count > 0 ? $"{RecipeTitle(o)}: now add {string.Join(" and ", cards.Select(sim.InputName))} to the stack."
                         : sim.Shortfall(o) is { } need ? $"{RecipeTitle(o)} ordered. {need}: it starts when your pool has enough." : $"{RecipeTitle(o)} ordered.");
+                    if (queued && 1 + s.Queue.Count < Sim.QueueMax) { Raylib.EndScissorMode(); return; } // keep the menu open to queue more
                     CloseCardMenu();
                     Raylib.EndScissorMode();
                     return;
@@ -352,6 +370,7 @@ public sealed partial class GameUi
                     help.X + 14, help.Y + 32, help.Width - 28, 15, Color.LightGray, 3);
             top = 104;
         }
+        if (research || tabs[_bookTab] == "Ships & Parts") top += DrawHullLadder(new Rectangle(area.X, area.Y + top, area.Width, 96)) + 12;
         if (entries.Count == 0)
         {
             Text(research ? "Nothing researched yet." : "No blueprints here yet: research technologies to unlock them.", area.X + 10, area.Y + top + 10, 20, Color.Gray);
@@ -372,6 +391,36 @@ public sealed partial class GameUi
             DrawTile(e, t, research);
         }
         Raylib.EndScissorMode();
+    }
+
+    /// <summary>The road to bigger warships: each hull technology, known, next, or later. Returns the height used.</summary>
+    float DrawHullLadder(Rectangle r)
+    {
+        var sim = _sim!;
+        Raylib.DrawRectangleRounded(r, 0.1f, 6, new Color(22, 30, 54, 255));
+        var next = sim.NextHull;
+        Text("Warship hulls", r.X + 14, r.Y + 8, 18, new Color(240, 200, 90, 255));
+        Text(next == null ? "All hulls researched." : $"Next: find a {_res.CardName(next)} blueprint (Military, Research or Frontier packs) and research it.",
+             r.X + 150, r.Y + 10, 15, Color.LightGray);
+        float x = r.X + 14, w = Math.Min(200, (r.Width - 28 - 4 * 24) / 5);
+        for (int i = 0; i < Sim.HullLadder.Length; i++)
+        {
+            var id = Sim.HullLadder[i];
+            bool known = sim.Techs.Contains(id), isNext = id == next;
+            var box = new Rectangle(x, r.Y + 36, w, 50);
+            Raylib.DrawRectangleRounded(box, 0.2f, 6, known ? new Color(30, 70, 45, 255) : isNext ? new Color(80, 64, 20, 255) : new Color(30, 32, 50, 255));
+            Raylib.DrawRectangleRoundedLinesEx(box, 0.2f, 6, 1.5f, known ? new Color(120, 220, 140, 220) : isNext ? new Color(255, 210, 100, 230) : new Color(80, 86, 120, 200));
+            var hullCard = Defs.Recipes.FirstOrDefault(q => q.RequiresTech == id && q.Id.StartsWith("s_"))?.Outputs[0].Give[0].Card;
+            DrawThumb(hullCard ?? id, new Rectangle(box.X + 5, box.Y + 5, 40, 40));
+            var name = hullCard != null ? _res.CardName(hullCard) : _res.CardName(id);
+            float ns = 15;
+            while (ns > 11 && Measure(name, ns).X > w - 56) ns -= 0.5f;
+            Text(name, box.X + 52, box.Y + 7, ns, Color.RayWhite);
+            Text(known ? "Researched" : isNext ? "Next" : "Later", box.X + 52, box.Y + 27, 13, known ? new Color(140, 230, 150, 255) : isNext ? new Color(255, 215, 110, 255) : Color.Gray);
+            if (i < Sim.HullLadder.Length - 1) Text(">", x + w + 7, box.Y + 14, 20, Color.Gray);
+            x += w + 24;
+        }
+        return r.Height;
     }
 
     void DrawTile(RecipeDef e, Rectangle t, bool research)

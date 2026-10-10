@@ -13,6 +13,7 @@ public static class Program
         if (args.Contains("--selftest")) return SelfTest.Run();
         if (args.Contains("--playtest")) return Playtest.RunCli(args);
         if (args.Contains("--bossprobe")) return Playtest.BossProbe();
+        if (Arg("--balance") is { } runs) return Playtest.Balance(int.Parse(runs));
         if (Arg("--playtest-save") is { } moon) { var r = Playtest.Play(Defs.Ethics[0], 1, Defs.DefaultDifficulty, int.Parse(moon)); Log.Info(string.Join("\n", r.Timeline.TakeLast(3))); return 0; }
 
         var settings = Settings.Load();

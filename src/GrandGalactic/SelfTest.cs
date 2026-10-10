@@ -53,6 +53,7 @@ public static class SelfTest
         "tag:researcher" => "pop",
         "tag:warship" => "corvette",
         "tag:habitable" => "desert_world",
+        "tag:colony" => "ocean_world",
         "tag:uninhabitable" => "gas_giant",
         _ => card,
     };
@@ -75,6 +76,7 @@ public static class SelfTest
                     foreach (var c in h.Cards.ToList()) s.Remove(c);
             var st = Build(s, ids, at);
             if (r.Order) s.SetOrder(st, r);
+            if (r.RequiresFlag == "claimed") st.Root.Claimed = true;
             if (r.Effect == "repair") foreach (var c in st.Cards.Where(c => c.Def.HasTag("warship"))) c.Hp = 1;
             var outIds = r.Outputs.SelectMany(o => o.Give).Select(g => g.Card == "station.yield" ? Defs.Card[Resolve(r.Station)].Yield : g.Card).ToHashSet();
             int before = outIds.Sum(id => Count(s, id)), boards = s.Systems.Count;
@@ -189,6 +191,41 @@ public static class SelfTest
             var baby = s2.Spawn("baby", new Vector2(400, 400), jitter: false);
             Run(s2, 70);
             Check(s2.AllCards.Contains(baby) && baby.Grow == 0, "a Baby away from a City District doesn't grow");
+        }
+
+        Log.Info("Self-test: order queues, colonies, strength ratings");
+        {
+            var s = Fresh();
+            var cs = Build(s, new[] { "construction_ship" }, new Vector2(400, 400));
+            var R = Defs.Recipes.ToDictionary(r => r.Id);
+            Check(s.QueueOrder(cs, R["b_mining"]) == null && s.QueueOrder(cs, R["b_generator"]) == null && s.QueueOrder(cs, R["b_city"]) == null
+                  && s.QueueOrder(cs, R["b_lab"]) is { } full && full.Contains("full"), "a Construction Ship queues up to 3 builds");
+            s.Res["minerals"] = 20; s.Res["energy"] = 5;
+            Run(s, 90, () => s.AllCards.Any(c => c.Def.Id == "city_district"));
+            Check(new[] { "mining_district", "generator_district", "city_district" }.All(id => s.AllCards.Any(c => c.Def.Id == id)) && cs.Order == null,
+                  "the queued builds run one after another");
+
+            var c2 = Fresh();
+            c2.Home.Claimed = true;
+            var colony = Build(c2, new[] { "ocean_world" }, c2.Home.Center);
+            colony.Root.Claimed = true;
+            float every = Defs.Card["ocean_world"].YieldTime * Defs.Rules.ColonyPassiveMult;
+            Run(c2, every + 1);
+            Check(c2.Have("food") == 1, $"an unworked colony yields on its own (1 Food every {every:0}s)");
+            Build(c2, new[] { "pop", "pop" }, c2.Home.Center + new Vector2(400, 0)).Cards.ToList().ForEach(_ => { });
+            foreach (var p in c2.Table.Stacks.Where(x => x.Root.Def.Id == "pop").ToList()) c2.StackOnto(p, colony);
+            c2.Res["food"] = 2;
+            Run(c2, 25, () => colony.Cards.Any(c => c.Def.Id == "baby"));
+            Check(colony.Cards.Any(c => c.Def.Id == "baby"), "a colony with 2 Pops (+2 Food) raises a Baby");
+            Run(c2, 61, () => !colony.Cards.Any(c => c.Def.Id == "baby"));
+            Check(c2.AllCards.Count(c => c.Def.Id == "pop") == 3, "the Baby grows up on the colony");
+
+            var f = Fresh();
+            var weak = Build(f, new[] { "corvette" }, new Vector2(300, 300));
+            var strong = Build(f, new[] { "cruiser", "cruiser", "destroyer" }, new Vector2(700, 300));
+            int pirate = Sim.Threat(f.NewCard("pirate_raider")), boss = Sim.Threat(f.NewCard("scourge_queen"));
+            Check(Sim.FleetStrength(strong) > Sim.FleetStrength(weak) && boss > 5 * pirate,
+                  $"strength ratings order sensibly (corvette {Sim.FleetStrength(weak)}, 3 ships {Sim.FleetStrength(strong)}, pirate {pirate}, Scourge Queen {boss})");
         }
 
         Log.Info("Self-test: random star systems");

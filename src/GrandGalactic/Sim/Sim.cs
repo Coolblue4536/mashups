@@ -373,7 +373,11 @@ public sealed partial class Sim
         foreach (var c in moving) { s.Cards.Remove(c); Add(ns, c); }
         s.Dirty = true;
         // A build order goes with its station.
-        if (s.Order is { } o && !s.Cards.Any(c => StationOk(o, c)) && ns.Cards.Any(c => StationOk(o, c))) { ns.Order = o; s.Order = null; }
+        if (s.Order is { } o && !s.Cards.Any(c => StationOk(o, c)) && ns.Cards.Any(c => StationOk(o, c)))
+        {
+            ns.Order = o; s.Order = null;
+            ns.Queue.AddRange(s.Queue); s.Queue.Clear();
+        }
         return ns;
     }
 
@@ -391,6 +395,31 @@ public sealed partial class Sim
     }
 
     public static int Warships(Stack s) => s.Cards.Count(c => c.Def.HasTag("warship"));
+
+    /// <summary>A rough fighting strength: the square root of (damage per second x hit points incl. shields and armour).
+    /// Fleets and hostiles use the same scale, so a fleet well above a threat usually wins (damage types still matter).</summary>
+    public static int Strength(IEnumerable<Card> cards, float mult = 1f)
+    {
+        float dps = 0, ehp = 0;
+        foreach (var c in cards)
+        {
+            dps += c.Guns.Sum(g => g.Damage / MathF.Max(0.1f, g.Cooldown));
+            ehp += MathF.Max(0, c.Hp) + c.Shield + c.Armor;
+        }
+        return (int)MathF.Round(MathF.Sqrt(dps * mult * ehp));
+    }
+
+    /// <summary>A fleet's strength: its warships (and starbases), with its Admiral's bonus.</summary>
+    public static int FleetStrength(Stack s) =>
+        Strength(s.Cards.Where(c => c.Def.HasTag("warship") || c.Def.Id == "starbase"), HasAdmiral(s) ? Defs.Card["admiral"].BoostMult : 1f);
+
+    public static int Threat(Card hostile) => Strength(new[] { hostile });
+
+    /// <summary>The warship hulls in research order, for the "next hull" hint.</summary>
+    public static readonly string[] HullLadder = { "tech_corvettes", "tech_destroyers", "tech_cruisers", "tech_battleships", "tech_titans" };
+
+    /// <summary>The next hull technology to look for, or null when Titans are known.</summary>
+    public string? NextHull => HullLadder.FirstOrDefault(t => !Techs.Contains(t));
     public static bool HasAdmiral(Stack s) => s.Cards.Any(c => c.Admiral != null);
 
     /// <summary>Why one stack can't go on another (empty when it simply isn't allowed, e.g. hostiles), or null when it can.</summary>
@@ -429,9 +458,22 @@ public sealed partial class Sim
     public void SetOrder(Stack s, RecipeDef? r)
     {
         s.Order = r;
+        if (r == null) s.Queue.Clear();
         s.Active = null;
         s.Progress = 0;
         s.Dirty = true;
+    }
+
+    public const int QueueMax = 3;
+
+    /// <summary>Order a build: it starts now if the station is free, else waits in its queue (up to 3 jobs in all).
+    /// Work orders (repeating) replace each other. Returns why not, or null.</summary>
+    public string? QueueOrder(Stack s, RecipeDef r)
+    {
+        if (s.Order == null || r.Tag != "build" || s.Order.Tag != "build") { SetOrder(s, r); return null; }
+        if (1 + s.Queue.Count >= QueueMax) return $"The queue is full ({QueueMax} jobs). Cancel one first.";
+        s.Queue.Add(r);
+        return null;
     }
 
     bool Available(RecipeDef r, Stack s)
@@ -473,7 +515,7 @@ public sealed partial class Sim
                 }
                 if (!ok) continue;
                 // Anything else in the stack must help (a booster), or be a Baby along for the ride.
-                if (rest.Any(c => c.Def.BoostTag != r.Tag && !c.Def.HasTag("baby"))) continue;
+                if (s.Order != r && rest.Any(c => c.Def.BoostTag != r.Tag && !c.Def.HasTag("baby"))) continue; // an ordered job ignores bystanders
                 if (r.Outputs.Any(o => o.Give.Any(g => g.Card == "baby")) && rest.Any(c => c.Def.HasTag("baby"))) continue;
                 float dur = r.Time < 0 ? st.Def.YieldTime : r.Time;
                 foreach (var b in rest.Concat(kept)) if (b.Def.BoostTag == r.Tag) dur /= b.Def.BoostMult;
@@ -526,9 +568,10 @@ public sealed partial class Sim
                 others.RemoveAll(c => Matches(i.Card, c));
             }
             if (missing.Count > 0) return $"Add {string.Join(" and ", missing)}";
-            if (others.Any(c => c.Def.BoostTag != o.Tag && !c.Def.HasTag("baby"))) return "Take the extra cards off to start";
             return null;
         }
+        if (s.Cards.Any(GrowsBabies) && !s.Cards.Any(c => c.Def.HasTag("baby")) && s.Cards.Count(c => c.Def.Id == "pop") == 1)
+            return "Add a second Pop (and have 3 Food) to raise a Baby";
         var bp = s.Cards.FirstOrDefault(c => c.Def.Category == "tech");
         if (bp != null && s.Cards.Any(c => c.Def.HasTag("researcher")))
         {
@@ -606,6 +649,8 @@ public sealed partial class Sim
                     var size = Defs.Rules.FleetSizeTechs.FirstOrDefault(a => a.Card == st.Def.Id);
                     Messages.Add($"Researched {Name(st.Def.Id)}! " + (size != null ? $"Fleets can now hold {size.N} warships."
                         : unlocked.Count == 1 ? $"New blueprint: {unlocked[0].Desc}" : unlocked.Count > 1 ? $"{unlocked.Count} new blueprints (Tab to view)." : ""));
+                    if (Array.IndexOf(HullLadder, st.Def.Id) >= 0 && NextHull is { } nextHull)
+                        Messages.Add($"Next bigger hull: {Name(nextHull)}. Look for its blueprint in the Military, Research or Frontier packs.");
                     break;
                 }
             case "repair":
@@ -630,7 +675,11 @@ public sealed partial class Sim
             case "open_board:random": OpenSystem("random", outPos); break;
             case "open_board:guardian": OpenSystem("guardian", outPos); break;
         }
-        if (r.Order && r.Tag == "build") s.Order = null; // a build order is one job; work orders repeat
+        if (r.Order && r.Tag == "build") // a build order is one job (the next queued one starts); work orders repeat
+        {
+            s.Order = s.Queue.Count > 0 ? s.Queue[0] : null;
+            if (s.Queue.Count > 0) s.Queue.RemoveAt(0);
+        }
         Discovered.Add(r.Id);
         Events.Add(SimEvent.Done);
     }
@@ -1080,12 +1129,33 @@ public sealed partial class Sim
 
     // ---------- babies ----------
 
-    /// <summary>Babies on a City District grow; after baby_grow_seconds one becomes a Pop beside it.</summary>
+    /// <summary>Where a Baby grows: a City District, or a colonised planet.</summary>
+    public static bool GrowsBabies(Card c) => c.Def.Id == "city_district" || (c.Def.HasTag("colony") && c.Claimed);
+
+    /// <summary>Colonised planets and outposts nobody works still yield, slowly (rules.colony_passive_mult).</summary>
+    void TickColonies(float dt)
+    {
+        foreach (var s in Table.Stacks)
+        {
+            if (s.Traveling) continue;
+            foreach (var c in s.Cards)
+            {
+                if (!c.Def.IsPlanet || !c.Claimed || c.Def.ColonizeWith == "none" || c.Def.Yield == "none") continue;
+                if (s.Active?.Id == "w_yield" && s.ActiveStation == c) { c.Passive = 0; continue; } // worked: the Pop is faster
+                c.Passive += dt;
+                if (c.Passive < c.Def.YieldTime * Defs.Rules.ColonyPassiveMult) continue;
+                c.Passive = 0;
+                Gain(c.Def.Yield, 1, CardCenter(s));
+            }
+        }
+    }
+
+    /// <summary>Babies on a City District or a colony grow; after baby_grow_seconds one becomes a Pop beside it.</summary>
     void TickBabies(float dt)
     {
         foreach (var s in Table.Stacks.Where(s => !s.Traveling && !s.Dragging && s.Cards.Any(c => c.Def.HasTag("baby"))).ToList())
         {
-            if (!s.Cards.Any(c => c.Def.Id == "city_district")) continue;
+            if (!s.Cards.Any(GrowsBabies)) continue;
             foreach (var b in s.Cards.Where(c => c.Def.HasTag("baby")).ToList())
             {
                 b.Grow += dt;
@@ -1130,11 +1200,11 @@ public sealed partial class Sim
                 if (p.Def.EnergyUpkeep > 0)
                 {
                     if (Have("energy") >= p.Def.EnergyUpkeep) Res["energy"] -= p.Def.EnergyUpkeep;
-                    else { Remove(p); shutdown++; }
+                    else if (shutdown == 0) { Remove(p); shutdown++; } // one Drone goes offline per moon; the rest run on reserve power
                 }
             }
         if (starved > 0) Messages.Add($"{starved} of your people starved. Grow more Food!");
-        if (shutdown > 0) Messages.Add($"{shutdown} Drones shut down for lack of Energy.");
+        if (shutdown > 0) Messages.Add("A Drone shut down for lack of Energy. Put Drones on Energy work, or more will follow each moon!");
         if (!AllCards.Any(c => c.Def.Category == "person")) { Lose("No one is left to run your empire."); return; }
 
         Moon++;
@@ -1194,6 +1264,7 @@ public sealed partial class Sim
         TickRegen(dt);
         TickRecipes(dt);
         TickBabies(dt);
+        TickColonies(dt);
         if (State != RunState.Playing) return;
         TickBattles(dt);
         if (State != RunState.Playing) return;
