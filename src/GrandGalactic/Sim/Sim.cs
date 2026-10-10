@@ -810,7 +810,15 @@ public sealed partial class Sim
 
     void OpenPack(PackDef pack, Vector2 at, bool free)
     {
-        for (int i = 0; i < pack.Draws; i++)
+        // Military and Research packs sometimes carry your next warship hull, so the hull ladder keeps pace with the economy.
+        float hullChance = pack.Id == "pack_military" ? 0.5f : pack.Id == "pack_research" ? 0.3f : 0f;
+        int start = 0;
+        if (NextHull is { } nh && !AllCards.Any(c => c.Def.Id == nh) && UsefulDraw(nh) && Rng.NextDouble() < hullChance)
+        {
+            Spawn(nh, at + new Vector2(-pack.Draws / 2f * (CardW + 20), 0));
+            start = 1;
+        }
+        for (int i = start; i < pack.Draws; i++)
         {
             // Blueprints lean toward ones you can research next: a known one, or one whose prerequisite you lack, is
             // re-rolled (twice at most), so tech chains like Corvettes > Destroyers > Cruisers can actually be climbed.

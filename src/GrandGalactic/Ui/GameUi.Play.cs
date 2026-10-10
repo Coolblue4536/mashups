@@ -400,7 +400,7 @@ public sealed partial class GameUi
         if (_market) DrawMarket();
         if (_diplo != null && sim.War == null) DrawDiplomacy();
         if (sim.War != null) DrawInvasion();
-        if (_paused && !_escMenu) Text("PAUSED (Space)", view.Width / 2 - 100, TopBar + 14, 30, Color.Yellow);
+        if (_paused && !_escMenu && sim.War == null && _diplo == null) Text("PAUSED (Space)", view.Width / 2 - 100, TopBar + 14, 30, Color.Yellow);
         if (_screen == Screen.End) DrawEnd();
         if (_escMenu) DrawEscMenu();
     }
@@ -989,7 +989,7 @@ public sealed partial class GameUi
         var sim = _sim!;
         if (_screen != Screen.Play || _escMenu || _codex || _cam.Zoom < 0.3f) return;
         var z = sim.SystemAt(_cam.Target);
-        if (z == null || z == sim.Home || z.Claimed) return;
+        if (z == null || z == sim.Home || z.Claimed || z.Owner != null) return;
         var view = BoardView;
         var r = new Rectangle(view.X + view.Width - 316, view.Y + 10, 300, 74);
         _uiRects.Add(r);

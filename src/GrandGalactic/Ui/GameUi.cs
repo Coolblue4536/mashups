@@ -228,6 +228,11 @@ public sealed partial class GameUi
         _camZoomGoal = null;
         _cam = new Camera2D { Zoom = 0.62f, Target = _sim.Home.Center };
         _screen = Screen.Play;
+        _paused = false;
+        _speed = 1;
+        _codex = _escMenu = false;
+        CloseDiplomacy();
+        _tutorialSeen.Clear();
         Toast($"{_ethic.Name} empire founded. Your pool (top bar) is empty: put Pops to work on the Homeworld and districts, then click a pack to buy it. Esc opens the menu.");
     }
 

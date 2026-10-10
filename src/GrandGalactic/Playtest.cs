@@ -24,7 +24,8 @@ public static class Playtest
             int wins = reports.Count(r => r.State == RunState.Won);
             Log.Info($"== {d.Name}: {wins}/{n} won (act 2 moon {d.Act2Moon}, crisis moon {d.CrisisMoon}, boss by moon {d.CrisisMoon + d.BossDelayMoons})");
             foreach (var g in reports.Where(r => r.State != RunState.Won).GroupBy(r => r.End)) Log.Info($"     lost x{g.Count()}: {g.Key} (moons {string.Join(",", g.Select(r => r.Moon))})");
-            foreach (var key in new[] { "warship", "tech_destroyers", "tech_cruisers", "tech_battleships", "tech_titans", "colony", "outpost", "claim", "baby" })
+            foreach (var key in new[] { "warship", "tech_destroyers", "tech_cruisers", "tech_battleships", "tech_titans", "colony", "outpost", "claim", "baby",
+                                        "contact", "attacked by empire", "tributary", "megastructure", "energy deficit", "infinite research" })
             {
                 var got = reports.Where(r => r.Milestones.ContainsKey(key)).Select(r => r.Milestones[key]).ToList();
                 Log.Info($"     {key,-17} reached in {got.Count}/{n} runs" + (got.Count > 0 ? $", avg moon {got.Average():0.0}" : ""));
@@ -125,6 +126,12 @@ public static class Playtest
             if (s.AllCards.Any(c => c.Def.HasTag("uninhabitable") && c.Claimed)) Stone("outpost");
             if (s.ClaimedCount > 1) Stone("claim");
             if (s.AllCards.Any(c => c.Def.HasTag("baby"))) Stone("baby");
+            if (s.Empires.Any(e => e.Contacted)) Stone("contact");
+            if (s.Empires.Any(e => e.Status == "tributary")) Stone("tributary");
+            if (s.Empires.Any(e => e.Status == "war" && e.TheyDeclared)) Stone("attacked by empire");
+            if (s.AllCards.Any(c => c.Def.HasTag("megastructure"))) Stone("megastructure");
+            if (s.EnergyDeficit) Stone("energy deficit");
+            if (s.RepLevels.Count > 0) Stone("infinite research");
             if (s.RiftOpen && atCrisis.Count == 0)
             {
                 atCrisis["people"] = s.AllCards.Count(c => c.Def.Category == "person");
@@ -187,7 +194,7 @@ public static class Playtest
         var R = Defs.Recipes.ToDictionary(r => r.Id);
         var home = s.Home;
         // A Construction Ship left on a finished outpost or claim steps off again.
-        foreach (var st in Mine(s).Where(x => x.Cards.Count > 1 && x.Active == null && x.Cards.Any(c => c.Def.Id == "construction_ship")).ToList())
+        foreach (var st in Mine(s).Where(x => x.Cards.Count > 1 && x.Active == null && x.Order == null && x.Cards.Any(c => c.Def.Id == "construction_ship")).ToList())
             Lift(s, st.Cards.First(c => c.Def.Id == "construction_ship"));
         if (s.Have("unity") >= 2 && s.Have("influence") < 3 && Mine(s).FirstOrDefault(x => x.Root.Def.Id == "homeworld") is { } hw && hw.Order == null)
             s.QueueOrder(hw, R["w_edict"]);
@@ -226,6 +233,58 @@ public static class Playtest
         }
     }
 
+    /// <summary>A Dyson Sphere (or Matter Decompressor, Ring World) on the home star once researched and affordable.</summary>
+    static void Megastructures(Sim s, Action<string, string> mark)
+    {
+        foreach (var id in new[] { "dyson_sphere", "matter_decompressor", "ring_world" })
+        {
+            var r = Defs.Recipes.First(x => x.Id == "b_" + id);
+            if (!s.TechOk(r) || s.AllCards.Any(c => c.Def.Id == id) || s.Shortfall(r) != null) continue;
+            var cs = Mine(s).FirstOrDefault(x => x.Cards.Count == 1 && x.Root.Def.Id == "construction_ship" && !Busy(x) && s.SystemAt(Sim.CardCenter(x)) == s.Home);
+            var star = s.StacksIn(s.Home).FirstOrDefault(x => x.Root.Def.Category == "star" && x.Cards.Count == 1);
+            if (cs == null || star == null) return;
+            s.StackOnto(cs, star);
+            s.SetOrder(star, r);
+            mark(id, $"builds a {id.Replace('_', ' ')}");
+            return;
+        }
+    }
+
+    /// <summary>Meet the neighbours, make peace when attacked, and turn a much weaker empire into a tributary.</summary>
+    static void Diplomacy(Sim s, Action<string, string> mark)
+    {
+        if (Lone(s, c => c.Def.Id == "envoy") is { } envoy && s.Empires.Any(e => !e.Contacted))
+        {
+            // The Science Ship usually sits on a star: take it off for the contact.
+            var sci = Lone(s, c => c.Def.Id == "science_ship")
+                      ?? Mine(s).Where(x => x.Active?.Id != "x_survey" && x.Cards.Any(c => c.Def.Id == "science_ship")).Select(x => Lift(s, x.Cards.First(c => c.Def.Id == "science_ship"))).FirstOrDefault();
+            if (sci != null && s.SystemAt(Sim.CardCenter(sci)) == s.SystemAt(Sim.CardCenter(envoy))) s.StackOnto(envoy, sci);
+        }
+        foreach (var e in s.Empires.Where(x => x.Contacted))
+        {
+            if (e.Contacted) mark("contact" + e.Def.Id, $"meets the {e.Def.Name}");
+            if (e.Status == "war" && e.TheyDeclared) { if (s.OfferPeace(e) == null) mark("peace" + s.Moon, $"makes peace with the {e.Def.Name}"); continue; }
+            if (e.Status != "peace" || s.Moon < 10 || s.War != null) continue;
+            int mine = s.PlayerStrength, theirs = s.EmpireStrength(e);
+            var fleet = Mine(s).Where(x => Sim.Warships(x) > 0 && x.Cards.All(c => c.Def.HasTag("warship"))).OrderByDescending(Sim.FleetStrength).FirstOrDefault();
+            if (fleet == null || Sim.FleetStrength(fleet) < theirs * 0.9f || mine < theirs * 1.5f) continue;
+            s.DeclareWar(e, "tributary");
+            if (s.StartInvasion(fleet, e) != null) continue;
+            // Time stands still at home: fight it out now, system by system (capital last), then come home.
+            for (int guard = 0; guard < 6 && s.War != null && !s.War.Won; guard++)
+            {
+                int target = e.Systems.FindIndex(x => !x.Occupied && !x.Capital);
+                if (target < 0 || s.War.Fleet.Count > 3) target = e.Systems.FindIndex(x => x.Capital && !x.Occupied);
+                if (target < 0 || s.AttackSystem(target) != null) break;
+                for (float t = 0; s.War?.Fight != null && t < 300; t += 0.1f) s.UpdateWar(0.1f);
+            }
+            bool won = s.War?.Won == true;
+            s.EndInvasion();
+            mark("war" + e.Def.Id + s.Moon, won ? $"makes the {e.Def.Name} a tributary" : $"invades the {e.Def.Name} and fails");
+            if (!won && e.Status == "war") s.OfferPeace(e);
+        }
+    }
+
     static void Think(Sim s, Action<string, string> mark)
     {
         var home = s.Home;
@@ -257,13 +316,16 @@ public static class Playtest
         {
             var w = Lone(s, c => c.Def.HasTag("worker"));
             if (w == null) break;
-            bool needFood = eat > 0 && foodRate < eat + 0.5f;
+            bool needFood = eat > 0 && (foodRate < eat + 3 || s.Have("food") < eat);
             bool needResearch = Mine(s).Any(x => x.Root.Def.Category == "tech" && x.Cards.Count > 1) && s.Have("research") < 12;
             bool needAlloys = HasCard("shipyard") && s.Have("alloys") < 12 && s.Have("minerals") >= 2;
+            bool needEnergy = s.Have("energy") < s.StructureUpkeep + s.AllCards.Sum(c => c.Def.Category == "person" ? c.Def.EnergyUpkeep : 0) + 4;
             Stack? to = needFood ? FreeYield(d => d.Yield == "food") : null;
+            to ??= needEnergy ? FreeYield(d => d.Yield == "energy") : null;
             to ??= needResearch ? FreeYield(d => d.Yield == "research") : null;
             to ??= needAlloys ? Free("alloy_foundry") : null;
             to ??= s.Have("minerals") < 15 ? FreeYield(d => d.Yield == "minerals") : null;
+            to ??= needResearch && s.Have("minerals") >= 8 ? FreeYield(d => d.Yield == "research") : null;
             to ??= FreeYield(d => d.Yield == "energy");
             to ??= FreeYield(d => d.Yield is "research" or "food" or "minerals" or "unity" or "consumer_goods");
             to ??= Free("alloy_foundry");
@@ -285,12 +347,14 @@ public static class Playtest
         {
             int farms = CountCard("agriculture_district");
             var wants = new List<string>();
-            if (farms * 90f / Defs.Card["agriculture_district"].YieldTime < eat + 1 && s.Ethic.WorkerCard == "pop") wants.Add("b_agriculture");
+            if (farms * 90f / Defs.Card["agriculture_district"].YieldTime * s.Mult("food") < eat + 3 && s.Ethic.WorkerCard == "pop") wants.Insert(0, "b_agriculture");
+            if (CountCard("mining_district") < 1 + s.AllCards.Count(c => c.Def.HasTag("worker")) / 5) wants.Add("b_mining");
             if (!HasCard("city_district") && s.Ethic.WorkerCard == "pop") wants.Add("b_city");
             if (!HasCard("shipyard")) wants.Add("b_shipyard");
             if (!HasCard("alloy_foundry")) wants.Add("b_foundry");
             if (!HasCard("research_lab")) wants.Add("b_lab");
-            if (CountCard("generator_district") < 2) wants.Add("b_generator");
+            if (CountCard("generator_district") < 1 + s.StructureUpkeep / 7) wants.Insert(0, "b_generator");
+            if (s.Techs.Contains("tech_science_nexus") && !HasCard("science_nexus")) wants.Add("b_science_nexus");
             if (CountCard("mining_district") < 2) wants.Add("b_mining");
             if (CountCard("alloy_foundry") < 2) wants.Add("b_foundry");
             if (!HasCard("starbase")) wants.Add("b_starbase");
@@ -309,6 +373,15 @@ public static class Playtest
         if (Lone(s, c => c.Def.Id == "derelict_ship") is { } der && Mine(s).FirstOrDefault(x => x.Cards.Count == 1 && x.Root.Def.Id == "construction_ship" && !Busy(x)) is { } cs2)
             s.StackOnto(der, cs2);
         Expand(s, mark);
+        Megastructures(s, mark);
+        Diplomacy(s, mark);
+        // Infinite research once every blueprint is known.
+        if (s.AllBlueprintsKnown && Mine(s).FirstOrDefault(x => x.Root.Def.Id == "research_lab" && x.Order == null && x.Cards.Any(c => c.Def.HasTag("researcher"))) is { } lab)
+        {
+            var reps = Defs.Recipes.Where(r => r.Id.StartsWith("rr_")).ToList();
+            s.SetOrder(lab, reps[s.Rng.Next(reps.Count)]);
+            mark("rep", "starts infinite research");
+        }
         // Machines grow by building Drones.
         if (Mine(s).FirstOrDefault(x => x.Root.Def.Id == "robot_assembly" && x.Order == null) is { } plant && s.Have("alloys") >= 2 && s.Have("energy") > s.AllCards.Count(c => c.Def.Id == "drone") + 2)
             s.SetOrder(plant, Defs.Recipes.First(r => r.Id == "w_drone"));
@@ -317,9 +390,10 @@ public static class Playtest
         int blueprints = Mine(s).Count(x => x.Root.Def.Category == "tech");
         int warshipsNow = s.AllCards.Count(c => c.Def.HasTag("warship"));
         int workers = s.AllCards.Count(c => c.Def.HasTag("worker"));
-        string pack = workers < 5 && s.Ethic.WorkerCard == "pop" ? "pack_society" : blueprints < 2 ? "pack_research"
+        bool needHull = s.NextHull is { } nh && !HasCard(nh) && HasCard("shipyard");
+        string pack = workers < 5 && s.Ethic.WorkerCard == "pop" ? "pack_society" : needHull && s.Moon % 2 == 1 ? "pack_military" : s.Moon >= 4 && !s.Empires.Any(e => e.Contacted) && !HasCard("envoy") && s.Moon % 2 == 0 ? "pack_exploration" : blueprints < 2 ? "pack_research"
             : HasCard("shipyard") && warshipsNow < s.FleetSize ? "pack_military" : s.Rng.Next(2) == 0 ? "pack_research" : "pack_industry";
-        int upkeep = s.AllCards.Where(c => c.Def.Category == "person").Sum(c => c.Def.EnergyUpkeep);
+        int upkeep = s.AllCards.Where(c => c.Def.Category == "person").Sum(c => c.Def.EnergyUpkeep) + s.StructureUpkeep;
         foreach (var surplus in new[] { "minerals", "food", "research", "alloys", "unity", "consumer_goods" }) if (s.Have(surplus) > 30) s.SellResource(surplus, 10);
         if (s.Have("energy") >= s.PackCost(Defs.Pack[pack]) + 3 + upkeep) { s.BuyPack(Defs.Pack[pack], home.Center); mark("pack", "first pack bought"); }
 

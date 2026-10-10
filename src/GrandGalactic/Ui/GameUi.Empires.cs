@@ -42,10 +42,10 @@ public sealed partial class GameUi
         if (Tex("st_empire_scene") is { } scene) DrawCover(scene, new Rectangle(r.X + 2, r.Y + 2, r.Width - 4, 110), new Color(255, 255, 255, 110));
         if (Tex(e.Def.Art) is { } art) DrawFit(art, new Rectangle(r.X + 20, r.Y + 16, 84, 84), Color.White);
         Text(e.Def.Name, r.X + 120, r.Y + 18, 34, Color.RayWhite);
-        Text($"{Personality(e)} - {e.Def.Desc}", r.X + 122, r.Y + 60, 16, Color.LightGray);
+        Text(e.Def.Desc, r.X + 122, r.Y + 60, 16, Color.LightGray);
         Text(StatusText(e), r.X + 122, r.Y + 84, 18, e.Status == "war" ? new Color(255, 120, 110, 255) : e.Status == "tributary" ? new Color(240, 210, 120, 255) : new Color(140, 230, 150, 255));
         if (Button(new Rectangle(r.X + r.Width - 110, r.Y + 14, 92, 34), "Close", false, 18)) { CloseDiplomacy(); return; }
-        Text("Time is paused here.", r.X + r.Width - 160, r.Y + 58, 14, Color.Gray);
+        Text("Time is paused", r.X + r.Width - 118, r.Y + 88, 14, Color.Gray);
 
         // Intel, level by level.
         float y = r.Y + 128, x = r.X + 24;
@@ -79,7 +79,7 @@ public sealed partial class GameUi
         else { Text("Their systems: unknown (intel 2).", x, y, 16, Color.Gray); y += 24; }
 
         // Actions.
-        y = Math.Max(y + 12, r.Y + 400);
+        y = Math.Max(y + 12, r.Y + 340);
         Raylib.DrawLine((int)r.X + 20, (int)y - 8, (int)(r.X + r.Width - 20), (int)y - 8, new Color(70, 80, 120, 255));
         if (_trade) { DrawTrade(e, new Rectangle(r.X + 20, y, r.Width - 40, r.Y + r.Height - y - 16)); return; }
         if (_goalPick) { DrawGoalPick(e, new Rectangle(r.X + 20, y, r.Width - 40, r.Y + r.Height - y - 16)); return; }
@@ -105,6 +105,7 @@ public sealed partial class GameUi
     void DrawTrade(Empire e, Rectangle r)
     {
         var sim = _sim!;
+        if (e.Offers.Count == 0) sim.RefreshTrade(e);
         if (Tex("st_trade_scene") is { } ts) DrawCover(ts, new Rectangle(r.X, r.Y, 200, 120), Color.White);
         Text("Trade deals (new ones each moon)", r.X + 220, r.Y, 20, new Color(240, 200, 90, 255));
         float y = r.Y + 32;
@@ -139,12 +140,12 @@ public sealed partial class GameUi
         float y = r.Y + 34;
         foreach (var g in goals)
         {
-            var row = new Rectangle(r.X, y, r.Width, 52);
+            var row = new Rectangle(r.X, y, r.Width, 46);
             bool hover = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), row);
             Raylib.DrawRectangleRounded(row, 0.15f, 6, hover ? new Color(60, 40, 50, 255) : new Color(30, 26, 44, 255));
             if (Tex(g.icon) is { } ic) DrawFit(ic, new Rectangle(row.X + 8, row.Y + 6, 40, 40), Color.White);
             Text(g.title, row.X + 60, row.Y + 6, 20, Color.RayWhite);
-            Text(g.desc, row.X + 60, row.Y + 30, 14, Color.LightGray);
+            Text(g.desc, row.X + 60, row.Y + 27, 14, Color.LightGray);
             if (hover && Raylib.IsMouseButtonPressed(MouseButton.Left))
             {
                 int target = g.id == "claim" ? e.Systems.FindIndex(s => !s.Capital && !s.Occupied) : -1;
@@ -152,9 +153,9 @@ public sealed partial class GameUi
                 if (why != null) Toast(why); else { _goalPick = false; }
                 return;
             }
-            y += 58;
+            y += 52;
         }
-        if (Button(new Rectangle(r.X, r.Y + r.Height - 40, 200, 38), "Back", false, 18)) _goalPick = false;
+        if (Button(new Rectangle(r.X, y + 6, 200, 38), "Back", false, 18)) _goalPick = false;
     }
 
     void DrawInvasion()
@@ -167,7 +168,7 @@ public sealed partial class GameUi
         DrawPanelFrame(r, new Color(255, 110, 100, 230));
         if (Tex("st_war_scene") is { } ws) DrawCover(ws, new Rectangle(r.X + 2, r.Y + 2, r.Width - 4, 90), new Color(255, 255, 255, 120));
         Text($"Invasion of the {e.Def.Name}", r.X + 20, r.Y + 14, 32, Color.RayWhite);
-        Text($"Goal: {sim.GoalText(e)}.  Time stands still at home.", r.X + 22, r.Y + 54, 17, new Color(255, 210, 190, 255));
+        Text((w.Won ? "War goal achieved." : $"Goal: {sim.GoalText(e)}.") + "  Time stands still at home.", r.X + 22, r.Y + 54, 17, new Color(255, 210, 190, 255));
         // Their systems.
         float y = r.Y + 106;
         Text("Their systems - pick one to attack", r.X + 20, y, 18, new Color(240, 200, 90, 255));

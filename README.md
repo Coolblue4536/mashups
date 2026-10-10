@@ -17,9 +17,38 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
 
 ## What you do
 
-- **Found your empire.** Pick one ethic: Militarist, Spiritualist, Materialist or Gestalt Consciousness
-  (machine drones). Each one changes your starting cards and gives you a free booster pack. (Current
-  Stellaris draws species portraits in 3D, so your people use Stellaris's pop icon instead.)
+- **Found your empire.** Pick a species and one ethic. The species are:
+  - Agrarian Mammalians, who farm fast;
+  - Industrious Lithoids, who mine fast and have tough Pops;
+  - Intelligent Avians, who research fast.
+
+  The ethics are Militarist, Spiritualist, Materialist and Gestalt Consciousness (machine drones). Each
+  ethic changes your starting cards and gives you a free booster pack.
+- **Energy upkeep.** Buildings, City Districts, Starbases and warships cost Energy every moon. Unpaid
+  upkeep is an energy deficit: work is slower and ships hit softer until you pay.
+- **Research.** Over 50 technologies come as blueprint cards:
+  - **Economy:** farming, mining, power, alloys, research speed, urban planning and construction speed.
+  - **Defence:** planetary shields, armour hardeners, reactor boosters and starbase upgrades.
+  - **Terraforming:** Gaia and volcanic terraforming.
+  - **Megastructures:** the Dyson Sphere, Matter Decompressor, Science Nexus and Ring World. They produce
+    on their own.
+  - **Ships:** hulls, and weapon and defence chains such as Red, Blue, UV and Gamma Lasers, or Mass Driver,
+    Coilgun and Railgun.
+
+  Blueprints come from packs at random, and higher tiers need the lower ones first. Once every blueprint is
+  researched, infinite research opens at Research Labs: each level gives +5% hull, shields, armour,
+  damage, output, construction speed or research speed.
+- **Rival empires.** Three rival empires share the galaxy and grow stronger with the moons.
+  - **Contact:** stack an Envoy (from Exploration packs) with a Science Ship to make first contact; their
+    home system joins your table. Click their capital card for diplomacy.
+  - **Intel:** leave an Envoy at their capital to gather intel in three levels, about a moon each: their
+    systems, their fleet strength, and finally exact numbers.
+  - **Trade:** swap resources at deals that change each moon. Trading stops time.
+  - **War:** declare war with a war goal: humiliation, a tributary that pays you every moon, or claiming
+    one of their systems. To invade, send a fleet to their capital and drop it on the capital card.
+    Time stops at home while you fight their systems one by one.
+  - **Aggressive empires** may declare war on you and raid your capital.
+- **Keep playing.** After you beat the crisis you can carry on indefinitely.
 - **Work your worlds.** You start with an empty pool. Stack Pops on your Homeworld, districts and colonised
   planets to make Energy, Minerals, Food, Research, Unity and more. Everything goes into one pool, shown
   as counters in the top bar and usable from every system. Work is slow and steady, as in Stacklands. The
@@ -86,11 +115,16 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
   the Prethoryn Scourge, the Unbidden or the Contingency. Destroy its leader to win. Killing the rift
   early brings the leader at once.
 - **Difficulty and moon length.** Pick Ensign, Captain, Admiral or Grand Admiral (enemy strength, raids, pack prices and when each act starts), and a moon length of 60, 90, 120 or 180 seconds.
-- **Tutorial.** A 16-step checklist in the corner walks a new player through it all: work the
-  Homeworld, buy a pack, grow Food, build a Shipyard, research, survey, study a star, travel, claim,
-  colonise, build and fit a warship, assign an Admiral, win a battle and reach Act 2. Steps tick off in
-  any order. You can skip a step, or hide the tutorial and switch it back on from the Esc menu. Time
-  keeps running during the tutorial.
+- **Tutorial.** A 17-step checklist in the corner walks a new player through it all, and the cards or
+  panels for the current step glow:
+  - work the Homeworld, farm and mine;
+  - buy a pack, open the book, order a building;
+  - research a blueprint, survey, raise a Baby;
+  - build, fit and fight with a warship;
+  - travel, claim, colonise, meet another empire, and reach Act 2.
+
+  Steps tick off in any order. You can skip a step, or hide the tutorial and switch it back on from the
+  Esc menu. Time keeps running during the tutorial.
 - **Blueprint book (Tab).** Every blueprint you know, as picture tiles, sorted into tabs: Build, Ships &
   Parts, Research, Work, and Explore & Claim. Each tile shows what it makes, where, what goes in and how
   long it takes. Unresearched blueprints stay out of the book. The game pauses while the book is open,

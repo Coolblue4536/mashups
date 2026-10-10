@@ -145,6 +145,7 @@ public sealed partial class Sim
                 e.Systems.Add(sys);
             }
             Empires.Add(e);
+            if (e.Contacted) NewTradeOffers(e);
         }
         Diff = Defs.Difficulties.FirstOrDefault(x => x.Id == d.Difficulty) ?? Defs.DefaultDifficulty;
         Crisis = Defs.Crises.FirstOrDefault(x => x.Id == d.Crisis) ?? Defs.Crises[0];

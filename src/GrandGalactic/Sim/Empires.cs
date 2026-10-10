@@ -133,6 +133,8 @@ public sealed partial class Sim
 
     // ---------- trade (time stops while the trade screen is open) ----------
 
+    public void RefreshTrade(Empire e) => NewTradeOffers(e);
+
     void NewTradeOffers(Empire e)
     {
         e.Offers.Clear();
@@ -197,8 +199,8 @@ public sealed partial class Sim
     public string? OfferPeace(Empire e)
     {
         if (e.Status != "war") return "You are not at war.";
-        bool tired = Moon - e.WarSince >= 4, weaker = EmpireStrength(e) < PlayerStrength;
-        if (!tired && !weaker) return $"The {e.Def.Name} refuse: they think they can win. Try again in {4 - (Moon - e.WarSince)} moons, or beat their raids.";
+        bool tired = Moon - e.WarSince >= 3, weaker = EmpireStrength(e) < PlayerStrength;
+        if (!tired && !weaker) return $"The {e.Def.Name} refuse: they think they can win. Try again in {3 - (Moon - e.WarSince)} moons, or beat their raids.";
         e.Status = "peace";
         e.WarGoal = "";
         Messages.Add($"Peace with the {e.Def.Name}.");
@@ -222,11 +224,11 @@ public sealed partial class Sim
             if (e.Status == "war" && Moon - e.LastRaid >= Defs.Rules.EmpireRaidEvery)
             {
                 e.LastRaid = Moon;
-                SpawnEmpireRaid(e, (int)(str * 0.35f));
+                SpawnEmpireRaid(e, (int)(str * 0.25f));
             }
-            if (e.Status == "peace" && Moon >= 8 && Moon > e.HumiliatedUntil)
+            if (e.Status == "peace" && Moon >= 10 && Moon > e.HumiliatedUntil)
             {
-                float chance = e.Def.Personality switch { "aggressive" => 0.25f, "balanced" => 0.08f, _ => 0f };
+                float chance = e.Def.Personality switch { "aggressive" => 0.15f, "balanced" => 0.05f, _ => 0f };
                 if (str > PlayerStrength * 1.3f + 20 && Rng.NextDouble() < chance)
                 {
                     e.Status = "war";
@@ -380,9 +382,10 @@ public sealed partial class Sim
         if (War is not { } w || w.Fight != null) return;
         if (w.Fleet.Count > 0)
         {
-            var s = NewStack(w.ReturnPos);
+            // Home means your capital system.
+            var s = NewStack(Home.Center);
             foreach (var c in w.Fleet) Add(s, c);
-            if (SystemAt(CardCenter(s)) is { } z) Place(s, z, s.Pos);
+            Place(s, Home, Home.Center);
             Messages.Add(w.Won ? "The victorious fleet is home." : "The fleet is home.");
         }
         War = null;

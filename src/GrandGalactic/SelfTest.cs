@@ -247,7 +247,7 @@ public static class SelfTest
             s.MoonTime = s.MoonSeconds - 0.01f;
             s.Update(0.05f);
             Run(s, 0.1f);
-            Check(!s.EnergyDeficit && slow > farm.Duration * 1.3f, $"a deficit slows work ({slow:0.0}s vs {farm.Duration:0.0}s) until upkeep is paid");
+            Check(!s.EnergyDeficit && slow > farm.Duration * (Defs.Rules.EnergyDeficitWorkPct / 100f - 0.02f), $"a deficit slows work ({slow:0.0}s vs {farm.Duration:0.0}s) until upkeep is paid");
             float before = farm.Duration;
             s.Techs.Add("tech_hydroponics");
             foreach (var x in s.Table.Stacks) x.Dirty = true;
