@@ -67,8 +67,9 @@ public sealed partial class GameUi
         Text($"from the {ev.Emp.Def.Name}", r.X + 114, r.Y + 62, 17, Color.LightGray);
         Wrapped(ev.Text, r.X + 30, r.Y + 116, r.Width - 60, 19, Color.RayWhite, 4);
         Text($"You have {sim.Have(ev.Give)} {_res.CardName(ev.Give)}.", r.X + 30, r.Y + 210, 16, sim.Have(ev.Give) >= ev.GiveN ? Color.LightGray : new Color(255, 150, 130, 255));
-        string yes = ev.Kind == "tribute" ? $"Pay {ev.GiveN} Energy" : "Accept", no = ev.Kind == "tribute" ? "Refuse" : "Decline";
-        if (Button(new Rectangle(r.X + 30, r.Y + r.Height - 74, 280, 50), yes, false, 20)) Toast(sim.Resolve(ev, true));
+        bool afford = sim.Have(ev.Give) >= ev.GiveN;
+        string yes = !afford ? "Can't afford" : ev.Kind == "tribute" ? $"Pay {ev.GiveN} Energy" : "Accept", no = ev.Kind == "tribute" ? "Refuse" : "Decline";
+        if (Button(new Rectangle(r.X + 30, r.Y + r.Height - 74, 280, 50), yes, false, 20) && afford) Toast(sim.Resolve(ev, true));
         else if (Button(new Rectangle(r.X + r.Width - 310, r.Y + r.Height - 74, 280, 50), no, false, 20)) Toast(sim.Resolve(ev, false));
     }
 
@@ -135,10 +136,10 @@ public sealed partial class GameUi
         float bx = r.X + 24;
         // Espionage: available at intel 3 with an Envoy at their capital, once a moon.
         var spy = sim.SabotageBlock(e);
-        if (Button(new Rectangle(bx + 520, y, 260, 50), $"Sabotage fleet ({Defs.Rules.SabotageCost} Energy)", false, 18))
+        if (Button(new Rectangle(bx, y + 66, 260, 44), $"Sabotage fleet ({Defs.Rules.SabotageCost} Energy)", false, 18))
             Toast(spy ?? sim.Sabotage(e));
         Text(spy ?? $"Destroys {Defs.Rules.SabotagePct}% of their fleet strength. {Defs.Rules.SabotageCaughtPct}% chance your agents are caught.",
-             bx + 520, y + 56, 13, spy == null ? new Color(140, 230, 150, 255) : Color.Gray);
+             bx + 276, y + 80, 15, spy == null ? new Color(140, 230, 150, 255) : Color.Gray);
         if (e.Status != "war")
         {
             if (Button(new Rectangle(bx, y, 220, 50), "Trade", false, 22)) _trade = true;

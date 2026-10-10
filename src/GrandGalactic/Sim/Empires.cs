@@ -255,9 +255,9 @@ public sealed partial class Sim
     /// <summary>Answer an empire's event. Returns what happened.</summary>
     public string Resolve(EmpireEvent ev, bool accept)
     {
-        Pending.Remove(ev);
         var e = ev.Emp;
-        if (accept && Have(ev.Give) < ev.GiveN) return $"You don't have {ev.GiveN} {Name(ev.Give)}.";
+        if (accept && Have(ev.Give) < ev.GiveN) return $"You don't have {ev.GiveN} {Name(ev.Give)}."; // the event stays until you can pay or refuse
+        Pending.Remove(ev);
         switch (ev.Kind)
         {
             case "tribute":

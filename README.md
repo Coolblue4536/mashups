@@ -48,12 +48,16 @@ Neither game's files are included. Grand Galactic reads them from your PC each t
     one of their systems. To invade, send a fleet to their capital and drop it on the capital card.
     Time stops at home while you fight their systems one by one.
   - **Aggressive empires** may declare war on you and raid your capital.
+  - **Sabotage:** at intel level 3, with an Envoy at their capital, spend 15 Energy to destroy 20% of their
+    fleet strength, once a moon. Your agents may be caught, and that can mean war.
+  - **Events:** empires at peace send events that pause the game until you answer: tribute demands
+    (refusing may mean war), special deals, research pacts that trade Research for a blueprint, and gifts.
 - **Keep playing.** After you beat the crisis you can carry on indefinitely.
 - **Work your worlds.** You start with an empty pool. Stack Pops on your Homeworld, districts and colonised
   planets to make Energy, Minerals, Food, Research, Unity and more. Everything goes into one pool, shown
   as counters in the top bar and usable from every system. Work is slow and steady, as in Stacklands. The
   first moon is on rations; after that, everyone eats at the end of each moon, and you're warned 20
-  seconds ahead if Food (or the Drones' Energy) will run short.
+  seconds ahead if Food (or the Drones' Energy) will run short, and your farms glow red while Food is short.
 - **Build.** Click a Construction Ship to choose what it builds: districts, labs, foundries, shipyards,
   temples or starbases. The cost comes from your pool. Click a Shipyard to build science, construction
   and colony ships, warships (Corvettes up to Titans) and ship parts.
