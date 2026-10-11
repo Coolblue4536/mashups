@@ -55,8 +55,8 @@ public static class Rules
     public const double AiMaxCitiesSmall = 6.0;
     /// <summary>Act 2 calendar starts in 2200.</summary>
     public const double Act2StartYear = 2200.0;
-    /// <summary>Real seconds per month at normal speed (speeds 1x, 2x, 4x).</summary>
-    public const double Act2SecondsPerMonth = 1.2;
+    /// <summary>Act 2 is turn based: each turn is this many months (ships move, worlds grow and fleets fight month by month within it).</summary>
+    public const double Act2MonthsPerTurn = 6.0;
     /// <summary>Months for a planet to grow one pop (before modifiers).</summary>
     public const double Act2PopGrowthMonths = 30.0;
     /// <summary>Food each pop eats a month.</summary>
@@ -110,26 +110,26 @@ public sealed record DifficultyDef(string Id, string NameLoc, string Name, doubl
 /// <summary>Act 1 map and Act 2 galaxy sizes.</summary>
 public sealed record MapSizeDef(string Id, string Name, int Width, int Height, int DefaultRivals, int MaxRivals, int NaturalWonders, int Aliens, int Act2Systems, string Desc);
 
-/// <summary>How long Act 2 runs before the highest score wins.</summary>
+/// <summary>How long Act 2 runs before the highest score wins. Each turn is act2_months_per_turn months.</summary>
 public sealed record GameLengthDef(string Id, string Name, int EndYear, string Desc);
 
 /// <summary>Act 1 yields. Civ VI's culture and faith are folded in: culture counts as science, faith as gold.</summary>
 public sealed record YieldDef(string Id, string NameLoc, string Name, string Icon, string Color, string Desc);
 
-/// <summary>Act 1 terrain. Yields are Civ VI's (Terrain_YieldChanges); mountains can't be worked or settled.</summary>
-public sealed record TerrainDef(string Id, string NameLoc, int Food, int Production, int Gold, int Science, bool Land, bool Passable, string Icon, string Color);
+/// <summary>Act 1 terrain. Yields are Civ VI's (Terrain_YieldChanges); mountains can't be worked or settled. ground/ground_fow: Civ VI terrain textures for seen and fogged land (none on water, which is drawn in its colour); overlay: Civ VI strategic-view sprite drawn on top ({n} picks a variant; none for flat land).</summary>
+public sealed record TerrainDef(string Id, string NameLoc, int Food, int Production, int Gold, int Science, bool Land, bool Passable, string Icon, string Color, string Ground, string GroundFow, string Overlay, string OverlayFow);
 
-/// <summary>Act 1 features on land tiles. Yields add to the terrain's (Civ VI's Feature_YieldChanges).</summary>
-public sealed record FeatureDef(string Id, string NameLoc, string[] Terrains, int Food, int Production, int Gold, int Science, double Density, string Icon);
+/// <summary>Act 1 features on land tiles. Yields add to the terrain's (Civ VI's Feature_YieldChanges). sprite/sprite_fow: Civ VI strategic-view picture when seen / in fog.</summary>
+public sealed record FeatureDef(string Id, string NameLoc, string[] Terrains, int Food, int Production, int Gold, int Science, double Density, string Icon, string Sprite, string SpriteFow);
 
-/// <summary>Natural wonders on the Act 1 map. Their tile yields come from Civ VI (culture as science, faith as gold). In Act 2 each becomes a rare star system: whoever reached space first starts owning it, and whoever holds it gets the modifier. DEFAULT covers natural wonders not listed.</summary>
-public sealed record NaturalWonderDef(string Id, bool Land, int Food, int Production, int Gold, int Science, string Modifier, string Desc);
+/// <summary>Natural wonders on the Act 1 map. Their tile yields come from Civ VI (culture as science, faith as gold). In Act 2 each becomes a rare star system: whoever reached space first starts owning it, and whoever holds it gets the modifier. DEFAULT covers natural wonders not listed. sprite: Civ VI strategic-view picture (none: its icon is shown).</summary>
+public sealed record NaturalWonderDef(string Id, bool Land, int Food, int Production, int Gold, int Science, string Modifier, string Sprite, string Desc);
 
-/// <summary>Act 1 city buildings: real Civ VI buildings (name, icon and cost from the install), with simplified effects. Cost here is Civ VI's, before act1_build_cost_mult.</summary>
-public sealed record BuildingDef(string Id, string RequiresTech, string RequiresBuilding, bool Coastal, int Cost, int Food, int Production, int Gold, int Science, int FoodPct, int ProductionPct, int GoldPct, int SciencePct, string Desc);
+/// <summary>Act 1 city buildings: real Civ VI buildings (name, icon and cost from the install), with simplified effects. Cost here is Civ VI's, before act1_build_cost_mult. district: the Civ VI district it stands in (shown on a tile next to the city; none: the city centre); sprite: its strategic-view picture.</summary>
+public sealed record BuildingDef(string Id, string RequiresTech, string RequiresBuilding, bool Coastal, int Cost, int Food, int Production, int Gold, int Science, int FoodPct, int ProductionPct, int GoldPct, int SciencePct, string District, string Sprite, string Desc);
 
-/// <summary>Act 1 world wonders: only one civilization can build each. Name, icon and cost come from Civ VI; wonders Civ VI unlocks with a civic are unlocked by the tech listed here. In Act 2 each wonder you built becomes a feature on your homeworld with its modifier.</summary>
-public sealed record WonderDef(string Id, string RequiresTech, int Cost, string Scope, int Food, int Production, int Gold, int Science, int FoodPct, int ProductionPct, int GoldPct, int SciencePct, string Modifier, string Desc);
+/// <summary>Act 1 world wonders: only one civilization can build each. Name, icon and cost come from Civ VI; wonders Civ VI unlocks with a civic are unlocked by the tech listed here. In Act 2 each wonder you built becomes a feature on your homeworld with its modifier. sprite: its Civ VI strategic-view picture, shown on its own tile next to the city.</summary>
+public sealed record WonderDef(string Id, string RequiresTech, int Cost, string Scope, int Food, int Production, int Gold, int Science, int FoodPct, int ProductionPct, int GoldPct, int SciencePct, string Modifier, string Sprite, string Desc);
 
 /// <summary>Act 1 space projects (Civ VI's), built in a city with a Spaceport. Cost is Civ VI's, before act1_build_cost_mult.</summary>
 public sealed record ProjectDef(string Id, string RequiresTech, string RequiresBuilding, int Cost, string Kind, string Desc);
@@ -137,8 +137,11 @@ public sealed record ProjectDef(string Id, string RequiresTech, string RequiresB
 /// <summary>Civ VI techs that carry a Space Age legacy: each one you research gives its modifier at the start of Act 2. The tech's tooltip names it.</summary>
 public sealed record TechLegacyDef(string CivTech, string Title, string Modifier);
 
-/// <summary>Act 1 calendar: the year follows the most advanced civilization's progress through Civ VI's eras, so the space age arrives in the 20th century however fast the game goes.</summary>
-public sealed record EraDef(string Id, int StartYear);
+/// <summary>Act 1 calendar: the year follows the most advanced civilization's progress through Civ VI's eras, so the space age arrives in the 20th century however fast the game goes. city_sprite: how cities look in that era (Civ VI strategic view; {v} is Visible or Revealed).</summary>
+public sealed record EraDef(string Id, int StartYear, string CitySprite);
+
+/// <summary>What a city's worked tiles show (Civ VI strategic-view improvements; looks only, no effect). on: flat (grass, plains, desert, tundra), hills, water, or a feature id.</summary>
+public sealed record ImprovementDef(string Id, string On, string Sprite);
 
 /// <summary>Act 2 resources (Stellaris's). Research is one pool here.</summary>
 public sealed record ResourceDef(string Id, string NameLoc, string Name, string Art, int Start, string Desc);
@@ -206,9 +209,9 @@ public static partial class Defs
 
     public static readonly GameLengthDef[] GameLengths =
     {
-        new("short", "Short", 2260, "Act 2 ends in 2260."),
-        new("standard", "Standard", 2300, "Act 2 ends in 2300."),
-        new("long", "Long", 2350, "Act 2 ends in 2350."),
+        new("short", "Short", 2250, "Act 2 ends in 2250 (100 turns)."),
+        new("standard", "Standard", 2275, "Act 2 ends in 2275 (150 turns)."),
+        new("long", "Long", 2300, "Act 2 ends in 2300 (200 turns)."),
     };
     public static readonly System.Collections.Generic.Dictionary<string, GameLengthDef> GameLength = System.Linq.Enumerable.ToDictionary(GameLengths, d => d.Id);
 
@@ -223,105 +226,105 @@ public static partial class Defs
 
     public static readonly TerrainDef[] Terrains =
     {
-        new("TERRAIN_GRASS", "LOC_TERRAIN_GRASS_NAME", 2, 0, 0, 0, true, true, "ICON_TERRAIN_GRASS", "#6E9B3A"),
-        new("TERRAIN_GRASS_HILLS", "LOC_TERRAIN_GRASS_HILLS_NAME", 2, 1, 0, 0, true, true, "ICON_TERRAIN_GRASS_HILLS", "#5E8A33"),
-        new("TERRAIN_GRASS_MOUNTAIN", "LOC_TERRAIN_GRASS_MOUNTAIN_NAME", 0, 0, 0, 0, true, false, "ICON_TERRAIN_GRASS_MOUNTAIN", "#7A7A6E"),
-        new("TERRAIN_PLAINS", "LOC_TERRAIN_PLAINS_NAME", 1, 1, 0, 0, true, true, "ICON_TERRAIN_PLAINS", "#A9A048"),
-        new("TERRAIN_PLAINS_HILLS", "LOC_TERRAIN_PLAINS_HILLS_NAME", 1, 2, 0, 0, true, true, "ICON_TERRAIN_PLAINS_HILLS", "#978E3F"),
-        new("TERRAIN_PLAINS_MOUNTAIN", "LOC_TERRAIN_PLAINS_MOUNTAIN_NAME", 0, 0, 0, 0, true, false, "ICON_TERRAIN_PLAINS_MOUNTAIN", "#7D786A"),
-        new("TERRAIN_DESERT", "LOC_TERRAIN_DESERT_NAME", 0, 0, 0, 0, true, true, "ICON_TERRAIN_DESERT", "#D8C17E"),
-        new("TERRAIN_DESERT_HILLS", "LOC_TERRAIN_DESERT_HILLS_NAME", 0, 1, 0, 0, true, true, "ICON_TERRAIN_DESERT_HILLS", "#C7AE6B"),
-        new("TERRAIN_DESERT_MOUNTAIN", "LOC_TERRAIN_DESERT_MOUNTAIN_NAME", 0, 0, 0, 0, true, false, "ICON_TERRAIN_DESERT_MOUNTAIN", "#8F8470"),
-        new("TERRAIN_TUNDRA", "LOC_TERRAIN_TUNDRA_NAME", 1, 0, 0, 0, true, true, "ICON_TERRAIN_TUNDRA", "#8E9A86"),
-        new("TERRAIN_TUNDRA_HILLS", "LOC_TERRAIN_TUNDRA_HILLS_NAME", 1, 1, 0, 0, true, true, "ICON_TERRAIN_TUNDRA_HILLS", "#7F8B78"),
-        new("TERRAIN_TUNDRA_MOUNTAIN", "LOC_TERRAIN_TUNDRA_MOUNTAIN_NAME", 0, 0, 0, 0, true, false, "ICON_TERRAIN_TUNDRA_MOUNTAIN", "#7C7F7A"),
-        new("TERRAIN_SNOW", "LOC_TERRAIN_SNOW_NAME", 0, 0, 0, 0, true, true, "ICON_TERRAIN_SNOW", "#E6EEF2"),
-        new("TERRAIN_SNOW_HILLS", "LOC_TERRAIN_SNOW_HILLS_NAME", 0, 1, 0, 0, true, true, "ICON_TERRAIN_SNOW_HILLS", "#D6DEE3"),
-        new("TERRAIN_SNOW_MOUNTAIN", "LOC_TERRAIN_SNOW_MOUNTAIN_NAME", 0, 0, 0, 0, true, false, "ICON_TERRAIN_SNOW_MOUNTAIN", "#B9C1C6"),
-        new("TERRAIN_COAST", "LOC_TERRAIN_COAST_NAME", 1, 0, 1, 0, false, false, "ICON_TERRAIN_COAST", "#3E8FB5"),
-        new("TERRAIN_OCEAN", "LOC_TERRAIN_OCEAN_NAME", 1, 0, 0, 0, false, false, "ICON_TERRAIN_OCEAN", "#22597F"),
+        new("TERRAIN_GRASS", "LOC_TERRAIN_GRASS_NAME", 2, 0, 0, 0, true, true, "ICON_TERRAIN_GRASS", "#6E9B3A", "TER_Grass_B", "FOW_Ground_Grass_2k", "none", "none"),
+        new("TERRAIN_GRASS_HILLS", "LOC_TERRAIN_GRASS_HILLS_NAME", 2, 1, 0, 0, true, true, "ICON_TERRAIN_GRASS_HILLS", "#5E8A33", "TER_Grass_B", "FOW_Ground_Grass_2k", "SV_Sprites_HillsGrasslands_Color_{n}", "SV_Sprites_HillsGrasslands_FOW_{n}"),
+        new("TERRAIN_GRASS_MOUNTAIN", "LOC_TERRAIN_GRASS_MOUNTAIN_NAME", 0, 0, 0, 0, true, false, "ICON_TERRAIN_GRASS_MOUNTAIN", "#7A7A6E", "TER_Grass_B", "FOW_Ground_Grass_2k", "SV_TerrainMountain_Grassland_Color_0{n}", "SV_TerrainMountain_Grassland_FOW_0{n}"),
+        new("TERRAIN_PLAINS", "LOC_TERRAIN_PLAINS_NAME", 1, 1, 0, 0, true, true, "ICON_TERRAIN_PLAINS", "#A9A048", "TER_Plains_B", "FOW_Ground_Plains_2k", "none", "none"),
+        new("TERRAIN_PLAINS_HILLS", "LOC_TERRAIN_PLAINS_HILLS_NAME", 1, 2, 0, 0, true, true, "ICON_TERRAIN_PLAINS_HILLS", "#978E3F", "TER_Plains_B", "FOW_Ground_Plains_2k", "SV_Sprites_HillsPlains_Color_Plains_Hill_{n}", "SV_Sprites_HillsPlains_FOW_Plains_Hill_{n}"),
+        new("TERRAIN_PLAINS_MOUNTAIN", "LOC_TERRAIN_PLAINS_MOUNTAIN_NAME", 0, 0, 0, 0, true, false, "ICON_TERRAIN_PLAINS_MOUNTAIN", "#7D786A", "TER_Plains_B", "FOW_Ground_Plains_2k", "SV_TerrainMountain_Plains_Color_0{n}", "SV_TerrainMountain_Plains_FOW_0{n}"),
+        new("TERRAIN_DESERT", "LOC_TERRAIN_DESERT_NAME", 0, 0, 0, 0, true, true, "ICON_TERRAIN_DESERT", "#D8C17E", "TER_Desert_B", "FOW_Ground_Desert", "none", "none"),
+        new("TERRAIN_DESERT_HILLS", "LOC_TERRAIN_DESERT_HILLS_NAME", 0, 1, 0, 0, true, true, "ICON_TERRAIN_DESERT_HILLS", "#C7AE6B", "TER_Desert_B", "FOW_Ground_Desert", "SV_Sprites_HillsDesert_Color_{n}", "SV_Sprites_HillsDesert_FOW_{n}"),
+        new("TERRAIN_DESERT_MOUNTAIN", "LOC_TERRAIN_DESERT_MOUNTAIN_NAME", 0, 0, 0, 0, true, false, "ICON_TERRAIN_DESERT_MOUNTAIN", "#8F8470", "TER_Desert_B", "FOW_Ground_Desert", "SV_TerrainMountain_Desert_Color_0{n}", "SV_TerrainMountain_Desert_FOW_0{n}"),
+        new("TERRAIN_TUNDRA", "LOC_TERRAIN_TUNDRA_NAME", 1, 0, 0, 0, true, true, "ICON_TERRAIN_TUNDRA", "#8E9A86", "TER_Tundra_B", "FOW_Ground_Tundra", "none", "none"),
+        new("TERRAIN_TUNDRA_HILLS", "LOC_TERRAIN_TUNDRA_HILLS_NAME", 1, 1, 0, 0, true, true, "ICON_TERRAIN_TUNDRA_HILLS", "#7F8B78", "TER_Tundra_B", "FOW_Ground_Tundra", "SV_Sprites_HillsTundra_Color_{n}", "SV_Sprites_HillsTundra_FOW_{n}"),
+        new("TERRAIN_TUNDRA_MOUNTAIN", "LOC_TERRAIN_TUNDRA_MOUNTAIN_NAME", 0, 0, 0, 0, true, false, "ICON_TERRAIN_TUNDRA_MOUNTAIN", "#7C7F7A", "TER_Tundra_B", "FOW_Ground_Tundra", "SV_TerrainMountain_Tundra_Color_0{n}", "SV_TerrainMountain_Tundra_FOW_0{n}"),
+        new("TERRAIN_SNOW", "LOC_TERRAIN_SNOW_NAME", 0, 0, 0, 0, true, true, "ICON_TERRAIN_SNOW", "#E6EEF2", "TER_Snow_B", "FOW_Ground_Snow", "none", "none"),
+        new("TERRAIN_SNOW_HILLS", "LOC_TERRAIN_SNOW_HILLS_NAME", 0, 1, 0, 0, true, true, "ICON_TERRAIN_SNOW_HILLS", "#D6DEE3", "TER_Snow_B", "FOW_Ground_Snow", "SV_Sprites_HillsSnow_Color_{n}", "SV_Sprites_HillsSnow_FOW_{n}"),
+        new("TERRAIN_SNOW_MOUNTAIN", "LOC_TERRAIN_SNOW_MOUNTAIN_NAME", 0, 0, 0, 0, true, false, "ICON_TERRAIN_SNOW_MOUNTAIN", "#B9C1C6", "TER_Snow_B", "FOW_Ground_Snow", "SV_TerrainMountain_Snow_Color_0{n}", "SV_TerrainMountain_Snow_FOW_0{n}"),
+        new("TERRAIN_COAST", "LOC_TERRAIN_COAST_NAME", 1, 0, 1, 0, false, false, "ICON_TERRAIN_COAST", "#3E8FB5", "none", "none", "SV_TerrainHexCoast_Color", "SV_TerrainHexCoast_FOW"),
+        new("TERRAIN_OCEAN", "LOC_TERRAIN_OCEAN_NAME", 1, 0, 0, 0, false, false, "ICON_TERRAIN_OCEAN", "#22597F", "none", "none", "SV_TerrainHexOcean_Color", "SV_TerrainHexOcean_FOW"),
     };
     public static readonly System.Collections.Generic.Dictionary<string, TerrainDef> Terrain = System.Linq.Enumerable.ToDictionary(Terrains, d => d.Id);
 
     public static readonly FeatureDef[] Features =
     {
-        new("FEATURE_FOREST", "LOC_FEATURE_FOREST_NAME", new[] { "TERRAIN_GRASS", "TERRAIN_PLAINS", "TERRAIN_TUNDRA", "TERRAIN_GRASS_HILLS", "TERRAIN_PLAINS_HILLS", "TERRAIN_TUNDRA_HILLS" }, 0, 1, 0, 0, 0.22, "ICON_FEATURE_FOREST"),
-        new("FEATURE_JUNGLE", "LOC_FEATURE_JUNGLE_NAME", new[] { "TERRAIN_GRASS", "TERRAIN_PLAINS", "TERRAIN_GRASS_HILLS", "TERRAIN_PLAINS_HILLS" }, 1, 0, 0, 0, 0.12, "ICON_FEATURE_JUNGLE"),
-        new("FEATURE_MARSH", "LOC_FEATURE_MARSH_NAME", new[] { "TERRAIN_GRASS" }, 1, 0, 0, 0, 0.04, "ICON_FEATURE_MARSH"),
-        new("FEATURE_FLOODPLAINS", "LOC_FEATURE_FLOODPLAINS_NAME", new[] { "TERRAIN_DESERT" }, 3, 0, 0, 0, 0.08, "ICON_FEATURE_FLOODPLAINS"),
-        new("FEATURE_OASIS", "LOC_FEATURE_OASIS_NAME", new[] { "TERRAIN_DESERT" }, 3, 0, 1, 0, 0.03, "ICON_FEATURE_OASIS"),
+        new("FEATURE_FOREST", "LOC_FEATURE_FOREST_NAME", new[] { "TERRAIN_GRASS", "TERRAIN_PLAINS", "TERRAIN_TUNDRA", "TERRAIN_GRASS_HILLS", "TERRAIN_PLAINS_HILLS", "TERRAIN_TUNDRA_HILLS" }, 0, 1, 0, 0, 0.22, "ICON_FEATURE_FOREST", "Features_Forest_Visible", "Features_Forest_Revealed"),
+        new("FEATURE_JUNGLE", "LOC_FEATURE_JUNGLE_NAME", new[] { "TERRAIN_GRASS", "TERRAIN_PLAINS", "TERRAIN_GRASS_HILLS", "TERRAIN_PLAINS_HILLS" }, 1, 0, 0, 0, 0.12, "ICON_FEATURE_JUNGLE", "Features_Jungle_Visible", "Features_Jungle_Revealed"),
+        new("FEATURE_MARSH", "LOC_FEATURE_MARSH_NAME", new[] { "TERRAIN_GRASS" }, 1, 0, 0, 0, 0.04, "ICON_FEATURE_MARSH", "Features_Marsh_Visible", "Features_Marsh_Revealed"),
+        new("FEATURE_FLOODPLAINS", "LOC_FEATURE_FLOODPLAINS_NAME", new[] { "TERRAIN_DESERT" }, 3, 0, 0, 0, 0.08, "ICON_FEATURE_FLOODPLAINS", "Features_Floodplains_Visible", "Features_Floodplains_Revealed"),
+        new("FEATURE_OASIS", "LOC_FEATURE_OASIS_NAME", new[] { "TERRAIN_DESERT" }, 3, 0, 1, 0, 0.03, "ICON_FEATURE_OASIS", "Features_Oasis_Visible", "Features_Oasis_Revealed"),
     };
     public static readonly System.Collections.Generic.Dictionary<string, FeatureDef> Feature = System.Linq.Enumerable.ToDictionary(Features, d => d.Id);
 
     public static readonly NaturalWonderDef[] NaturalWonders =
     {
-        new("FEATURE_CRATER_LAKE", true, 0, 0, 5, 1, "sa_natural_research", "Crater Lake"),
-        new("FEATURE_DEAD_SEA", true, 0, 0, 2, 2, "sa_natural_unity", "Dead Sea"),
-        new("FEATURE_EVEREST", true, 0, 2, 0, 1, "sa_natural_minerals", "Mount Everest (Civ VI gives units bonuses; here it yields production)"),
-        new("FEATURE_GALAPAGOS", false, 1, 0, 0, 2, "sa_natural_research", "Galápagos Islands"),
-        new("FEATURE_KILIMANJARO", true, 2, 0, 0, 0, "sa_natural_food", "Mount Kilimanjaro"),
-        new("FEATURE_PANTANAL", true, 2, 0, 0, 2, "sa_natural_food", "Pantanal"),
-        new("FEATURE_PIOPIOTAHI", true, 0, 0, 0, 2, "sa_natural_unity", "Piopiotahi"),
-        new("FEATURE_TORRES_DEL_PAINE", true, 0, 2, 0, 1, "sa_natural_minerals", "Torres del Paine"),
-        new("FEATURE_TSINGY", true, 0, 2, 0, 1, "sa_natural_minerals", "Tsingy de Bemaraha"),
-        new("FEATURE_YOSEMITE", true, 0, 0, 1, 1, "sa_natural_energy", "Yosemite"),
-        new("FEATURE_CLIFFS_DOVER", false, 2, 0, 3, 3, "sa_natural_unity", "Cliffs of Dover"),
-        new("FEATURE_BARRIER_REEF", false, 3, 0, 0, 2, "sa_natural_food", "Great Barrier Reef"),
-        new("DEFAULT", true, 1, 1, 1, 1, "sa_natural_energy", "Any other natural wonder the player's Civ VI has"),
+        new("FEATURE_CRATER_LAKE", true, 0, 0, 5, 1, "sa_natural_research", "NaturalWonders_CraterLake_Visible", "Crater Lake"),
+        new("FEATURE_DEAD_SEA", true, 0, 0, 2, 2, "sa_natural_unity", "NaturalWonders_DeadSea_Dash_1_Visible", "Dead Sea"),
+        new("FEATURE_EVEREST", true, 0, 2, 0, 1, "sa_natural_minerals", "NaturalWonders_Everest_1_Visible", "Mount Everest (Civ VI gives units bonuses; here it yields production)"),
+        new("FEATURE_GALAPAGOS", false, 1, 0, 0, 2, "sa_natural_research", "NaturalWonders_GalapagosIsland_Dash_1_Visible", "Galápagos Islands"),
+        new("FEATURE_KILIMANJARO", true, 2, 0, 0, 0, "sa_natural_food", "NaturalWonders_Kilimanjaro_Visible", "Mount Kilimanjaro"),
+        new("FEATURE_PANTANAL", true, 2, 0, 0, 2, "sa_natural_food", "NaturalWonders_Pantanal_1_Visible", "Pantanal"),
+        new("FEATURE_PIOPIOTAHI", true, 0, 0, 0, 2, "sa_natural_unity", "NaturalWonders_Piopiotahi_1_Visible", "Piopiotahi"),
+        new("FEATURE_TORRES_DEL_PAINE", true, 0, 2, 0, 1, "sa_natural_minerals", "NaturalWonders_TorresDelPaine_1_Visible", "Torres del Paine"),
+        new("FEATURE_TSINGY", true, 0, 2, 0, 1, "sa_natural_minerals", "NaturalWonders_TsingyDeBemaraha_Visible", "Tsingy de Bemaraha"),
+        new("FEATURE_YOSEMITE", true, 0, 0, 1, 1, "sa_natural_energy", "NaturalWonders_Yosemite_1_Visible", "Yosemite"),
+        new("FEATURE_CLIFFS_DOVER", false, 2, 0, 3, 3, "sa_natural_unity", "none", "Cliffs of Dover"),
+        new("FEATURE_BARRIER_REEF", false, 3, 0, 0, 2, "sa_natural_food", "NaturalWonders_GreatBarrierReef_Visible", "Great Barrier Reef"),
+        new("DEFAULT", true, 1, 1, 1, 1, "sa_natural_energy", "none", "Any other natural wonder the player's Civ VI has"),
     };
     public static readonly System.Collections.Generic.Dictionary<string, NaturalWonderDef> NaturalWonder = System.Linq.Enumerable.ToDictionary(NaturalWonders, d => d.Id);
 
     public static readonly BuildingDef[] Buildings =
     {
-        new("BUILDING_MONUMENT", "none", "none", false, 60, 0, 0, 1, 1, 0, 0, 0, 0, "+1 Science, +1 Gold."),
-        new("BUILDING_GRANARY", "TECH_POTTERY", "none", false, 65, 2, 0, 0, 0, 0, 0, 0, 0, "+2 Food."),
-        new("BUILDING_WATER_MILL", "TECH_THE_WHEEL", "none", false, 80, 1, 1, 0, 0, 0, 0, 0, 0, "+1 Food, +1 Production."),
-        new("BUILDING_LIBRARY", "TECH_WRITING", "none", false, 90, 0, 0, 0, 2, 0, 0, 0, 0, "+2 Science."),
-        new("BUILDING_MARKET", "TECH_CURRENCY", "none", false, 120, 0, 0, 3, 0, 0, 0, 0, 0, "+3 Gold."),
-        new("BUILDING_LIGHTHOUSE", "TECH_CELESTIAL_NAVIGATION", "none", true, 120, 1, 0, 1, 0, 0, 0, 0, 0, "+1 Food, +1 Gold. Coastal cities only."),
-        new("BUILDING_WORKSHOP", "TECH_APPRENTICESHIP", "none", false, 195, 0, 2, 0, 0, 0, 10, 0, 0, "+2 Production, +10% Production."),
-        new("BUILDING_UNIVERSITY", "TECH_EDUCATION", "BUILDING_LIBRARY", false, 250, 0, 0, 0, 3, 0, 0, 0, 10, "+3 Science, +10% Science."),
-        new("BUILDING_BANK", "TECH_BANKING", "BUILDING_MARKET", false, 290, 0, 0, 4, 0, 0, 0, 15, 0, "+4 Gold, +15% Gold."),
-        new("BUILDING_SEWER", "TECH_SANITATION", "BUILDING_GRANARY", false, 200, 3, 0, 0, 0, 10, 0, 0, 0, "+3 Food, +10% Food."),
-        new("BUILDING_FACTORY", "TECH_INDUSTRIALIZATION", "BUILDING_WORKSHOP", false, 390, 0, 3, 0, 0, 0, 15, 0, 0, "+3 Production, +15% Production."),
-        new("BUILDING_STOCK_EXCHANGE", "TECH_ECONOMICS", "BUILDING_BANK", false, 390, 0, 0, 5, 0, 0, 0, 15, 0, "+5 Gold, +15% Gold."),
-        new("BUILDING_RESEARCH_LAB", "TECH_CHEMISTRY", "BUILDING_UNIVERSITY", false, 580, 0, 0, 0, 5, 0, 0, 0, 20, "+5 Science, +20% Science."),
-        new("BUILDING_POWER_PLANT", "TECH_ELECTRICITY", "BUILDING_FACTORY", false, 580, 0, 4, 0, 0, 0, 20, 0, 0, "+4 Production, +20% Production."),
-        new("DISTRICT_SPACEPORT", "TECH_ROCKETRY", "none", false, 1800, 0, 0, 0, 0, 0, 0, 0, 0, "Lets this city launch the Earth Satellite and the Moon Landing."),
+        new("BUILDING_MONUMENT", "none", "none", false, 60, 0, 0, 1, 1, 0, 0, 0, 0, "none", "Buildings_CityCenter_Monument_Visible", "+1 Science, +1 Gold."),
+        new("BUILDING_GRANARY", "TECH_POTTERY", "none", false, 65, 2, 0, 0, 0, 0, 0, 0, 0, "none", "Buildings_CityCenter_Granary_Visible", "+2 Food."),
+        new("BUILDING_WATER_MILL", "TECH_THE_WHEEL", "none", false, 80, 1, 1, 0, 0, 0, 0, 0, 0, "none", "Buildings_CityCenter_WaterMill_Visible", "+1 Food, +1 Production."),
+        new("BUILDING_LIBRARY", "TECH_WRITING", "none", false, 90, 0, 0, 0, 2, 0, 0, 0, 0, "Campus", "Buildings_Campus_Library_Visible", "+2 Science."),
+        new("BUILDING_MARKET", "TECH_CURRENCY", "none", false, 120, 0, 0, 3, 0, 0, 0, 0, 0, "Commercial", "Buildings_CommercialDistrict_Market_Visible", "+3 Gold."),
+        new("BUILDING_LIGHTHOUSE", "TECH_CELESTIAL_NAVIGATION", "none", true, 120, 1, 0, 1, 0, 0, 0, 0, 0, "Harbor", "Buildings_Harbor_Lighthouse_Visible", "+1 Food, +1 Gold. Coastal cities only."),
+        new("BUILDING_WORKSHOP", "TECH_APPRENTICESHIP", "none", false, 195, 0, 2, 0, 0, 0, 10, 0, 0, "Industrial", "Buildings_Industrial_Workshop_Visible", "+2 Production, +10% Production."),
+        new("BUILDING_UNIVERSITY", "TECH_EDUCATION", "BUILDING_LIBRARY", false, 250, 0, 0, 0, 3, 0, 0, 0, 10, "Campus", "Buildings_Campus_University_Visible", "+3 Science, +10% Science."),
+        new("BUILDING_BANK", "TECH_BANKING", "BUILDING_MARKET", false, 290, 0, 0, 4, 0, 0, 0, 15, 0, "Commercial", "Buildings_CommercialDistrict_Bank_Visible", "+4 Gold, +15% Gold."),
+        new("BUILDING_SEWER", "TECH_SANITATION", "BUILDING_GRANARY", false, 200, 3, 0, 0, 0, 10, 0, 0, 0, "none", "none", "+3 Food, +10% Food."),
+        new("BUILDING_FACTORY", "TECH_INDUSTRIALIZATION", "BUILDING_WORKSHOP", false, 390, 0, 3, 0, 0, 0, 15, 0, 0, "Industrial", "Buildings_Industrial_Factory_Visible", "+3 Production, +15% Production."),
+        new("BUILDING_STOCK_EXCHANGE", "TECH_ECONOMICS", "BUILDING_BANK", false, 390, 0, 0, 5, 0, 0, 0, 15, 0, "Commercial", "Buildings_CommercialDistrict_StockExchange_Visible", "+5 Gold, +15% Gold."),
+        new("BUILDING_RESEARCH_LAB", "TECH_CHEMISTRY", "BUILDING_UNIVERSITY", false, 580, 0, 0, 0, 5, 0, 0, 0, 20, "Campus", "Buildings_Campus_ResearchLab_Visible", "+5 Science, +20% Science."),
+        new("BUILDING_POWER_PLANT", "TECH_ELECTRICITY", "BUILDING_FACTORY", false, 580, 0, 4, 0, 0, 0, 20, 0, 0, "Industrial", "Buildings_Industrial_PowerPlant_Visible", "+4 Production, +20% Production."),
+        new("DISTRICT_SPACEPORT", "TECH_ROCKETRY", "none", false, 1800, 0, 0, 0, 0, 0, 0, 0, 0, "Spaceport", "Buildings_Spaceport_LargeRocket_Visible", "Lets this city launch the Earth Satellite and the Moon Landing."),
     };
     public static readonly System.Collections.Generic.Dictionary<string, BuildingDef> Building = System.Linq.Enumerable.ToDictionary(Buildings, d => d.Id);
 
     public static readonly WonderDef[] Wonders =
     {
-        new("BUILDING_STONEHENGE", "TECH_ASTROLOGY", 180, "city", 0, 0, 2, 2, 0, 0, 0, 0, "sa_wonder_faith", "+2 Science, +2 Gold."),
-        new("BUILDING_HANGING_GARDENS", "TECH_IRRIGATION", 180, "empire", 0, 0, 0, 0, 15, 0, 0, 0, "sa_wonder_growth", "+15% Food in every city."),
-        new("BUILDING_PYRAMIDS", "TECH_MASONRY", 220, "city", 0, 0, 0, 0, 0, 25, 0, 0, "sa_wonder_industry", "+25% Production in this city."),
-        new("BUILDING_ORACLE", "TECH_ASTROLOGY", 290, "city", 0, 0, 3, 2, 0, 0, 0, 0, "sa_wonder_faith", "+2 Science, +3 Gold."),
-        new("BUILDING_GREAT_LIGHTHOUSE", "TECH_CELESTIAL_NAVIGATION", 290, "city", 1, 0, 4, 0, 0, 0, 0, 0, "sa_wonder_industry", "+1 Food, +4 Gold."),
-        new("BUILDING_COLOSSUS", "TECH_SHIPBUILDING", 400, "city", 0, 1, 4, 0, 0, 0, 0, 0, "sa_wonder_industry", "+1 Production, +4 Gold."),
-        new("BUILDING_PETRA", "TECH_MATHEMATICS", 400, "city", 2, 2, 1, 0, 0, 0, 0, 0, "sa_wonder_growth", "+2 Food, +2 Production, +1 Gold."),
-        new("BUILDING_COLOSSEUM", "TECH_CONSTRUCTION", 400, "empire", 1, 0, 0, 0, 0, 0, 0, 0, "sa_wonder_culture", "+1 Food in every city."),
-        new("BUILDING_GREAT_LIBRARY", "TECH_WRITING", 400, "city", 0, 0, 0, 5, 0, 0, 0, 0, "sa_wonder_science", "+5 Science."),
-        new("BUILDING_MAHABODHI_TEMPLE", "TECH_CURRENCY", 400, "city", 0, 0, 4, 2, 0, 0, 0, 0, "sa_wonder_faith", "+2 Science, +4 Gold."),
-        new("BUILDING_TERRACOTTA_ARMY", "TECH_CONSTRUCTION", 400, "city", 0, 4, 0, 0, 0, 0, 0, 0, "sa_wonder_military", "+4 Production."),
-        new("BUILDING_HAGIA_SOPHIA", "TECH_EDUCATION", 710, "city", 0, 0, 2, 4, 0, 0, 0, 0, "sa_wonder_faith", "+4 Science, +2 Gold."),
-        new("BUILDING_ALHAMBRA", "TECH_CASTLES", 710, "city", 0, 5, 0, 0, 0, 0, 0, 0, "sa_wonder_military", "+5 Production."),
-        new("BUILDING_CHICHEN_ITZA", "TECH_APPRENTICESHIP", 710, "empire", 0, 1, 0, 0, 0, 0, 0, 0, "sa_wonder_industry", "+1 Production in every city."),
-        new("BUILDING_MONT_ST_MICHEL", "TECH_MILITARY_ENGINEERING", 710, "city", 0, 0, 5, 2, 0, 0, 0, 0, "sa_wonder_faith", "+2 Science, +5 Gold."),
-        new("BUILDING_VENETIAN_ARSENAL", "TECH_MASS_PRODUCTION", 920, "city", 0, 0, 0, 0, 0, 30, 0, 0, "sa_wonder_military", "+30% Production in this city."),
-        new("BUILDING_GREAT_ZIMBABWE", "TECH_BANKING", 920, "city", 0, 0, 8, 0, 0, 0, 0, 0, "sa_wonder_industry", "+8 Gold."),
-        new("BUILDING_FORBIDDEN_CITY", "TECH_PRINTING", 920, "empire", 0, 0, 0, 0, 0, 0, 10, 0, "sa_wonder_culture", "+10% Gold in every city."),
-        new("BUILDING_POTALA_PALACE", "TECH_ASTRONOMY", 1060, "city", 0, 0, 0, 6, 0, 0, 0, 0, "sa_wonder_faith", "+6 Science."),
-        new("BUILDING_RUHR_VALLEY", "TECH_INDUSTRIALIZATION", 1240, "city", 0, 0, 0, 0, 0, 30, 0, 0, "sa_wonder_industry", "+30% Production in this city."),
-        new("BUILDING_BOLSHOI_THEATRE", "TECH_SANITATION", 1240, "city", 0, 0, 0, 7, 0, 0, 0, 0, "sa_wonder_culture", "+7 Science."),
-        new("BUILDING_OXFORD_UNIVERSITY", "TECH_SCIENTIFIC_THEORY", 1240, "city", 0, 0, 0, 0, 0, 0, 0, 25, "sa_wonder_science", "+25% Science in this city."),
-        new("BUILDING_BIG_BEN", "TECH_ECONOMICS", 1450, "city", 0, 0, 12, 0, 0, 0, 0, 0, "sa_wonder_culture", "+12 Gold."),
-        new("BUILDING_HERMITAGE", "TECH_STEAM_POWER", 1450, "city", 0, 0, 0, 8, 0, 0, 0, 0, "sa_wonder_culture", "+8 Science."),
-        new("BUILDING_EIFFEL_TOWER", "TECH_STEEL", 1620, "empire", 0, 0, 2, 0, 0, 0, 0, 0, "sa_wonder_culture", "+2 Gold in every city."),
-        new("BUILDING_BROADWAY", "TECH_RADIO", 1620, "city", 0, 0, 6, 6, 0, 0, 0, 0, "sa_wonder_culture", "+6 Science, +6 Gold."),
-        new("BUILDING_CRISTO_REDENTOR", "TECH_ELECTRICITY", 1620, "empire", 0, 0, 0, 1, 0, 0, 0, 0, "sa_wonder_faith", "+1 Science in every city."),
-        new("BUILDING_ESTADIO_DO_MARACANA", "TECH_ADVANCED_FLIGHT", 1740, "empire", 1, 0, 1, 0, 0, 0, 0, 0, "sa_wonder_culture", "+1 Food and +1 Gold in every city."),
-        new("BUILDING_SYDNEY_OPERA_HOUSE", "TECH_COMPUTERS", 1850, "city", 0, 0, 0, 10, 0, 0, 0, 0, "sa_wonder_culture", "+10 Science."),
+        new("BUILDING_STONEHENGE", "TECH_ASTROLOGY", 180, "city", 0, 0, 2, 2, 0, 0, 0, 0, "sa_wonder_faith", "Wonders_Stonehenge_Visible", "+2 Science, +2 Gold."),
+        new("BUILDING_HANGING_GARDENS", "TECH_IRRIGATION", 180, "empire", 0, 0, 0, 0, 15, 0, 0, 0, "sa_wonder_growth", "Wonders_HangingGardens_Visible", "+15% Food in every city."),
+        new("BUILDING_PYRAMIDS", "TECH_MASONRY", 220, "city", 0, 0, 0, 0, 0, 25, 0, 0, "sa_wonder_industry", "Wonders_Pyramids_Visible", "+25% Production in this city."),
+        new("BUILDING_ORACLE", "TECH_ASTROLOGY", 290, "city", 0, 0, 3, 2, 0, 0, 0, 0, "sa_wonder_faith", "Wonders_Oracle_Visible", "+2 Science, +3 Gold."),
+        new("BUILDING_GREAT_LIGHTHOUSE", "TECH_CELESTIAL_NAVIGATION", 290, "city", 1, 0, 4, 0, 0, 0, 0, 0, "sa_wonder_industry", "Wonders_GreatLighthouse_Visible", "+1 Food, +4 Gold."),
+        new("BUILDING_COLOSSUS", "TECH_SHIPBUILDING", 400, "city", 0, 1, 4, 0, 0, 0, 0, 0, "sa_wonder_industry", "Wonders_Colossus_Visible", "+1 Production, +4 Gold."),
+        new("BUILDING_PETRA", "TECH_MATHEMATICS", 400, "city", 2, 2, 1, 0, 0, 0, 0, 0, "sa_wonder_growth", "Wonders_Petra_Visible", "+2 Food, +2 Production, +1 Gold."),
+        new("BUILDING_COLOSSEUM", "TECH_CONSTRUCTION", 400, "empire", 1, 0, 0, 0, 0, 0, 0, 0, "sa_wonder_culture", "Wonders_Colosseum_Visible", "+1 Food in every city."),
+        new("BUILDING_GREAT_LIBRARY", "TECH_WRITING", 400, "city", 0, 0, 0, 5, 0, 0, 0, 0, "sa_wonder_science", "Wonders_GreatLibrary_Visible", "+5 Science."),
+        new("BUILDING_MAHABODHI_TEMPLE", "TECH_CURRENCY", 400, "city", 0, 0, 4, 2, 0, 0, 0, 0, "sa_wonder_faith", "Wonders_MahabodhiTemple_Visible", "+2 Science, +4 Gold."),
+        new("BUILDING_TERRACOTTA_ARMY", "TECH_CONSTRUCTION", 400, "city", 0, 4, 0, 0, 0, 0, 0, 0, "sa_wonder_military", "Wonders_TerracottaArmy_Visible", "+4 Production."),
+        new("BUILDING_HAGIA_SOPHIA", "TECH_EDUCATION", 710, "city", 0, 0, 2, 4, 0, 0, 0, 0, "sa_wonder_faith", "Wonders_HagiaSophia_Visible", "+4 Science, +2 Gold."),
+        new("BUILDING_ALHAMBRA", "TECH_CASTLES", 710, "city", 0, 5, 0, 0, 0, 0, 0, 0, "sa_wonder_military", "Wonders_Alhambra_Visible", "+5 Production."),
+        new("BUILDING_CHICHEN_ITZA", "TECH_APPRENTICESHIP", 710, "empire", 0, 1, 0, 0, 0, 0, 0, 0, "sa_wonder_industry", "Wonders_ChichenItza_Visible", "+1 Production in every city."),
+        new("BUILDING_MONT_ST_MICHEL", "TECH_MILITARY_ENGINEERING", 710, "city", 0, 0, 5, 2, 0, 0, 0, 0, "sa_wonder_faith", "Wonders_MontStMichel_Visible", "+2 Science, +5 Gold."),
+        new("BUILDING_VENETIAN_ARSENAL", "TECH_MASS_PRODUCTION", 920, "city", 0, 0, 0, 0, 0, 30, 0, 0, "sa_wonder_military", "Wonders_VenetianArsenal_Visible", "+30% Production in this city."),
+        new("BUILDING_GREAT_ZIMBABWE", "TECH_BANKING", 920, "city", 0, 0, 8, 0, 0, 0, 0, 0, "sa_wonder_industry", "Wonders_GreatZimbabwe_Visible", "+8 Gold."),
+        new("BUILDING_FORBIDDEN_CITY", "TECH_PRINTING", 920, "empire", 0, 0, 0, 0, 0, 0, 10, 0, "sa_wonder_culture", "Wonders_ForbiddenCity_Visible", "+10% Gold in every city."),
+        new("BUILDING_POTALA_PALACE", "TECH_ASTRONOMY", 1060, "city", 0, 0, 0, 6, 0, 0, 0, 0, "sa_wonder_faith", "Wonders_PotalaPalace_Visible", "+6 Science."),
+        new("BUILDING_RUHR_VALLEY", "TECH_INDUSTRIALIZATION", 1240, "city", 0, 0, 0, 0, 0, 30, 0, 0, "sa_wonder_industry", "Wonders_RuhrValley_Visible", "+30% Production in this city."),
+        new("BUILDING_BOLSHOI_THEATRE", "TECH_SANITATION", 1240, "city", 0, 0, 0, 7, 0, 0, 0, 0, "sa_wonder_culture", "Wonders_BolshoiTheatre_Visible", "+7 Science."),
+        new("BUILDING_OXFORD_UNIVERSITY", "TECH_SCIENTIFIC_THEORY", 1240, "city", 0, 0, 0, 0, 0, 0, 0, 25, "sa_wonder_science", "Wonders_OxfordUniversity_Visible", "+25% Science in this city."),
+        new("BUILDING_BIG_BEN", "TECH_ECONOMICS", 1450, "city", 0, 0, 12, 0, 0, 0, 0, 0, "sa_wonder_culture", "Wonders_BigBen_Visible", "+12 Gold."),
+        new("BUILDING_HERMITAGE", "TECH_STEAM_POWER", 1450, "city", 0, 0, 0, 8, 0, 0, 0, 0, "sa_wonder_culture", "Wonders_Hermitage_Visible", "+8 Science."),
+        new("BUILDING_EIFFEL_TOWER", "TECH_STEEL", 1620, "empire", 0, 0, 2, 0, 0, 0, 0, 0, "sa_wonder_culture", "Wonders_EiffelTower_Visible", "+2 Gold in every city."),
+        new("BUILDING_BROADWAY", "TECH_RADIO", 1620, "city", 0, 0, 6, 6, 0, 0, 0, 0, "sa_wonder_culture", "Wonders_Broadway_Visible", "+6 Science, +6 Gold."),
+        new("BUILDING_CRISTO_REDENTOR", "TECH_ELECTRICITY", 1620, "empire", 0, 0, 0, 1, 0, 0, 0, 0, "sa_wonder_faith", "Wonders_CristoRedentor_Visible", "+1 Science in every city."),
+        new("BUILDING_ESTADIO_DO_MARACANA", "TECH_ADVANCED_FLIGHT", 1740, "empire", 1, 0, 1, 0, 0, 0, 0, 0, "sa_wonder_culture", "Wonders_EstadioDoMaracana_Visible", "+1 Food and +1 Gold in every city."),
+        new("BUILDING_SYDNEY_OPERA_HOUSE", "TECH_COMPUTERS", 1850, "city", 0, 0, 0, 10, 0, 0, 0, 0, "sa_wonder_culture", "Wonders_SydneyOperaHouse_Visible", "+10 Science."),
     };
     public static readonly System.Collections.Generic.Dictionary<string, WonderDef> Wonder = System.Linq.Enumerable.ToDictionary(Wonders, d => d.Id);
 
@@ -358,16 +361,27 @@ public static partial class Defs
 
     public static readonly EraDef[] Eras =
     {
-        new("ERA_ANCIENT", -4000),
-        new("ERA_CLASSICAL", -1000),
-        new("ERA_MEDIEVAL", 500),
-        new("ERA_RENAISSANCE", 1400),
-        new("ERA_INDUSTRIAL", 1750),
-        new("ERA_MODERN", 1880),
-        new("ERA_ATOMIC", 1935),
-        new("ERA_INFORMATION", 1960),
+        new("ERA_ANCIENT", -4000, "Cities_Ancient_{v}"),
+        new("ERA_CLASSICAL", -1000, "Cities_Classical_{v}"),
+        new("ERA_MEDIEVAL", 500, "Cities_City_{v}"),
+        new("ERA_RENAISSANCE", 1400, "Cities_City_{v}"),
+        new("ERA_INDUSTRIAL", 1750, "Cities_Industrial_{v}"),
+        new("ERA_MODERN", 1880, "Cities_Modern_{v}"),
+        new("ERA_ATOMIC", 1935, "Cities_Modern_{v}"),
+        new("ERA_INFORMATION", 1960, "Cities_Information_{v}"),
     };
     public static readonly System.Collections.Generic.Dictionary<string, EraDef> Era = System.Linq.Enumerable.ToDictionary(Eras, d => d.Id);
+
+    public static readonly ImprovementDef[] Improvements =
+    {
+        new("farm", "flat", "Improvements_Farm_Visible"),
+        new("mine", "hills", "Improvements_Mine_Visible"),
+        new("lumbermill", "FEATURE_FOREST", "Improvements_LumberMill_Visible"),
+        new("plantation", "FEATURE_JUNGLE", "Improvements_Plantation_Visible"),
+        new("pasture", "FEATURE_MARSH", "Improvements_Pasture_Visible"),
+        new("fishing", "water", "Improvements_FishingBoats_Visible"),
+    };
+    public static readonly System.Collections.Generic.Dictionary<string, ImprovementDef> Improvement = System.Linq.Enumerable.ToDictionary(Improvements, d => d.Id);
 
     public static readonly ResourceDef[] Resources =
     {
@@ -580,6 +594,9 @@ public static partial class Defs
         new("st_starbase", "stellaris", "image", new[] { "file:gfx/event_pictures/space_station.dds@0.30,0,0.40,1" }, "Act 2 planet and map", false, "Read at run time from the player's install."),
         new("st_galaxy_background", "stellaris", "image", new[] { "file:gfx/loadingscreens/load_4.dds", "find:loadingscreens/load_" }, "Title and New Game screens", false, "Read at run time from the player's install."),
         new("st_handoff_background", "stellaris", "image", new[] { "file:gfx/loadingscreens/load_20.dds", "file:gfx/loadingscreens/load_13.dds" }, "Between the acts", false, "Read at run time from the player's install."),
+        new("st_map_core", "stellaris", "image", new[] { "file:gfx/map/center.dds" }, "Galaxy core glow", false, "Read at run time from the player's install."),
+        new("st_map_nebula", "stellaris", "image", new[] { "file:gfx/map/nebulacolor.dds" }, "Galaxy nebulae", false, "Read at run time from the player's install."),
+        new("st_map_dust", "stellaris", "image", new[] { "file:gfx/map/dust.dds" }, "Galaxy dust", false, "Read at run time from the player's install."),
         new("st_rare_system", "stellaris", "image", new[] { "file:gfx/interface/icons/planet_type_icons/planet_pc_gaia.dds", "planetclass:pc_gaia" }, "Act 2 planet and map", false, "Read at run time from the player's install."),
         new("st_music", "stellaris", "music", new[] { "dir:music" }, "Act 2 music", false, "Read at run time from the player's install."),
         new("civ_font_body", "civ6", "font", new[] { "MinionPro-Regular.otf" }, "All text", false, "Read at run time from the player's install."),

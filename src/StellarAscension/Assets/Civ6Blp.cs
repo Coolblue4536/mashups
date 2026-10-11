@@ -20,7 +20,7 @@ public sealed class Civ6Blp
     public readonly List<TextureEntry> Textures = new();
     public readonly Dictionary<uint, AtlasEntry> Atlases = new();
 
-    public sealed record TextureEntry(uint NameHash, ushort Format, int W, int H, ulong Offset, uint Size);
+    public sealed record TextureEntry(uint NameHash, ushort Format, int W, int H, int Mips, ulong Offset, uint Size);
     public sealed record AtlasEntry(uint NameHash, int W, int H, uint TilePixels, int TileSize, int BytesPerIndex, long Offset, uint Size);
 
     const uint DxgiRgba8 = 28;
@@ -98,7 +98,7 @@ public sealed class Civ6Blp
             ulong off = U64(d, o + 0x20); uint size = U32(d, o + 0x28);
             if (off % 16 != 0 || size == 0 || (long)(_bigDataOffset + off + size) > fileSize) continue;
             if (fmt == DxgiRgba8 && size < (ulong)w * h * 4) continue;
-            Textures.Add(new TextureEntry(U32(d, o + 0x30), fmt, w, h, off, size));
+            Textures.Add(new TextureEntry(U32(d, o + 0x30), fmt, w, h, mips, off, size));
             texEnd = Math.Max(texEnd, off + size);
             o += 0x67;
         }
@@ -160,14 +160,21 @@ public sealed class Civ6Blp
         return pw == a.W && ph == a.H ? img : img.Crop(0, 0, a.W, a.H);
     }
 
-    /// <summary>Decode the top mip of an uncompressed RGBA8 texture.</summary>
-    public ImageData? DecodeTexture(TextureEntry t)
+    /// <summary>Decode a whole texture (RGBA8 or BC1-BC4), picking the first mip level no bigger than maxSize.</summary>
+    public ImageData? DecodeTexture(TextureEntry t, int maxSize = 8192)
     {
-        if (t.Format != DxgiRgba8) return null;
-        var px = new byte[t.W * t.H * 4];
-        using var f = File.OpenRead(Path);
-        f.Position = _bigDataOffset + (long)t.Offset;
-        f.ReadExactly(px, 0, px.Length);
-        return new ImageData { W = t.W, H = t.H, Rgba = px };
+        if (!BcDecoder.Supported(t.Format)) return null;
+        int w = t.W, h = t.H, level = 0;
+        long off = 0;
+        while (Math.Max(w, h) > maxSize && level < t.Mips - 1)
+        {
+            off += BcDecoder.LevelSize(t.Format, w, h);
+            w = Math.Max(1, w / 2); h = Math.Max(1, h / 2); level++;
+        }
+        long len = BcDecoder.LevelSize(t.Format, w, h);
+        if (off + len > t.Size) return null;
+        var buf = new byte[len];
+        using (var f = File.OpenRead(Path)) { f.Position = _bigDataOffset + (long)t.Offset + off; f.ReadExactly(buf, 0, buf.Length); }
+        return new ImageData { W = w, H = h, Rgba = BcDecoder.Decode(buf, t.Format, w, h) };
     }
 }

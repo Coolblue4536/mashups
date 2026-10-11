@@ -63,12 +63,14 @@ public static class Playtest
     public static Act2State PlayAct2(Content content, Act1State a1, Action<Act2State>? everyMonth = null)
     {
         var s = Handoff.FromAct1(a1, content);
+        Log.Info($"   galaxy: {s.Systems.Count} systems, {s.Systems.Sum(x => x.Lanes.Count) / 2} lanes, homes (habitable, claimable within 3 jumps): "
+                 + string.Join(" ", Galaxy.Fairness(s).Select(f => $"({f.habitable},{f.claimable})")));
         while (s.Outcome == "")
         {
-            var p = s.Player;
-            if (s.Month >= p.NextAiThink) { Act2Ai.Think(s, content, p); p.NextAiThink = s.Month + 2; }
-            Act2.Tick(s, content);
-            everyMonth?.Invoke(s);
+            Act2Ai.Think(s, content, s.Player);
+            int before = s.Month;
+            Act2.EndTurn(s, content);
+            if (everyMonth != null) for (int m = before + 1; m <= s.Month; m++) if (m % 12 == 0 || m == s.Month) { everyMonth(s); break; }
             if (s.Month > 12 * 400) throw new InvalidOperationException("Act 2 never ended");
         }
         return s;

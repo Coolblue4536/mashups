@@ -215,6 +215,30 @@ public sealed class Civ6Data
         return null;
     }
 
+    /// <summary>A 2D map texture by name from Civ VI's strategic-view and terrain packages (e.g. "Features_Forest_Visible",
+    /// "TER_Grass_B"), base game first, then DLC. maxSize picks a smaller mip for big terrain textures.</summary>
+    Dictionary<uint, Civ6Blp>? _mapIndex;
+
+    public ImageData? MapTexture(string name, int maxSize = 1024)
+    {
+        if (_mapIndex == null)
+        {
+            _mapIndex = new();
+            foreach (var d in _blpDirs)
+                foreach (var sub in new[] { "strategicview", "terrain", "" })
+                {
+                    var dir = sub.Length == 0 ? d : Path.Combine(d, sub);
+                    if (!Directory.Exists(dir)) continue;
+                    foreach (var p in Directory.EnumerateFiles(dir, "*.blp").OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+                    {
+                        if (sub.Length == 0 && !System.IO.Path.GetFileName(p).StartsWith("FOW", StringComparison.OrdinalIgnoreCase)) continue;
+                        if (Blp(p) is { } b) foreach (var t in b.Textures) _mapIndex.TryAdd(t.NameHash, b);
+                    }
+                }
+        }
+        return _mapIndex.TryGetValue(Civ6Blp.Fnv1a(name), out var blp) && blp.FindTexture(name) is { } te ? blp.DecodeTexture(te, maxSize) : null;
+    }
+
     /// <summary>A Civ VI font file (Civ VI ships TrueType/OpenType fonts in Base/Assets/UI/Fonts).</summary>
     public string? FontFile(string name)
     {

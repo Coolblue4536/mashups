@@ -101,6 +101,15 @@ public sealed class Empire
     public int NextAiThink { get; set; }
 }
 
+public sealed class Nebula
+{
+    public float X { get; set; }
+    public float Y { get; set; }
+    public float R { get; set; }
+    public float Rotation { get; set; }
+    public int Tint { get; set; }
+}
+
 public sealed class War
 {
     public int A { get; set; }
@@ -119,6 +128,8 @@ public sealed class Act2State
     public List<Empire> Empires { get; set; } = new();
     public List<Fleet> Fleets { get; set; } = new();
     public List<War> Wars { get; set; } = new();
+    public List<Nebula> Nebulae { get; set; } = new();
+    public float GalaxyRadius { get; set; }
     public List<Act2Event> Events { get; set; } = new();
     public Rng Rng { get; set; } = new(1);
     public int NextFleetId { get; set; }

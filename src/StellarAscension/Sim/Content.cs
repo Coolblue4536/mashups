@@ -26,6 +26,7 @@ public sealed class Content
     {
         Civ6 = civ6;
         Stellaris = stellaris;
+
         // Base-game techs only: the expansions add a Future Era and change prerequisites, which this simpler game doesn't use.
         var basePath = Path.Combine(civ6.Root, "Base", "Assets", "Gameplay", "Data", "Technologies.xml");
         var baseTechs = File.Exists(basePath)

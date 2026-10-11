@@ -37,6 +37,7 @@ public static class Act1
             FoundCity(s, content, c, starts[i].x, starts[i].y);
         }
         foreach (var c in s.Civs.Where(c => !c.IsPlayer)) Act1Ai.ChooseResearch(s, content, c);
+        Reveal(s);
         s.Events.Add(new Act1Event(1, "start", $"{CivName(content, s.Player)} is founded. Win the race to space: complete the Moon Landing first.", 0));
         return s;
     }
@@ -87,6 +88,8 @@ public static class Act1
     public static bool CanFoundCity(Act1State s, CivState civ, int x, int y)
     {
         if (y < 1 || y >= s.H - 1 || !CanSettleTerrain(s, x, y)) return false;
+        if (civ.IsPlayer && !s.At(x, y).Revealed) return false;
+        if (s.At(x, y).Built != null) return false;
         var owner = s.At(x, y).City;
         if (owner >= 0 && s.City(owner)?.Owner != civ.Id) return false;
         int min = (int)Rules.CityMinDistance;
@@ -142,7 +145,7 @@ public static class Act1
     public static List<(int x, int y)> WorkTiles(Act1State s, CityState city)
     {
         var owned = Hex.Within(city.X, city.Y, (int)Rules.CityRadius, s.W, s.H)
-            .Where(t => s.At(t.x, t.y).City == city.Id && !(t.x == city.X && t.y == city.Y) && Workable(s, t.x, t.y)).ToList();
+            .Where(t => s.At(t.x, t.y).City == city.Id && !(t.x == city.X && t.y == city.Y) && s.At(t.x, t.y).Built == null && Workable(s, t.x, t.y)).ToList();
         var worked = new List<(int x, int y)>();
         double food = Math.Max(Rules.CityCenterMinFood, TileYield(s, city.X, city.Y).Food);
         for (int i = 0; i < city.Pop && owned.Count > 0; i++)
@@ -346,6 +349,7 @@ public static class Act1
         }
         foreach (var civ in s.Civs.Where(c => !c.IsPlayer && c.Alive)) Act1Ai.PlaceSettlers(s, content, civ);
         s.Year = Math.Max(s.Year + 1, CalendarYear(s, content));
+        Reveal(s);
         s.Turn++;
         if (s.Outcome == "" && s.Turn > Rules.Act1MaxTurns) TimeLimit(s, content);
     }
@@ -411,10 +415,12 @@ public static class Act1
                 break;
             case "building":
                 city.Buildings.Add(id);
+                if (Defs.Building[id].District != "none") PlaceStructure(s, city, "district:" + Defs.Building[id].District, Defs.Building[id].District == "Harbor");
                 if (civ.IsPlayer) s.Events.Add(new Act1Event(s.Turn, "built", $"{city.Name} built {content.Name(id)}.", civ.Id, city.X, city.Y));
                 break;
             case "wonder":
                 city.Wonders.Add(id);
+                PlaceStructure(s, city, id, false);
                 s.WonderOwner[id] = civ.Id;
                 s.Events.Add(new Act1Event(s.Turn, "wonder", $"{CivName(content, civ)} completed {content.Name(id)} in {city.Name}.", civ.Id, city.X, city.Y));
                 // Everyone else building it loses it; a share of their progress carries to their next build.
@@ -473,6 +479,47 @@ public static class Act1
         s.Events.Add(new Act1Event(s.Turn, "time", "The age of exploration has run its course: the civilizations go to space in order of their science.", s.Player.Id));
     }
 
+    // ------------------------------------------------------------------ districts and wonders on the map (Civ VI style)
+
+    /// <summary>Puts a district or wonder on a free tile of the city (nearest first); a district is placed once per city.</summary>
+    static void PlaceStructure(Act1State s, CityState city, string what, bool water)
+    {
+        if (what.StartsWith("district:") && Hex.Within(city.X, city.Y, (int)Rules.CityRadius, s.W, s.H).Any(t => s.At(t.x, t.y).City == city.Id && s.At(t.x, t.y).Built == what)) return;
+        var spot = Hex.Within(city.X, city.Y, (int)Rules.CityRadius, s.W, s.H)
+            .Where(t => !(t.x == city.X && t.y == city.Y))
+            .Select(t => (t.x, t.y, tile: s.At(t.x, t.y)))
+            .Where(t => t.tile.City == city.Id && t.tile.Built == null && t.tile.Natural == null
+                        && (water ? Defs.Terrains[t.tile.Terrain].Id == "TERRAIN_COAST" : Defs.Terrains[t.tile.Terrain].Land && Defs.Terrains[t.tile.Terrain].Passable))
+            .OrderBy(t => Hex.Distance(city.X, city.Y, t.x, t.y, s.W)).ThenBy(t => TileValue(s, t.x, t.y)).ThenBy(t => t.y * s.W + t.x)
+            .FirstOrDefault();
+        if (spot.tile != null) { spot.tile.Built = what; spot.tile.Feature = -1; }
+    }
+
+    // ------------------------------------------------------------------ fog of war (the player's view)
+
+    public const int SightRadius = 4;
+
+    /// <summary>Tiles the player sees right now: near their cities and their territory.</summary>
+    public static bool Visible(Act1State s, int x, int y)
+    {
+        var t = s.At(x, y);
+        if (t.City >= 0 && s.City(t.City)?.Owner == s.Player.Id) return true;
+        return s.CitiesOf(s.Player.Id).Any(c => Hex.Distance(c.X, c.Y, x, y, s.W) <= SightRadius - 1);
+    }
+
+    /// <summary>Marks what the player has seen: around their cities, the seas after Cartography, everything after Flight.</summary>
+    public static void Reveal(Act1State s)
+    {
+        var p = s.Player;
+        bool all = p.Techs.Contains("TECH_FLIGHT"), seas = p.Techs.Contains("TECH_CARTOGRAPHY");
+        foreach (var c in s.CitiesOf(p.Id))
+            foreach (var (x, y) in Hex.Within(c.X, c.Y, SightRadius + (c.Capital ? 1 : 0), s.W, s.H)) s.At(x, y).Revealed = true;
+        if (all || seas)
+            for (int i = 0; i < s.Tiles.Length; i++)
+                if (all || !Defs.Terrains[s.Tiles[i].Terrain].Land) s.Tiles[i].Revealed = true;
+        foreach (var t in s.Tiles.Where(t => t.City >= 0 && s.City(t.City)?.Owner == p.Id)) t.Revealed = true;
+    }
+
     // ------------------------------------------------------------------ player actions
 
     public static bool PlaceSettler(Act1State s, Content content, CivState civ, int x, int y)
@@ -480,6 +527,7 @@ public static class Act1
         if (civ.PendingSettlers <= 0 || !CanFoundCity(s, civ, x, y)) return false;
         civ.PendingSettlers--;
         var c = FoundCity(s, content, civ, x, y);
+        if (civ.IsPlayer) Reveal(s);
         if (civ.IsPlayer) s.Events.Add(new Act1Event(s.Turn, "city", $"Founded {c.Name}.", civ.Id, x, y));
         return true;
     }

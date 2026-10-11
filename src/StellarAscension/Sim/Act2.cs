@@ -130,6 +130,17 @@ public static class Act2
 
     public static bool IsMilitary(Fleet f) => f.Ships.Keys.Any(k => Defs.Ship[k].Role == "military");
 
+    // ------------------------------------------------------------------ the turn (act2_months_per_turn months)
+
+    public static int MonthsPerTurn => Math.Max(1, (int)Rules.Act2MonthsPerTurn);
+    public static int TurnOf(Act2State s) => s.Month / MonthsPerTurn + 1;
+
+    /// <summary>Ends the player's turn: the galaxy runs month by month until the next turn (or the end of the game).</summary>
+    public static void EndTurn(Act2State s, Content content)
+    {
+        for (int i = 0; i < MonthsPerTurn && s.Outcome == ""; i++) Tick(s, content);
+    }
+
     // ------------------------------------------------------------------ the month
 
     public static void Tick(Act2State s, Content content)

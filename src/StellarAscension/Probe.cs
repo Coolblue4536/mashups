@@ -26,6 +26,9 @@ public static class Probe
                          "ICON_BUILDING_LIBRARY", "ICON_UNIT_SETTLER", "ICON_YIELD_FOOD_5", "ICON_TERRAIN_GRASS" })
                 Save(n, c.Icon(n));
             Save("leader_TRAJAN", c.LeaderPicture("LEADER_TRAJAN"));
+            foreach (var n in new[] { "TER_Grass_B", "TER_Plains_B", "TER_Coast_B", "FOW_Ground_Grass_2k", "Features_Forest_Visible", "Cities_Classical_Visible",
+                         "Districts_Campus_Visible", "Wonders_Pyramids_Visible", "SV_TerrainMountain_Grassland_Color_02", "SV_TerrainHexOcean_Color", "Improvements_Farm_Visible" })
+                Save("map_" + n, c.MapTexture(n, 512));
             Save("leader_VICTORIA", c.LeaderPicture("LEADER_VICTORIA"));
             report.Add($"font MinionPro: {c.FontFile("MinionPro-Regular.otf") ?? "missing"}");
         }

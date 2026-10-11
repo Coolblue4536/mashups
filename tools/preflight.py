@@ -118,6 +118,25 @@ def main(argv):
             for r in S[s]["rows"]:
                 if r[c] != "none" and r[c] not in base_techs:
                     errors.append(f"{s}.{r[S[s]['columns'][0]]}.{c}: {r[c]} is not a base-game tech")
+    if civ6:
+        # Every Civ VI map picture the sheet names must be in the installed packages ({n}: any variant 1-6, {v}: Visible).
+        names = set()
+        for f in glob.glob(os.path.join(civ6, "**", "Platforms", "Windows", "BLPs", "**", "*.blp"), recursive=True):
+            b = os.path.basename(f).lower()
+            if "strategicview" not in f.replace(chr(92), "/").lower() and not b.startswith(("terrainmaterial", "fow")):
+                continue
+            data = Path(f).read_bytes()[:0x400000]
+            names |= set(m.decode() for m in re.findall(rb"([A-Za-z][A-Za-z0-9_]{3,80})\x00", data))
+        def has(pattern):
+            if "{n}" in pattern:
+                return any(pattern.replace("{n}", str(i)) in names for i in range(1, 7))
+            return pattern.replace("{v}", "Visible") in names
+        for sec, cols in (("terrains", ["ground", "ground_fow", "overlay", "overlay_fow"]), ("features", ["sprite", "sprite_fow"]), ("natural_wonders", ["sprite"]),
+                          ("buildings", ["sprite"]), ("wonders", ["sprite"]), ("eras", ["city_sprite"]), ("improvements", ["sprite"])):
+            for r in S[sec]["rows"]:
+                for c in cols:
+                    if r[c] != "none" and not has(r[c]):
+                        errors.append(f"{sec}.{r[S[sec]['columns'][0]]}.{c}: Civ VI picture {r[c]} not found")
     if st:
         files = {p.replace("\\", "/").lower()[len(st) + 1:] for p in glob.glob(os.path.join(st, "gfx", "**", "*.*"), recursive=True)}
         loc = set()

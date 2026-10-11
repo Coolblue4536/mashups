@@ -9,8 +9,6 @@ public sealed partial class App
     float _zoom2 = 1f;
     int _selSystem = -1, _selFleet = -1, _selPlanet = -1;
     string _overlay2 = "";
-    float _speed2;      // 0 = paused
-    float _monthClock;
     int _seenEvents2;
 
     Act2State A2 => Game!.Act2!;
@@ -19,7 +17,6 @@ public sealed partial class App
     {
         Current = Screen.Act2;
         var s = A2;
-        _speed2 = 0;
         _zoom2 = 1f;
         if (s.Player.Capital >= 0) { CenterOn2(s.Player.Capital); _selSystem = s.Player.Capital; }
         _seenEvents2 = Math.Max(0, s.Events.Count - 3);
@@ -52,16 +49,6 @@ public sealed partial class App
         var s = A2;
         var c = Content!;
         HandleInput2(dt);
-        if (_speed2 > 0 && s.Outcome == "" && _overlay2 is "" or "fleet")
-        {
-            _monthClock += dt * _speed2;
-            while (_monthClock >= Rules.Act2SecondsPerMonth && s.Outcome == "")
-            {
-                _monthClock -= (float)Rules.Act2SecondsPerMonth;
-                Act2.Tick(s, c);
-                if (s.Month % 12 == 0) SaveNow();
-            }
-        }
         DrawGalaxy(s, c);
         TopBar2(s, c);
         Events2(s);
@@ -70,6 +57,7 @@ public sealed partial class App
         if (_selSystem >= 0) SystemPanel(s, c, s.Sys(_selSystem));
         if (_selPlanet >= 0 && s.Systems.SelectMany(x => x.Planets).FirstOrDefault(p => p.Id == _selPlanet) is { } planet && planet.Owner == s.Player.Id) PlanetPanel(s, c, planet);
         else _selPlanet = -1;
+        EndTurnButton2(s, c);
         if (_overlay2 == "research") Research2(s, c);
         else if (_overlay2 == "ships") Shipyard2(s, c);
         else if (_overlay2 == "empires") Empires2(s, c);
@@ -85,10 +73,6 @@ public sealed partial class App
         if (Raylib.IsKeyDown(KeyboardKey.D) || Raylib.IsKeyDown(KeyboardKey.Right)) _cam2.X += pan;
         if (Raylib.IsKeyDown(KeyboardKey.W) || Raylib.IsKeyDown(KeyboardKey.Up)) _cam2.Y -= pan;
         if (Raylib.IsKeyDown(KeyboardKey.S) || Raylib.IsKeyDown(KeyboardKey.Down)) _cam2.Y += pan;
-        if (Raylib.IsKeyPressed(KeyboardKey.Space)) _speed2 = _speed2 > 0 ? 0 : 1;
-        if (Raylib.IsKeyPressed(KeyboardKey.One)) _speed2 = 1;
-        if (Raylib.IsKeyPressed(KeyboardKey.Two)) _speed2 = 2;
-        if (Raylib.IsKeyPressed(KeyboardKey.Three)) _speed2 = 4;
         if (Raylib.IsKeyPressed(KeyboardKey.Escape))
         {
             if (_overlay2 != "") _overlay2 = "";
@@ -131,54 +115,72 @@ public sealed partial class App
     void DrawGalaxy(Act2State s, Content c)
     {
         var me = s.Player;
+        float R = s.GalaxyRadius > 0 ? s.GalaxyRadius : 600;
+        // Backdrop: dark sky, then the galaxy's own light (arms, core, nebulae, dust), all additive like Stellaris's map.
         Starfield();
-        // Territory
-        foreach (var x in s.Systems.Where(x => x.Owner >= 0))
+        Raylib.BeginBlendMode(BlendMode.Additive);
+        foreach (var x in s.Systems)
         {
             var p = S2(x.X, x.Y);
-            Raylib.DrawCircleV(p, 64 * _zoom2, EColor(s.Empires[x.Owner], 40));
+            float rr = 110 * _zoom2;
+            if (p.X < -rr || p.Y < -rr || p.X > Gfx.W + rr || p.Y > Gfx.H + rr) continue;
+            Raylib.DrawCircleGradient(new Vector2(p.X, p.Y), rr, new Color(70, 64, 92, 26), new Color(0, 0, 0, 0));
         }
-        foreach (var x in s.Systems.Where(x => x.Owner >= 0))
+        foreach (var n in s.Nebulae)
         {
-            var p = S2(x.X, x.Y);
-            Raylib.DrawCircleLinesV(p, 64 * _zoom2, EColor(s.Empires[x.Owner], 90));
+            var p = S2(n.X, n.Y);
+            float size = n.R * 2.4f * _zoom2;
+            var tint = n.Tint switch { 0 => new Color(150, 120, 255, 150), 1 => new Color(90, 200, 230, 140), _ => new Color(240, 120, 170, 140) };
+            if (St("st_map_nebula") is { } neb)
+                Raylib.DrawTexturePro(neb, new Rectangle(0, 0, neb.Width, neb.Height), new Rectangle(p.X, p.Y, size, size), new Vector2(size / 2, size / 2), n.Rotation, tint);
         }
-        // Lanes
+        var core = S2(0, 0);
+        float cs = R * 0.75f * _zoom2;
+        if (St("st_map_core") is { } coreTex)
+            Raylib.DrawTexturePro(coreTex, new Rectangle(0, 0, coreTex.Width, coreTex.Height), new Rectangle(core.X - cs / 2, core.Y - cs / 2, cs, cs), Vector2.Zero, 0, new Color(255, 236, 210, 200));
+        Raylib.DrawCircleGradient(new Vector2(core.X, core.Y), R * 0.22f * _zoom2, new Color(255, 240, 220, 120), new Color(0, 0, 0, 0));
+        Raylib.EndBlendMode();
+
+        // Territory: each owned system's area of influence, filled and edged in its empire's colour (rebuilt when borders change).
+        DrawTerritory(s);
+
+        // Hyperlanes
         foreach (var x in s.Systems)
             foreach (var n in x.Lanes.Where(n => n > x.Id))
             {
                 var y = s.Sys(n);
                 bool owned = x.Owner >= 0 && x.Owner == y.Owner;
-                Raylib.DrawLineEx(S2(x.X, x.Y), S2(y.X, y.Y), owned ? 2f : 1.2f, owned ? EColor(s.Empires[x.Owner], 170) : new Color(120, 160, 200, 80));
+                Raylib.DrawLineEx(S2(x.X, x.Y), S2(y.X, y.Y), Math.Max(1f, (owned ? 2.2f : 1.4f) * Math.Min(_zoom2, 1.4f)),
+                    owned ? EColor(s.Empires[x.Owner], 200) : new Color(140, 190, 255, 95));
             }
-        // Stars
+        // Stars: a coloured halo, then Stellaris's star sprite (additive: its black is "no light").
         var hover = _overlay2 == "" && G.MouseOnMap ? SystemAt(s, Gfx.Mouse) : null;
         foreach (var x in s.Systems)
         {
             var p = S2(x.X, x.Y);
             if (p.X < -60 || p.Y < -60 || p.X > Gfx.W + 60 || p.Y > Gfx.H + 60) continue;
             var sc = Defs.StarClass.TryGetValue(x.Star, out var scd) ? scd : Defs.StarClasses[0];
-            float r = 13 * Math.Clamp(_zoom2, 0.6f, 1.6f);
-            var tex = St(sc.Art);
-            Raylib.DrawCircleV(p, r * 0.9f, new Color(Gfx.Hex(sc.Color).R, Gfx.Hex(sc.Color).G, Gfx.Hex(sc.Color).B, (byte)90));
-            // Stellaris's map star pictures are drawn additively (their black is "no light").
-            if (tex != null)
-            {
-                Raylib.BeginBlendMode(BlendMode.Additive);
-                Gfx.DrawFit(tex, new Rectangle(p.X - r * 1.6f, p.Y - r * 1.6f, r * 3.2f, r * 3.2f), Color.White);
-                Raylib.EndBlendMode();
-            }
-            else Raylib.DrawCircleV(p, r * 0.55f, Gfx.Hex(sc.Color));
-            if (x.RareFeature != null) Gfx.DrawFit(Icon("ICON_" + x.RareFeature), new Rectangle(p.X + r * 0.6f, p.Y - r * 2.1f, r * 1.8f, r * 1.8f), Color.White);
-            if (x.Id == _selSystem) Raylib.DrawCircleLinesV(p, r * 1.5f, Gfx.Gold);
-            if (hover == x.Id) Raylib.DrawCircleLinesV(p, r * 1.7f, Gfx.Ink);
-            if (_zoom2 > 0.55f)
+            var col = Gfx.Hex(sc.Color);
+            float r = 12 * Math.Clamp(_zoom2, 0.55f, 1.7f);
+            Raylib.BeginBlendMode(BlendMode.Additive);
+            Raylib.DrawCircleGradient(new Vector2(p.X, p.Y), r * 2.6f, new Color(col.R, col.G, col.B, (byte)90), new Color(0, 0, 0, 0));
+            if (St(sc.Art) is { } tex) Gfx.DrawFit(tex, new Rectangle(p.X - r * 1.7f, p.Y - r * 1.7f, r * 3.4f, r * 3.4f), Color.White);
+            else Raylib.DrawCircleV(p, r * 0.5f, col);
+            Raylib.EndBlendMode();
+            if (x.RareFeature != null) Gfx.DrawFit(Icon("ICON_" + x.RareFeature), new Rectangle(p.X + r * 0.7f, p.Y - r * 2.2f, r * 1.9f, r * 1.9f), Color.White);
+            if (x.Home && x.Owner >= 0) Raylib.DrawCircleLinesV(p, r * 1.9f, EColor(s.Empires[x.Owner], 220));
+            if (x.Id == _selSystem) { Raylib.DrawCircleLinesV(p, r * 1.5f, Gfx.Gold); Raylib.DrawCircleLinesV(p, r * 1.55f, Gfx.Gold); }
+            if (hover == x.Id) Raylib.DrawCircleLinesV(p, r * 1.75f, Gfx.Ink);
+            if (_zoom2 > 0.5f)
             {
                 var name = x.Name;
                 float fs = Math.Clamp(14 * _zoom2, 11, 18);
-                var col = x.Owner >= 0 ? EColor(s.Empires[x.Owner]) : x.SurveyedBy.Contains(me.Id) ? Gfx.Ink : Gfx.Muted;
-                G.Text(name, p.X - G.Measure(name, fs) / 2, p.Y + r * 1.3f, fs, col);
-                if (x.Home && x.Owner >= 0) Raylib.DrawCircleLinesV(p, r * 2.0f, col);
+                var oc = x.Owner >= 0 ? s.Empires[x.Owner] : null;
+                var tc = oc != null ? new Color((byte)(150 + oc.ColorR * 0.4f), (byte)(150 + oc.ColorG * 0.4f), (byte)(150 + oc.ColorB * 0.4f), (byte)255)
+                       : x.SurveyedBy.Contains(me.Id) ? new Color(220, 228, 240, 255) : new Color(150, 160, 180, 200);
+                float tw = G.Measure(name, fs);
+                G.Text(name, p.X - tw / 2 + 1, p.Y + r * 1.4f + 1, fs, new Color(0, 0, 0, 200));
+                G.Text(name, p.X - tw / 2, p.Y + r * 1.4f, fs, tc);
             }
         }
         // Fleets
@@ -219,6 +221,96 @@ public sealed partial class App
         }
         else if (_overlay2 == "" && G.MouseOnMap && Raylib.IsMouseButtonPressed(MouseButton.Left) && !G.ClickTaken) { _selSystem = -1; _selPlanet = -1; }
         if (_overlay2 == "" && G.MouseOnMap && Raylib.IsMouseButtonDown(MouseButton.Right) && hover == null) _cam2 -= Raylib.GetMouseDelta() / _zoom2;
+    }
+
+    // Territory texture: rebuilt only when ownership changes.
+    Texture2D? _terr;
+    string _terrKey = "";
+    Rectangle _terrWorld;
+
+    void DrawTerritory(Act2State s)
+    {
+        string key = string.Join(",", s.Systems.Select(x => x.Owner)) + "|" + string.Join(",", s.Empires.Select(e => $"{e.ColorR}{e.ColorG}{e.ColorB}"));
+        if (key != _terrKey || _terr == null)
+        {
+            _terrKey = key;
+            if (_terr is { } old) Raylib.UnloadTexture(old);
+            float R = (s.GalaxyRadius > 0 ? s.GalaxyRadius : 600) * 1.25f, cell = 4f, reach = 78f;
+            int n = (int)(2 * R / cell);
+            _terrWorld = new Rectangle(-R, -R, 2 * R, 2 * R);
+            var owner = new int[n * n];
+            var grid = new Dictionary<(int, int), List<StarSystem>>();
+            foreach (var x in s.Systems) { var k = ((int)((x.X + R) / 100), (int)((x.Y + R) / 100)); if (!grid.TryGetValue(k, out var l)) grid[k] = l = new(); l.Add(x); }
+            for (int gy = 0; gy < n; gy++)
+                for (int gx = 0; gx < n; gx++)
+                {
+                    float wx = -R + (gx + 0.5f) * cell, wy = -R + (gy + 0.5f) * cell;
+                    int cx = (int)((wx + R) / 100), cy = (int)((wy + R) / 100);
+                    StarSystem? best = null; float bd = reach * reach;
+                    for (int dy = -1; dy <= 1; dy++)
+                        for (int dx = -1; dx <= 1; dx++)
+                            if (grid.TryGetValue((cx + dx, cy + dy), out var l))
+                                foreach (var x in l)
+                                {
+                                    float d = (x.X - wx) * (x.X - wx) + (x.Y - wy) * (x.Y - wy);
+                                    if (d < bd) { bd = d; best = x; }
+                                }
+                    owner[gy * n + gx] = best?.Owner ?? -1;
+                }
+            var px = new byte[n * n * 4];
+            for (int gy = 0; gy < n; gy++)
+                for (int gx = 0; gx < n; gx++)
+                {
+                    int o = owner[gy * n + gx];
+                    if (o < 0) continue;
+                    bool edge = false;
+                    for (int dy = -1; dy <= 1 && !edge; dy++)
+                        for (int dx = -1; dx <= 1 && !edge; dx++)
+                        {
+                            int nx = gx + dx, ny = gy + dy;
+                            edge = nx < 0 || ny < 0 || nx >= n || ny >= n || owner[ny * n + nx] != o;
+                        }
+                    var e = s.Empires[o];
+                    int i = (gy * n + gx) * 4;
+                    px[i] = (byte)Math.Min(255, e.ColorR + (edge ? 50 : 0)); px[i + 1] = (byte)Math.Min(255, e.ColorG + (edge ? 50 : 0)); px[i + 2] = (byte)Math.Min(255, e.ColorB + (edge ? 50 : 0));
+                    px[i + 3] = (byte)(edge ? 230 : 60);
+                }
+            // Soften the cell steps so borders read as smooth curves.
+            for (int pass = 0; pass < 2; pass++)
+            {
+                var src = (byte[])px.Clone();
+                for (int gy = 1; gy < n - 1; gy++)
+                    for (int gx = 1; gx < n - 1; gx++)
+                        for (int k = 0; k < 4; k++)
+                        {
+                            int sum = 0, wsum = 0;
+                            for (int dy = -1; dy <= 1; dy++)
+                                for (int dx = -1; dx <= 1; dx++)
+                                {
+                                    int j = ((gy + dy) * n + gx + dx) * 4;
+                                    int wgt = (dx == 0 && dy == 0 ? 4 : dx == 0 || dy == 0 ? 2 : 1);
+                                    if (k < 3 && src[j + 3] == 0) continue; // colour only from coloured cells
+                                    sum += src[j + k] * wgt; wsum += wgt;
+                                }
+                            px[(gy * n + gx) * 4 + k] = (byte)(wsum == 0 ? 0 : sum / wsum);
+                        }
+            }
+            unsafe
+            {
+                fixed (byte* p = px)
+                {
+                    var im = new Image { Data = p, Width = n, Height = n, Mipmaps = 1, Format = PixelFormat.UncompressedR8G8B8A8 };
+                    var t = Raylib.LoadTextureFromImage(im);
+                    Raylib.SetTextureFilter(t, TextureFilter.Bilinear);
+                    _terr = t;
+                }
+            }
+        }
+        if (_terr is { } tex)
+        {
+            var a = S2(_terrWorld.X, _terrWorld.Y);
+            Raylib.DrawTexturePro(tex, new Rectangle(0, 0, tex.Width, tex.Height), new Rectangle(a.X, a.Y, _terrWorld.Width * _zoom2, _terrWorld.Height * _zoom2), Vector2.Zero, 0, Color.White);
+        }
     }
 
     /// <summary>A fixed field of faint stars behind the galaxy, drifting a little with the camera.</summary>
@@ -283,16 +375,10 @@ public sealed partial class App
         if (G.Button(new Rectangle(x, 8, 110, 34), "Research", size: 16, selected: _overlay2 == "research")) _overlay2 = _overlay2 == "research" ? "" : "research";
         if (G.Button(new Rectangle(x + 116, 8, 100, 34), "Shipyard", size: 16, selected: _overlay2 == "ships")) _overlay2 = _overlay2 == "ships" ? "" : "ships";
         if (G.Button(new Rectangle(x + 222, 8, 100, 34), "Empires", size: 16, selected: _overlay2 == "empires")) _overlay2 = _overlay2 == "empires" ? "" : "empires";
-        // Date and speed
-        string date = $"{s.Year}.{s.Month % 12 + 1:00}";
-        float rx = Gfx.W - 330;
-        G.Text(date, rx, 14, 22, Gfx.Gold);
-        float[] speeds = { 0, 1, 2, 4 };
-        for (int i = 0; i < 4; i++)
-            if (G.Button(new Rectangle(rx + 84 + i * 42, 9, 38, 32), i == 0 ? "II" : new string('>', i), size: 16, selected: _speed2 == speeds[i], tip: i == 0 ? "Pause (Space)" : $"Speed {i} ({i})"))
-                _speed2 = speeds[i];
+        // Turn and date
+        string date = $"Turn {Act2.TurnOf(s)} · {s.Year}.{s.Month % 12 + 1:00}";
+        G.TextRight(date, Gfx.W - 90, 14, 21, Gfx.Gold);
         if (G.Button(new Rectangle(Gfx.W - 76, 9, 68, 32), "Menu", size: 16, tip: "Save, quit, or go back to the title (Esc)")) _overlay2 = _overlay2 == "menu" ? "" : "menu";
-        if (_speed2 == 0) G.TextCentered("Paused: press Space or a speed button to let time run", new Rectangle(0, 56, Gfx.W, 22), 16, Gfx.Gold);
     }
 
     void Events2(Act2State s)
@@ -303,7 +389,6 @@ public sealed partial class App
             var e = s.Events[i];
             if (e.Empire == me.Id || e.Kind is "war" or "peace" or "eliminated" or "captured" or "end" or "rare")
                 _toasts.Add((e.Text, (float)Raylib.GetTime() + 7));
-            if (e.Kind == "war" && e.Text.Contains(me.Name) && _speed2 > 0) _speed2 = 0;
         }
         _seenEvents2 = s.Events.Count;
         var recent = s.Events.Where(e => e.Empire == me.Id || e.Kind is "war" or "peace" or "eliminated" or "captured").TakeLast(6).Reverse().ToList();
@@ -573,9 +658,25 @@ public sealed partial class App
         G.EndScroll();
     }
 
+    void EndTurnButton2(Act2State s, Content c)
+    {
+        var me = s.Player;
+        var r = new Rectangle(Gfx.W - 392, Gfx.H - 74, 380, 62);
+        bool fleetPanel = _selFleet >= 0;
+        if (fleetPanel) r.Y = Gfx.H - 250 - 70;
+        string label = s.Outcome != "" ? "The game is over"
+                     : me.Researching == null && Defs.Act2Techs.Any(t => Act2.CanResearch(me, t.Id)) ? "Choose research"
+                     : $"End turn ({Act2.MonthsPerTurn} months)";
+        if (G.Button(r, label, s.Outcome == "", size: 22) || (Raylib.IsKeyPressed(KeyboardKey.Enter) && _overlay2 == "" && s.Outcome == ""))
+        {
+            if (label == "Choose research") { _overlay2 = "research"; return; }
+            Act2.EndTurn(s, c);
+            SaveNow();
+        }
+    }
+
     void EndPopup2(Act2State s, Content c)
     {
-        _speed2 = 0;
         Raylib.DrawRectangle(0, 0, (int)Gfx.W, (int)Gfx.H, new Color(0, 0, 0, 150));
         G.Block(new Rectangle(0, 0, Gfx.W, Gfx.H));
         var r = new Rectangle(Gfx.W / 2 - 360, Gfx.H / 2 - 240, 720, 480);

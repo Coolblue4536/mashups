@@ -123,64 +123,228 @@ public sealed partial class App
         _cam1.Y = Math.Clamp(_cam1.Y, -Gfx.H / _zoom1 * 0.5f, A1.H * HexR * 1.5f - Gfx.H / _zoom1 * 0.5f);
     }
 
-    Texture2D? TerrainTex(string icon) => Icon(icon);
+    // ---- Civ VI map pictures (strategic view + terrain textures), loaded on first use
+    Texture2D? MapTex(string name, int maxSize = 512) => G.Tex("map:" + name + "@" + maxSize, () => Res.Civ6?.MapTexture(name, maxSize));
+
+    Texture2D? GroundTex(string name)
+    {
+        // Civ VI lights its ground in 3D; drawn flat, the textures need brightening to read like the game.
+        var t = G.Tex("ground:" + name, () =>
+        {
+            var img = Res.Civ6?.MapTexture(name, 1024);
+            if (img == null) return null;
+            float gain = name.StartsWith("FOW") ? 1.3f : 1.75f;
+            for (int i = 0; i < img.Rgba.Length; i += 4)
+                for (int k = 0; k < 3; k++) img.Rgba[i + k] = (byte)Math.Min(255, img.Rgba[i + k] * gain + 8);
+            return img;
+        });
+        if (t is { } tex && !_wrapped.Contains(name)) { Raylib.SetTextureWrap(tex, TextureWrap.Repeat); _wrapped.Add(name); }
+        return t;
+    }
+    readonly HashSet<string> _wrapped = new();
+    readonly Dictionary<string, List<string>> _variants = new();
+
+    /// <summary>The variants of a "{n}" sprite name that exist in the player's Civ VI.</summary>
+    List<string> Variants(string pattern)
+    {
+        if (_variants.TryGetValue(pattern, out var l)) return l;
+        l = new();
+        if (!pattern.Contains("{n}")) l.Add(pattern);
+        else for (int i = 1; i <= 6; i++) { var n = pattern.Replace("{n}", i.ToString()); if (MapTex(n) != null) l.Add(n); }
+        return _variants[pattern] = l;
+    }
+
+    Texture2D? Variant(string pattern, int x, int y)
+    {
+        if (pattern == "none") return null;
+        var l = Variants(pattern);
+        return l.Count == 0 ? null : MapTex(l[(x * 7 + y * 13) % l.Count]);
+    }
+
+    /// <summary>A hex filled with a repeating texture laid in map space, so it flows from hex to hex like Civ VI's ground.</summary>
+    void TexturedHex(Texture2D tex, Vector2 screen, Vector2 world, float r, Color tint)
+    {
+        const float uvWorld = 260f;
+        Rlgl.SetTexture(tex.Id);
+        Rlgl.Begin(DrawMode.Triangles);
+        Rlgl.Color4ub(tint.R, tint.G, tint.B, tint.A);
+        float wr = HexR * 1.005f;
+        for (int i = 0; i < 6; i++)
+        {
+            float a1 = (30 + 60 * i) * MathF.PI / 180, a2 = (30 + 60 * (i + 1)) * MathF.PI / 180;
+            var s1 = screen + new Vector2(MathF.Cos(a1), MathF.Sin(a1)) * r;
+            var s2 = screen + new Vector2(MathF.Cos(a2), MathF.Sin(a2)) * r;
+            var w1 = world + new Vector2(MathF.Cos(a1), MathF.Sin(a1)) * wr;
+            var w2 = world + new Vector2(MathF.Cos(a2), MathF.Sin(a2)) * wr;
+            Rlgl.TexCoord2f(world.X / uvWorld, world.Y / uvWorld); Rlgl.Vertex2f(screen.X, screen.Y);
+            Rlgl.TexCoord2f(w2.X / uvWorld, w2.Y / uvWorld); Rlgl.Vertex2f(s2.X, s2.Y);
+            Rlgl.TexCoord2f(w1.X / uvWorld, w1.Y / uvWorld); Rlgl.Vertex2f(s1.X, s1.Y);
+        }
+        Rlgl.End();
+        Rlgl.SetTexture(0);
+    }
+
+    void Sprite(Texture2D? t, Vector2 p, float size, Color tint, float lift = 0)
+    {
+        if (t is not { } tex) return;
+        float w = size, h = size * tex.Height / tex.Width;
+        Raylib.DrawTexturePro(tex, new Rectangle(0, 0, tex.Width, tex.Height), new Rectangle(p.X - w / 2, p.Y - h / 2 - lift, w, h), Vector2.Zero, 0, tint);
+    }
+
+    // Worked-tile improvements, recomputed once a turn.
+    Dictionary<int, string> _improve = new();
+    int _improveTurn = -1, _improveCities = -1;
+
+    Dictionary<int, string> Improvements(Act1State s)
+    {
+        if (_improveTurn == s.Turn && _improveCities == s.Cities.Sum(c => c.Pop + c.Id)) return _improve;
+        _improveTurn = s.Turn; _improveCities = s.Cities.Sum(c => c.Pop + c.Id);
+        _improve = new();
+        foreach (var c in s.Cities)
+            foreach (var (x, y) in Act1.WorkTiles(s, c))
+            {
+                var t = s.At(x, y);
+                var ter = Defs.Terrains[t.Terrain];
+                string on = t.Natural != null ? "" : t.Feature >= 0 ? Defs.Features[t.Feature].Id : !ter.Land ? "water" : ter.Id.EndsWith("_HILLS") ? "hills" : "flat";
+                var imp = Defs.Improvements.FirstOrDefault(i => i.On == on);
+                if (imp != null) _improve[y * s.W + x] = imp.Sprite;
+            }
+        return _improve;
+    }
 
     void DrawMap1(Act1State s, Content c)
     {
         var player = s.Player;
         float mw = MapPixelW;
         var hover = G.MouseOnMap && _overlay1 == "" ? TileAt(Gfx.Mouse) : null;
-        float size = HexW * _zoom1 * 1.02f;
-        // Visible rows and columns (with east-west copies).
-        int y0 = Math.Max(0, (int)(_cam1.Y / (HexR * 1.5f)) - 1), y1 = Math.Min(s.H - 1, (int)((_cam1.Y + Gfx.H / _zoom1) / (HexR * 1.5f)) + 1);
-        var pass2 = new List<(Vector2 p, int x, int y)>();
+        float r = HexR * _zoom1, size = HexW * _zoom1;
+        Raylib.DrawRectangleGradientV(0, 0, (int)Gfx.W, (int)Gfx.H, new Color(26, 42, 60, 255), new Color(14, 24, 38, 255));
+        int y0 = Math.Max(0, (int)(_cam1.Y / (HexR * 1.5f)) - 2), y1 = Math.Min(s.H - 1, (int)((_cam1.Y + Gfx.H / _zoom1) / (HexR * 1.5f)) + 2);
+        var tiles = new List<(Vector2 p, Vector2 w, int x, int y)>();
         foreach (var shift in new[] { -mw, 0, mw })
             for (int y = y0; y <= y1; y++)
                 for (int x = 0; x < s.W; x++)
                 {
-                    var p = ToScreen(TileCenter(x, y) + new Vector2(shift, 0));
-                    if (p.X < -size || p.X > Gfx.W + size) continue;
-                    var tile = s.At(x, y);
-                    var t = Defs.Terrains[tile.Terrain];
-                    var rect = new Rectangle(p.X - size / 2, p.Y - size / 2 * 1.155f, size, size * 1.155f);
-                    var tex = TerrainTex(t.Icon);
-                    // The terrain colour fills the hex edge to edge; Civ VI's terrain icon sits on top (it has a margin).
-                    Raylib.DrawPoly(p, 6, HexR * _zoom1 * 1.01f, 30, Gfx.Hex(t.Color));
-                    if (tex != null) Gfx.Draw(tex, Inflate(rect, size * 0.07f), Color.White);
-                    if (tile.Feature >= 0) Gfx.DrawFit(Icon(Defs.Features[tile.Feature].Icon), Inflate(rect, -size * 0.18f), new Color(255, 255, 255, 235));
-                    pass2.Add((p, x, y));
+                    var w = TileCenter(x, y) + new Vector2(shift, 0);
+                    var p = ToScreen(w);
+                    if (p.X < -size * 2 || p.X > Gfx.W + size * 2) continue;
+                    tiles.Add((p, w, x, y));
                 }
-        // Territory, natural wonders, cities on top.
-        foreach (var (p, x, y) in pass2)
+        var parchment = GroundTex("FOW_Ground_Temp_1024");
+        // ---- ground
+        foreach (var (p, w, x, y) in tiles)
         {
             var tile = s.At(x, y);
-            if (tile.City >= 0 && s.City(tile.City) is { } owner)
+            var t = Defs.Terrains[tile.Terrain];
+            bool seen = tile.Revealed, vis = seen && Act1.Visible(s, x, y);
+            if (!seen)
             {
-                var col = CivColor(c, s.Civs[owner.Owner]);
-                Raylib.DrawPoly(p, 6, HexR * _zoom1 * 0.98f, 30, new Color(col.R, col.G, col.B, (byte)46));
+                if (parchment is { } pt) TexturedHex(pt, p, w, r * 1.01f, new Color(206, 186, 146, 255));
+                else Raylib.DrawPoly(p, 6, r, 30, new Color(120, 104, 82, 255));
+                continue;
+            }
+            if (!t.Land)
+            {
+                var deep = t.Id == "TERRAIN_OCEAN";
+                Raylib.DrawPoly(p, 6, r * 1.01f, 30, vis ? (deep ? new Color(28, 74, 120, 255) : new Color(52, 128, 168, 255)) : (deep ? new Color(150, 156, 146, 255) : new Color(178, 176, 150, 255)));
+                var ov = MapTex(vis ? t.Overlay : t.OverlayFow);
+                if (ov != null) Gfx.Draw(ov, new Rectangle(p.X - size * 0.55f, p.Y - size * 0.62f, size * 1.1f, size * 1.24f), new Color(255, 255, 255, 170));
+                continue;
+            }
+            var g = GroundTex(vis ? t.Ground : t.GroundFow);
+            if (g is { } gt) TexturedHex(gt, p, w, r * 1.01f, vis ? Color.White : new Color(240, 222, 182, 255));
+            else Raylib.DrawPoly(p, 6, r, 30, Gfx.Hex(t.Color));
+        }
+        // ---- coastlines and a faint hex grid
+        foreach (var (p, w, x, y) in tiles)
+        {
+            var tile = s.At(x, y);
+            if (!tile.Revealed) continue;
+            var t = Defs.Terrains[tile.Terrain];
+            if (t.Land)
+            {
                 int k = 0;
                 foreach (var (nx, ny) in NeighborsInOrder(x, y))
                 {
-                    var nOwner = ny < 0 || ny >= s.H ? -2 : s.At(nx, ny).City >= 0 ? s.City(s.At(nx, ny).City)!.Owner : -1;
-                    if (nOwner != owner.Owner) EdgeLine(p, k, col);
+                    if (ny >= 0 && ny < s.H && !Defs.Terrains[s.At(nx, ny).Terrain].Land) EdgeLine(p, k, new Color(236, 214, 160, 200), 0.95f, 3.2f);
                     k++;
                 }
             }
+            Raylib.DrawPolyLinesEx(p, 6, r, 30, 1, new Color(0, 0, 0, 22));
+        }
+        // ---- territory (under the sprites): Civ VI's double border line in the owner's colours
+        foreach (var (p, w, x, y) in tiles)
+        {
+            var tile = s.At(x, y);
+            if (!tile.Revealed || tile.City < 0 || s.City(tile.City) is not { } owner) continue;
+            var col = CivColor(c, s.Civs[owner.Owner]);
+            var col2 = CivColor(c, s.Civs[owner.Owner], true);
+            Raylib.DrawPoly(p, 6, r * 0.98f, 30, new Color(col.R, col.G, col.B, (byte)28));
+            int k = 0;
+            foreach (var (nx, ny) in NeighborsInOrder(x, y))
+            {
+                var nOwner = ny < 0 || ny >= s.H ? -2 : s.At(nx, ny).City >= 0 ? s.City(s.At(nx, ny).City)!.Owner : -1;
+                if (nOwner != owner.Owner) { EdgeLine(p, k, col, 0.93f, 4f); EdgeLine(p, k, col2, 0.84f, 1.6f); }
+                k++;
+            }
+        }
+        // ---- sprites, back to front
+        var improve = Improvements(s);
+        foreach (var (p, w, x, y) in tiles.OrderBy(t => t.y))
+        {
+            var tile = s.At(x, y);
+            if (!tile.Revealed) continue;
+            bool vis = Act1.Visible(s, x, y);
+            var t = Defs.Terrains[tile.Terrain];
+            var fogTint = vis ? Color.White : new Color(236, 224, 200, 235);
+            if (t.Land && t.Overlay != "none" && tile.Natural == null && tile.Built == null && s.CityAt(x, y) == null)
+                Sprite(Variant(vis ? t.Overlay : t.OverlayFow, x, y), p, size * (t.Id.EndsWith("_MOUNTAIN") ? 1.35f : 1.25f), fogTint, size * 0.08f);
+            if (tile.Feature >= 0 && tile.Built == null && s.CityAt(x, y) == null)
+            {
+                var f = Defs.Features[tile.Feature];
+                Sprite(MapTex(vis ? f.Sprite : f.SpriteFow), p, size * 1.3f, Color.White, size * 0.04f);
+            }
             if (tile.Natural != null)
             {
-                float ns = HexW * _zoom1 * 0.9f;
-                Gfx.DrawFit(Icon("ICON_" + tile.Natural), new Rectangle(p.X - ns / 2, p.Y - ns / 2, ns, ns), Color.White);
+                var nd = c.NaturalDef(tile.Natural);
+                var spr = nd.Sprite != "none" ? MapTex(vis ? nd.Sprite : nd.Sprite.Replace("_Visible", "_Revealed")) ?? MapTex(nd.Sprite) : null;
+                if (spr != null) Sprite(spr, p, size * 1.25f, Color.White, size * 0.1f);
+                else Gfx.DrawFit(Icon("ICON_" + tile.Natural), new Rectangle(p.X - size * 0.42f, p.Y - size * 0.42f, size * 0.84f, size * 0.84f), Color.White);
             }
-            if (_selCity >= 0 && s.City(_selCity) is { } sel && sel.Owner == player.Id && Act1.WorkTiles(s, sel).Contains((x, y)))
-                Raylib.DrawCircleV(p + new Vector2(0, HexR * _zoom1 * 0.55f), 4 * _zoom1 + 1, Gfx.Good);
-            if (_settlerMode && Act1.CanFoundCity(s, player, x, y))
-                Raylib.DrawPolyLinesEx(p, 6, HexR * _zoom1 * 0.9f, 30, 2.5f, new Color(140, 255, 140, 200));
-            if (hover is { } hv && hv.x == x && hv.y == y)
-                Raylib.DrawPolyLinesEx(p, 6, HexR * _zoom1, 30, 2.5f, Gfx.Gold);
+            if (vis && improve.TryGetValue(y * s.W + x, out var imp) && tile.Built == null) Sprite(MapTex(imp), p, size * 1.1f, Color.White, size * 0.04f);
+            if (tile.Built is { } built)
+            {
+                if (built.StartsWith("district:"))
+                {
+                    string d = built[9..];
+                    // District plate in the owner's colour, Civ VI's district icon, then its buildings.
+                    var dc = s.City(tile.City) is { } dcity ? CivColor(c, s.Civs[dcity.Owner]) : Color.Gray;
+                    Raylib.DrawPoly(p, 6, r * 0.82f, 30, new Color((byte)(dc.R / 3 + 60), (byte)(dc.G / 3 + 60), (byte)(dc.B / 3 + 60), (byte)150));
+                    Sprite(MapTex($"Districts_{d}_Visible"), p - new Vector2(0, size * 0.18f), size * 0.42f, fogTint);
+                    var city = s.City(tile.City);
+                    if (city != null)
+                    {
+                        // The district's buildings, in the order they were built.
+                        int k = 0;
+                        foreach (var b in city.Buildings.Where(b => Defs.Building[b].District == d && Defs.Building[b].Sprite != "none"))
+                            Sprite(MapTex(Defs.Building[b].Sprite), p + new Vector2((k++ - 1) * size * 0.26f, size * 0.16f), size * 0.62f, fogTint);
+                    }
+                }
+                else if (Defs.Wonder.TryGetValue(built, out var wd)) Sprite(MapTex(wd.Sprite), p, size * 1.25f, fogTint, size * 0.1f);
+            }
         }
-        foreach (var (p, x, y) in pass2)
-            if (s.CityAt(x, y) is { } city) DrawCity(s, c, city, p);
-        // Clicks on the map
+        foreach (var (p, w, x, y) in tiles)
+            if (s.At(x, y).Revealed && s.CityAt(x, y) is { } city) DrawCity(s, c, city, p, Act1.Visible(s, x, y));
+        // ---- selection, settling, hover
+        foreach (var (p, w, x, y) in tiles)
+        {
+            if (_selCity >= 0 && s.City(_selCity) is { } sel && sel.Owner == player.Id && Act1.WorkTiles(s, sel).Contains((x, y)))
+                Raylib.DrawCircleV(p + new Vector2(0, r * 0.62f), 3.5f * _zoom1 + 1, Gfx.Good);
+            if (_settlerMode && Act1.CanFoundCity(s, player, x, y))
+                Raylib.DrawPolyLinesEx(p, 6, r * 0.9f, 30, 2.5f, new Color(140, 255, 140, 220));
+            if (hover is { } hv && hv.x == x && hv.y == y) Raylib.DrawPolyLinesEx(p, 6, r, 30, 2.5f, Gfx.Gold);
+        }
+        // ---- clicks
         if (hover is { } h && _overlay1 == "" && Raylib.IsMouseButtonPressed(MouseButton.Left) && !G.ClickTaken)
         {
             if (_settlerMode)
@@ -192,7 +356,7 @@ public sealed partial class App
                     SaveNow();
                 }
             }
-            else if (s.CityAt(h.x, h.y) is { } clicked) _selCity = clicked.Id;
+            else if (s.At(h.x, h.y).Revealed && s.CityAt(h.x, h.y) is { } clicked) _selCity = clicked.Id;
             else _selCity = -1;
         }
         if (hover is { } ht && _overlay1 == "") TileTip(s, c, ht.x, ht.y);
@@ -208,26 +372,33 @@ public sealed partial class App
         foreach (var (dx, dy) in d) yield return ((((x + dx) % A1.W) + A1.W) % A1.W, y + dy);
     }
 
-    void EdgeLine(Vector2 center, int edge, Color col)
+    void EdgeLine(Vector2 center, int edge, Color col, float inset = 0.97f, float width = 3.5f)
     {
         // Pointy-top hex corners at 30 + 60k degrees (screen y down). Edge k faces direction 0, -60, -120, 180, 120, 60 deg.
-        float r = HexR * _zoom1 * 0.97f;
+        float r = HexR * _zoom1 * inset;
         float facing = new[] { 0f, -60f, -120f, 180f, 120f, 60f }[edge];
         float a1 = (facing - 30) * MathF.PI / 180, a2 = (facing + 30) * MathF.PI / 180;
         var p1 = center + new Vector2(MathF.Cos(a1), MathF.Sin(a1)) * r;
         var p2 = center + new Vector2(MathF.Cos(a2), MathF.Sin(a2)) * r;
-        Raylib.DrawLineEx(p1, p2, Math.Max(2, 3.5f * _zoom1), col);
+        Raylib.DrawLineEx(p1, p2, Math.Max(1.5f, width * _zoom1), col);
     }
 
-    void DrawCity(Act1State s, Content c, CityState city, Vector2 p)
+    void DrawCity(Act1State s, Content c, CityState city, Vector2 p, bool visible)
     {
         var civ = s.Civs[city.Owner];
         var col = CivColor(c, civ);
         var col2 = CivColor(c, civ, true);
         float r = HexR * _zoom1 * 0.62f;
-        Raylib.DrawPoly(p, 6, r * 1.15f, 30, new Color((byte)(col.R / 2), (byte)(col.G / 2), (byte)(col.B / 2), (byte)255));
-        Raylib.DrawPoly(p, 6, r, 30, col);
-        Gfx.DrawFit(CivSymbol(civ.CivType), new Rectangle(p.X - r * 0.8f, p.Y - r * 0.8f, r * 1.6f, r * 1.6f), col2);
+        // Civ VI's city picture for the owner's era (strategic view).
+        var era = Defs.Eras[Math.Clamp(Act1.EraIndex(c, civ), 0, Defs.Eras.Length - 1)];
+        var spr = MapTex(era.CitySprite.Replace("{v}", visible ? "Visible" : "Revealed")) ?? MapTex(era.CitySprite.Replace("{v}", "Visible"));
+        if (spr != null) Sprite(spr, p, HexW * _zoom1 * (1.0f + Math.Min(city.Pop, 20) * 0.012f), Color.White, HexR * _zoom1 * 0.12f);
+        else
+        {
+            Raylib.DrawPoly(p, 6, r * 1.15f, 30, new Color((byte)(col.R / 2), (byte)(col.G / 2), (byte)(col.B / 2), (byte)255));
+            Raylib.DrawPoly(p, 6, r, 30, col);
+            Gfx.DrawFit(CivSymbol(civ.CivType), new Rectangle(p.X - r * 0.8f, p.Y - r * 0.8f, r * 1.6f, r * 1.6f), col2);
+        }
         // Name banner
         float fs = Math.Clamp(15 * _zoom1, 11, 22);
         string label = city.Name;
@@ -235,8 +406,8 @@ public sealed partial class App
         var banner = new Rectangle(p.X - tw / 2, p.Y - HexR * _zoom1 - fs * 1.2f, tw, fs * 1.5f);
         Raylib.DrawRectangleRounded(banner, 0.5f, 6, new Color((byte)(col.R / 3 + 10), (byte)(col.G / 3 + 10), (byte)(col.B / 3 + 10), (byte)230));
         Raylib.DrawRectangleRoundedLinesEx(banner, 0.5f, 6, 1.5f, col);
-        Raylib.DrawCircleV(new Vector2(banner.X + fs * 0.75f, banner.Y + banner.Height / 2), fs * 0.62f, col);
-        G.TextCentered(city.Pop.ToString(), new Rectangle(banner.X, banner.Y, fs * 1.5f, banner.Height), fs * 0.9f, col2);
+        Raylib.DrawCircleV(new Vector2(banner.X + fs * 0.75f, banner.Y + banner.Height / 2), fs * 0.62f, col2);
+        G.TextCentered(city.Pop.ToString(), new Rectangle(banner.X, banner.Y, fs * 1.5f, banner.Height), fs * 0.9f, col);
         G.Text(label, banner.X + fs * 1.7f, banner.Y + fs * 0.22f, fs, city.Capital ? Gfx.Gold : Gfx.Ink);
         if (city.Capital) Raylib.DrawRectangleRoundedLinesEx(Inflate(banner, 2), 0.5f, 6, 1.5f, Gfx.Gold);
         if (city.Id == _selCity) Raylib.DrawPolyLinesEx(p, 6, HexR * _zoom1, 30, 3, Gfx.Gold);
@@ -245,6 +416,7 @@ public sealed partial class App
     void TileTip(Act1State s, Content c, int x, int y)
     {
         var tile = s.At(x, y);
+        if (!tile.Revealed) { G.Tip("Unexplored. Your borders and new cities reveal the land; Cartography charts the seas, Flight the whole world."); return; }
         var t = Defs.Terrains[tile.Terrain];
         var lines = new List<string>();
         lines.Add(tile.Natural != null ? c.Name(tile.Natural) + " (natural wonder)" : c.Text(t.NameLoc) + (tile.Feature >= 0 ? ", " + c.Text(Defs.Features[tile.Feature].NameLoc) : ""));

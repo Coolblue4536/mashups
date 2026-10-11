@@ -22,6 +22,10 @@ public sealed class Tile
     public string? Natural { get; set; }
     /// <summary>Id of the city whose territory this tile is in, or -1.</summary>
     public int City { get; set; } = -1;
+    /// <summary>A district ("district:Campus") or a wonder (its BUILDING_ id) standing on the tile, or null.</summary>
+    public string? Built { get; set; }
+    /// <summary>The player has seen this tile (fog of war).</summary>
+    public bool Revealed { get; set; }
 }
 
 public sealed class CivState

@@ -4,7 +4,7 @@ from pathlib import Path
 
 PATH = Path(__file__).resolve().parent.parent / "sheets" / "design.json"
 ORDER = ["rules", "space_race", "difficulties", "map_sizes", "game_lengths", "yields", "terrains", "features", "natural_wonders",
-         "buildings", "wonders", "projects", "tech_legacy", "eras", "resources", "star_classes", "planet_classes", "districts",
+         "buildings", "wonders", "projects", "tech_legacy", "eras", "improvements", "resources", "star_classes", "planet_classes", "districts",
          "planet_buildings", "ships", "act2_techs", "modifiers", "aliens", "asset_refs", "game_systems"]
 
 

@@ -201,8 +201,8 @@ public sealed partial class App
         var s = Game.Act2!;
         for (int i = 0; i < n && s.Outcome == ""; i++)
         {
-            if (s.Month >= s.Player.NextAiThink) { Act2Ai.Think(s, Content, s.Player); s.Player.NextAiThink = s.Month + 2; }
-            Act2.Tick(s, Content);
+            Act2Ai.Think(s, Content, s.Player);
+            Act2.EndTurn(s, Content);
         }
         Game.Phase = "act2";
         EnterAct2();
