@@ -92,6 +92,8 @@ public sealed partial class App
         else if (_overlay2 == "ships") Shipyard2(s, c);
         else if (_overlay2 == "empires") Empires2(s, c);
         else if (_overlay2 == "log") Log2(s);
+        else if (_overlay2 == "battle") BattleWindow(s, c);
+        else if (_overlay2 == "system") SystemView(s, c);
         else if (_overlay2 == "menu") MenuOverlay();
         if (s.Outcome != "") EndPopup2(s, c);
         Toasts(_overlay2 == "" && s.Outcome == "");
@@ -172,6 +174,7 @@ public sealed partial class App
     }
 
     int? _hoverSystem;
+    double _lastSysClick;
 
     void DrawGalaxy(Act2State s, Content c)
     {
@@ -260,8 +263,25 @@ public sealed partial class App
                 G.Text(x.Name, p.X - tw / 2, ty, fs, tc);
             }
         }
-        // Fleets: chevrons in the owner's colour, stacked per system; yours first.
-        var groups = s.Fleets.GroupBy(f => (f.System, f.Path.Count > 0 ? f.Path[0] : -1)).ToList();
+        // Battles: a pulsing ring of fire where fleets are fighting.
+        float now = (float)Raylib.GetTime();
+        foreach (var bt in s.Battles.Where(b => !b.Over))
+        {
+            var bs = s.Sys(bt.System);
+            var bp = S2(bs.X, bs.Y);
+            float pr = 22 * Math.Clamp(_zoom2, 0.6f, 1.5f) * (1 + 0.15f * MathF.Sin(now * 6));
+            Raylib.BeginBlendMode(BlendMode.Additive);
+            Raylib.DrawCircleGradient(bp, pr * 1.8f, new Color(255, 90, 40, 120), new Color(0, 0, 0, 0));
+            for (int sp = 0; sp < 5; sp++)
+            {
+                float ang = now * 2.3f + sp * 1.256f;
+                Raylib.DrawCircleV(bp + new Vector2(MathF.Cos(ang), MathF.Sin(ang)) * pr, 2.5f, new Color(255, 200, 120, 200));
+            }
+            Raylib.EndBlendMode();
+            Raylib.DrawCircleLinesV(bp, pr, Gfx.Bad);
+        }
+        // Fleets: Stellaris's map markers (green yours, blue allies, yellow others, red enemies), with the ship class and count.
+        var groups = s.Active.GroupBy(f => (f.System, f.Path.Count > 0 ? f.Path[0] : -1)).ToList();
         foreach (var g in groups)
         {
             int k = 0;
@@ -270,30 +290,47 @@ public sealed partial class App
                 var wp = FleetPos(s, f);
                 var e = s.Empires[f.Owner];
                 bool mil = Act2.IsMilitary(f);
-                float sz = (mil ? 8.5f : 6.5f) * Math.Clamp(_zoom2, 0.7f, 1.3f);
-                var p = S2(wp.X, wp.Y) + new Vector2(16 + k * (sz * 1.9f), -16) * Math.Clamp(_zoom2, 0.7f, 1.2f);
-                var tip = p + new Vector2(0, -sz);
-                var l = p + new Vector2(-sz * 0.85f, sz * 0.75f); var rgt = p + new Vector2(sz * 0.85f, sz * 0.75f); var notch = p + new Vector2(0, sz * 0.3f);
-                Raylib.DrawTriangle(tip, l, notch, EColor(e)); Raylib.DrawTriangle(tip, notch, rgt, EColor(e));
-                Raylib.DrawLineEx(tip, l, 1, Color.Black); Raylib.DrawLineEx(tip, rgt, 1, Color.Black);
-                if (s.AtWar(me.Id, f.Owner)) Raylib.DrawCircleLinesV(p, sz + 3, Gfx.Bad);
+                float sz = (mil ? 13f : 11f) * Math.Clamp(_zoom2, 0.7f, 1.3f);
+                var p = S2(wp.X, wp.Y) + new Vector2(18 + k * (sz * 1.6f), -18) * Math.Clamp(_zoom2, 0.7f, 1.2f);
+                string rel = f.Owner == me.Id ? "own" : s.AtWar(me.Id, f.Owner) ? "hostile" : s.Allied(me.Id, f.Owner) ? "ally" : "neutral";
+                // Point along the route.
+                float rot = 0;
+                if (f.Path.Count > 0) { var nx = s.Sys(f.Path[0]); rot = MathF.Atan2(nx.Y - wp.Y, nx.X - wp.X) * 180 / MathF.PI + 90; }
+                if (St("st_fleet_" + rel) is { } mark)
+                    Raylib.DrawTexturePro(mark, new Rectangle(0, 0, mark.Width, mark.Height), new Rectangle(p.X, p.Y, sz * 2, sz * 2), new Vector2(sz, sz), rot, Color.White);
+                else Raylib.DrawTriangle(p + new Vector2(0, -sz), p + new Vector2(-sz * 0.8f, sz * 0.7f), p + new Vector2(sz * 0.8f, sz * 0.7f), EColor(e));
+                // Ship class badge (the biggest ship in the fleet) in the owner's colour.
+                var top = f.Ships.Keys.OrderByDescending(kk => Defs.Ship[kk].Power).ThenBy(kk => kk).First();
+                if (_zoom2 > 0.45f && St("st_class_" + top) is { } cls)
+                {
+                    var bpos = p + new Vector2(sz * 0.95f, sz * 0.55f);
+                    Raylib.DrawCircleV(bpos, sz * 0.55f, new Color(6, 14, 18, 220));
+                    Raylib.DrawCircleLinesV(bpos, sz * 0.55f, EColor(e));
+                    Gfx.DrawFit(cls, new Rectangle(bpos.X - sz * 0.4f, bpos.Y - sz * 0.4f, sz * 0.8f, sz * 0.8f), EText(e));
+                }
                 int ships = f.Ships.Values.Sum();
-                if (ships > 1 && _zoom2 > 0.6f) G.Text(ships.ToString(), p.X + sz * 0.6f, p.Y - sz * 1.4f, 12, Gfx.Ink);
+                if (ships > 1 && _zoom2 > 0.6f) G.Text(ships.ToString(), p.X - sz * 1.5f, p.Y - sz * 0.6f, 12, Gfx.Ink);
+                if (f.Damage > 0 && mil)
+                {
+                    double hull = f.Ships.Sum(kv => Defs.Ship[kv.Key].Hull * kv.Value) * (1 + Act2.Stat(s, e, "ship_hull_mult"));
+                    var hb = new Rectangle(p.X - sz, p.Y + sz + 2, sz * 2, 3);
+                    Raylib.DrawRectangleRec(hb, new Color(20, 20, 20, 200));
+                    Raylib.DrawRectangleRec(new Rectangle(hb.X, hb.Y, hb.Width * (float)Math.Clamp(1 - f.Damage / Math.Max(1, hull), 0, 1), 3), Gfx.Good);
+                }
                 if (f.Id == _selFleet)
                 {
-                    Raylib.DrawCircleLinesV(p, sz + 5, Gfx.Gold);
+                    Raylib.DrawCircleLinesV(p, sz + 4, Gfx.Gold);
                     var last = wp;
                     foreach (var n in f.Path)
                     {
                         var y = s.Sys(n);
                         var a = S2(last.X, last.Y); var b = S2(y.X, y.Y);
-                        // dashed path toward the destination
                         float len = Vector2.Distance(a, b);
                         for (float t = 0; t < len; t += 12) Raylib.DrawLineEx(a + (b - a) * (t / len), a + (b - a) * (MathF.Min(len, t + 7) / len), 2.5f, Gfx.Gold);
                         last = new Vector2(y.X, y.Y);
                     }
                 }
-                var hit = new Rectangle(p.X - sz - 3, p.Y - sz - 3, sz * 2 + 6, sz * 2 + 6);
+                var hit = new Rectangle(p.X - sz, p.Y - sz, sz * 2, sz * 2);
                 if (_overlay2 == "" && G.Hover(hit) && G.MouseOnMap)
                 {
                     G.Tip($"{f.Name} ({e.Name})\n" + string.Join(", ", f.Ships.Select(kv => $"{kv.Value} {StName(Defs.Ship[kv.Key].NameLoc, kv.Key)}")) + (mil ? $"\nPower {Gfx.Num(Act2.Power(s, e, f))}" : ""));
@@ -309,7 +346,11 @@ public sealed partial class App
         if (Raylib.IsMouseButtonReleased(MouseButton.Right)) { _rightPress2 = null; _rightDragged2 = false; }
         if (hover is { } hv && _overlay2 == "")
         {
-            if (Raylib.IsMouseButtonPressed(MouseButton.Left) && !G.ClickTaken) { _selSystem = hv; _selPlanet = -1; }
+            if (Raylib.IsMouseButtonPressed(MouseButton.Left) && !G.ClickTaken)
+            {
+                if (_selSystem == hv && Raylib.GetTime() - _lastSysClick < 0.4) _overlay2 = "system";
+                _selSystem = hv; _selPlanet = -1; _lastSysClick = Raylib.GetTime();
+            }
             if (rightClick && _selFleet >= 0 && s.Fleets.FirstOrDefault(f => f.Id == _selFleet) is { } sf) SmartOrder(s, sf, hv);
         }
         else if (_overlay2 == "" && G.MouseOnMap && Raylib.IsMouseButtonPressed(MouseButton.Left) && !G.ClickTaken) { _selSystem = -1; _selPlanet = -1; }
@@ -474,7 +515,7 @@ public sealed partial class App
         // Emblem
         Raylib.DrawCircle(32, 23, 19, EColor(me));
         Raylib.DrawCircleLines(32, 23, 19, Gfx.Gold);
-        Gfx.DrawFit(EmpirePic(me), new Rectangle(15, 6, 34, 34), Color.White);
+        EmpireBadge(me, new Rectangle(15, 6, 34, 34), Color.White);
         var rep = Act2.Report(s, me);
         float x = 64;
         foreach (var id in Act2.Res)
@@ -510,7 +551,7 @@ public sealed partial class App
     /// <summary>The menu rail on the left, with Stellaris's own navigation icons.</summary>
     void Rail2(Act2State s)
     {
-        var rail = new Rectangle(0, TopH, RailW, 6 * 58 + 10);
+        var rail = new Rectangle(0, TopH, RailW, 7 * 58 + 10);
         Raylib.DrawRectangleGradientH(0, (int)TopH, (int)RailW, (int)rail.Height, new Color(6, 20, 24, 235), new Color(6, 20, 24, 150));
         G.Block(rail);
         float y = TopH + 8;
@@ -533,13 +574,15 @@ public sealed partial class App
         }
         var me = s.Player;
         Item("st_nav_tech", "Research", "R", _overlay2 == "research", () => _overlay2 = _overlay2 == "research" ? "" : "research",
-             me.Researching == null && Defs.Act2Techs.Any(t => Act2.CanResearch(me, t.Id)) ? "!" : null);
+             me.Researching == null && Defs.Act2Techs.Any(t => Act2.CanResearch(s, me, t.Id)) ? "!" : null);
         Item("st_nav_designer", "Shipyard", "S", _overlay2 == "ships", () => _overlay2 = _overlay2 == "ships" ? "" : "ships");
         Item("st_nav_contacts", "Empires", "E", _overlay2 == "empires", () => _overlay2 = _overlay2 == "empires" ? "" : "empires",
              s.Wars.Any(w => w.A == me.Id || w.B == me.Id) ? "!" : null);
         Item("st_nav_planets", "Outliner", "O", _outliner, () => _outliner = !_outliner);
         Item("st_nav_log", "Event log", "L", _overlay2 == "log", () => _overlay2 = _overlay2 == "log" ? "" : "log");
         Item("st_nav_fleets", "Next idle fleet", "", false, () => NextIdleFleet(s));
+        var fight = s.Battles.LastOrDefault(b => !b.Over && b.Sides.Contains(me.Id));
+        if (fight != null) Item("st_class_battleship", "Battle", "", _overlay2 == "battle", () => { _battleSel = fight.System; _overlay2 = "battle"; }, "!");
     }
 
     void NextIdleFleet(Act2State s)
@@ -650,13 +693,13 @@ public sealed partial class App
             Gfx.DrawFit(ShipPic(first), new Rectangle(row.X + 4, row.Y + 3, 40, 30), Color.White);
             string name = f.Name.Length > 0 && !Defs.Ship.ContainsKey(f.Name) ? f.Name : StName(Defs.Ship[first].NameLoc, first);
             G.Text(G.Clip(name, 15, row.Width - 60), row.X + 50, row.Y + 3, 15, Gfx.Ink);
-            string status = f.Order switch
+            string status = f.MiaMonths > 0 ? $"missing: home in ~{Math.Ceiling(f.MiaMonths / (double)Act2.MonthsPerTurn)} turns" : s.Battles.Any(b => !b.Over && b.System == f.System && b.Sides.Contains(me.Id)) ? "IN BATTLE" : f.Order switch
             {
                 "survey" => "surveying", "outpost" => "building an outpost", "colonize" => "colonizing",
                 _ => f.Path.Count > 0 ? $"to {s.Sys(f.Path[^1]).Name}" : Act2.IsMilitary(f) ? $"power {Gfx.Num(Act2.Power(s, me, f))}" : "idle",
             };
             G.Text(G.Clip(status, 12, row.Width - 60), row.X + 50, row.Y + 19, 12, status == "idle" ? Gfx.Gold : Gfx.Muted);
-            if (hot && G.Clicked(row)) { _selFleet = f.Id; _selSystem = f.System; _selPlanet = -1; CenterOn2(f.System); }
+            if (hot && G.Clicked(row) && f.MiaMonths <= 0) { _selFleet = f.Id; _selSystem = f.System; _selPlanet = -1; CenterOn2(f.System); }
         }
         G.EndScroll();
     }
@@ -731,6 +774,7 @@ public sealed partial class App
         Raylib.EndBlendMode();
         G.Text(x.Name, px + 48, y, 24, Gfx.Gold, true);
         if (G.Button(new Rectangle(panel.X + panel.Width - 38, y, 26, 26), "×", size: 16)) { _selSystem = -1; return; }
+        if (G.Button(new Rectangle(panel.X + panel.Width - 130, y, 86, 26), "View", size: 14, tip: "System view: the star and its planets close up.")) _overlay2 = "system";
         var owner = x.Owner >= 0 ? s.Empires[x.Owner] : null;
         G.Text($"{StName(sc.NameLoc, x.Star)}" + (owner != null ? $" · {owner.Name}" : " · unclaimed"), px + 48, y + 28, 15, owner != null ? EText(owner) : Gfx.Muted);
         y += 54;
@@ -890,30 +934,67 @@ public sealed partial class App
         return r;
     }
 
+    static readonly string[] TierNames = { "Pre-FTL", "Tier I", "Tier II", "Tier III", "Tier IV", "Tier V" };
+
+    static Color AreaColor(string area) => area switch { "physics" => new Color(70, 150, 230, 255), "society" => new Color(90, 200, 110, 255), _ => new Color(230, 150, 60, 255) };
+
+    string TechEffect(Act2TechDef t) =>
+        string.Join(", ", t.Modifiers.Select(m => Defs.Modifier[m].EffectText).Concat(t.Unlocks != "none"
+            ? new[] { "unlocks " + StName(Defs.Ship.TryGetValue(t.Unlocks, out var sd) ? sd.NameLoc : Defs.PlanetBuilding[t.Unlocks].NameLoc, t.Unlocks) } : Array.Empty<string>()));
+
+    /// <summary>The technology tree in Stellaris's tiers: one column per tier, physics/society/engineering colour-coded.
+    /// A technology opens once everything it needs is known; exotic ones also need their site.</summary>
     void Research2(Act2State s, Content c)
     {
         var me = s.Player;
         var r = Overlay2("Research");
         double inc = Math.Max(0.1, Act2.Report(s, me).Income["research"]);
-        G.Text($"{me.Techs.Count} of {Defs.Act2Techs.Length} technologies · {Gfx.Num(inc)} research a month", r.X + 24, r.Y + 60, 17, Gfx.Muted);
-        float cw = (r.Width - 60) / 3, ch = 92;
-        int i = 0;
-        foreach (var t in Defs.Act2Techs.OrderBy(t => me.Techs.Contains(t.Id)).ThenBy(t => !Act2.CanResearch(me, t.Id)).ThenBy(t => t.Cost))
+        string now = me.Researching != null ? $"Researching {StName(Defs.Act2Tech[me.Researching].NameLoc, me.Researching)} ({Math.Min(100, me.ResearchProgress / Defs.Act2Tech[me.Researching].Cost * 100):0}%)" : "Choose a technology";
+        G.Text($"{me.Techs.Count} of {Defs.Act2Techs.Length} known · {Gfx.Num(inc)} research a month · {now}", r.X + 24, r.Y + 58, 16, Gfx.Muted);
+        float x0 = r.X + 16, y0 = r.Y + 112, colW = (r.Width - 32) / TierNames.Length, cardH = 58;
+        for (int tier = 0; tier < TierNames.Length; tier++)
+            G.TextCentered(TierNames[tier], new Rectangle(x0 + tier * colW, r.Y + 84, colW - 6, 22), 17, Gfx.Gold, true);
+        var area = new Rectangle(r.X + 8, y0, r.Width - 16, r.Height - (y0 - r.Y) - 10);
+        int rows = Defs.Act2Techs.GroupBy(t => t.Tier).Max(g => g.Count());
+        float scrollY = G.BeginScroll("tree2", area, rows * (cardH + 6) + 10);
+        string? hoverTip = null;
+        foreach (var g in Defs.Act2Techs.GroupBy(t => t.Tier))
         {
-            var cell = new Rectangle(r.X + 22 + i % 3 * (cw + 8), r.Y + 92 + i / 3 * (ch + 8), cw, ch);
-            bool known = me.Techs.Contains(t.Id), can = Act2.CanResearch(me, t.Id), sel = me.Researching == t.Id;
-            int months = (int)Math.Ceiling(Math.Max(0, t.Cost - (sel ? me.ResearchProgress : 0)) / inc);
-            string effect = t.Modifier != "none" ? Defs.Modifier[t.Modifier].EffectText : t.Unlocks != "none" ? "Unlocks " + StName(Defs.Ship.TryGetValue(t.Unlocks, out var sd) ? sd.NameLoc : Defs.PlanetBuilding[t.Unlocks].NameLoc, t.Unlocks) : "";
-            string line2 = known ? "Researched · " + effect : can ? $"{months} months · {effect}" : $"Needs {StName(t.Requires, t.Requires)}";
-            if (G.IconButton(cell, St(t.Art), StName(t.NameLoc, t.Id), line2, can || known, sel, tip: effect) && can)
+            int i = 0;
+            foreach (var t in g.OrderBy(t => t.Area).ThenBy(t => t.Cost))
             {
-                me.Researching = t.Id;
-                _overlay2 = "";
+                var cell = new Rectangle(x0 + g.Key * colW, scrollY + i * (cardH + 6), colW - 8, cardH);
+                i++;
+                if (cell.Y + cell.Height < area.Y || cell.Y > area.Y + area.Height) continue;
+                bool known = me.Techs.Contains(t.Id), sel = me.Researching == t.Id;
+                string? why = known ? null : Act2.CantResearch(s, me, t.Id, c);
+                bool can = !known && why == null, exotic = t.Feature != "none";
+                bool hot = G.Hover(cell) && G.Hover(area);
+                var bg = known ? new Color(30, 60, 50, 230) : sel ? new Color(40, 90, 100, 240) : can ? (hot ? G.ButtonHot : G.ButtonBg) : new Color(20, 26, 30, 220);
+                Raylib.DrawRectangleRounded(cell, 0.12f, 6, bg);
+                Raylib.DrawRectangle((int)cell.X, (int)cell.Y + 4, 4, (int)cell.Height - 8, AreaColor(t.Area));
+                if (exotic) Raylib.DrawRectangleRoundedLinesEx(cell, 0.12f, 6, 1.5f, new Color(190, 120, 255, 220));
+                if (sel) Raylib.DrawRectangleRoundedLinesEx(cell, 0.12f, 6, 2f, Gfx.Gold);
+                var tint = known || can ? Color.White : new Color(255, 255, 255, 90);
+                Gfx.DrawFit(St(t.Art), new Rectangle(cell.X + 8, cell.Y + 6, cardH - 12, cardH - 12), tint);
+                float tx = cell.X + cardH + 2, tw = cell.Width - cardH - 8;
+                G.Text(G.Clip(StName(t.NameLoc, t.Id), 15, tw), tx, cell.Y + 7, 15, known ? Gfx.Good : can ? Gfx.Ink : Gfx.Muted);
+                int months = (int)Math.Ceiling(Math.Max(0, t.Cost - (sel ? me.ResearchProgress : 0)) / inc);
+                string line2 = known ? "Researched" : can ? $"{t.Cost} · {months} months" : exotic && !Exotics.Known(s, me).Contains(t.Feature) ? Defs.ExoticSite[t.Feature].Name : "Locked";
+                G.Text(G.Clip(line2, 13, tw), tx, cell.Y + 27, 13, exotic && !known ? new Color(200, 150, 255, 255) : Gfx.Muted);
+                if (sel) Raylib.DrawRectangle((int)tx, (int)(cell.Y + cell.Height - 8), (int)(tw * Math.Min(1, me.ResearchProgress / t.Cost)), 3, Gfx.Rgb(90, 200, 220));
+                if (hot)
+                {
+                    hoverTip = $"{StName(t.NameLoc, t.Id)} ({TierNames[t.Tier]}, {t.Area}) · cost {t.Cost}\n{TechEffect(t)}"
+                               + (t.Requires.Length > 0 ? "\nNeeds: " + string.Join(", ", t.Requires.Select(q => StName(q, q))) : "")
+                               + (exotic ? $"\nExotic: needs the {Defs.ExoticSite[t.Feature].Name}." : "") + (why != null ? "\n" + why : "");
+                    if (can && G.Clicked(cell)) { me.Researching = t.Id; _overlay2 = ""; }
+                }
+                if (can && G.ScriptClick != null && G.HitArea(new Rectangle(-1, -1, 0, 0), StName(t.NameLoc, t.Id))) { me.Researching = t.Id; _overlay2 = ""; }
             }
-            if (sel && t.Cost > 0)
-                Raylib.DrawRectangle((int)cell.X + 92, (int)(cell.Y + cell.Height - 7), (int)((cell.Width - 100) * Math.Min(1, me.ResearchProgress / t.Cost)), 3, Gfx.Rgb(90, 200, 220));
-            i++;
         }
+        G.EndScroll();
+        if (hoverTip != null) G.Tip(hoverTip);
     }
 
     void Shipyard2(Act2State s, Content c)
@@ -942,42 +1023,8 @@ public sealed partial class App
 
     void Empires2(Act2State s, Content c)
     {
-        var me = s.Player;
-        var r = Overlay2("Empires");
-        float y = r.Y + 70;
-        G.Text("Empire", r.X + 110, y, 16, Gfx.Gold); G.Text("Systems", r.X + 520, y, 16, Gfx.Gold); G.Text("Fleet", r.X + 620, y, 16, Gfx.Gold); G.Text("Score", r.X + 720, y, 16, Gfx.Gold);
-        y += 26;
-        var area = new Rectangle(r.X + 10, y, r.Width - 20, r.Height - (y - r.Y) - 12);
-        var list = s.Empires.OrderByDescending(e => e.Alive).ThenByDescending(e => e.Score).ToList();
-        float yy = G.BeginScroll("empires", area, list.Count * 78);
-        foreach (var e in list)
-        {
-            var row = new Rectangle(r.X + 20, yy, r.Width - 40, 72);
-            if (e.IsPlayer) Raylib.DrawRectangleRounded(row, 0.1f, 4, new Color(40, 110, 110, 50));
-            Raylib.DrawRectangle((int)row.X - 6, (int)row.Y + 6, 4, 60, EColor(e));
-            Gfx.DrawFit(EmpirePic(e), new Rectangle(row.X, row.Y + 4, 64, 64), e.Alive ? Color.White : new Color(255, 255, 255, 90));
-            G.Text(e.Name + (e.IsPlayer ? " (you)" : e.Alive ? "" : " (fallen)"), row.X + 90, row.Y + 8, 20, e.Alive ? EText(e) : Gfx.Muted);
-            string sub = e.Kind == "civ" ? $"Led by {e.Leader} · reached space #{e.SpaceRank}" : "Native to this galaxy";
-            if (!e.IsPlayer && s.AtWar(me.Id, e.Id)) sub += " · AT WAR";
-            G.Text(sub, row.X + 90, row.Y + 38, 15, s.AtWar(me.Id, e.Id) ? Gfx.Bad : Gfx.Muted);
-            G.Text($"{s.SystemsOf(e.Id).Count()}", row.X + 500, row.Y + 22, 18, Gfx.Ink);
-            G.Text(Gfx.Num(s.Fleets.Where(f => f.Owner == e.Id).Sum(f => Act2.Power(s, e, f))), row.X + 600, row.Y + 22, 18, Gfx.Ink);
-            G.Text($"{e.Score}", row.X + 700, row.Y + 22, 18, Gfx.Ink);
-            if (!e.IsPlayer && e.Alive)
-            {
-                var b = new Rectangle(row.X + row.Width - 170, row.Y + 18, 160, 36);
-                if (s.AtWar(me.Id, e.Id))
-                {
-                    bool ok = Act2.WouldAcceptPeace(s, me, e);
-                    if (G.Button(b, "Propose peace", ok, size: 16, tip: ok ? "They will accept." : "They won't accept yet (a war lasts at least a year, and they must not be winning).") && (G.Hover(area) || G.ScriptActive))
-                        Act2.MakePeace(s, me, e);
-                }
-                else if (G.Button(b, "Declare war", size: 16, tip: "Your fleets can then fight theirs and take their systems.") && (G.Hover(area) || G.ScriptActive))
-                    Act2.DeclareWar(s, me, e);
-            }
-            yy += 78;
-        }
-        G.EndScroll();
+        var r = Overlay2("Diplomacy");
+        Diplomacy2Pane(s, c, r);
     }
 
     void EndTurnButton2(Act2State s, Content c)
@@ -985,13 +1032,15 @@ public sealed partial class App
         var me = s.Player;
         var r = new Rectangle(Gfx.W - 312, Gfx.H - 66, 300, 54);
         string label = s.Outcome != "" ? "The game is over"
-                     : me.Researching == null && Defs.Act2Techs.Any(t => Act2.CanResearch(me, t.Id)) ? "Choose research"
+                     : me.Researching == null && Defs.Act2Techs.Any(t => Act2.CanResearch(s, me, t.Id)) ? "Choose research"
                      : $"End turn ({Act2.MonthsPerTurn} months)";
         if (G.Button(r, label, s.Outcome == "", size: 21) || (Raylib.IsKeyPressed(KeyboardKey.Enter) && _overlay2 == "" && s.Outcome == ""))
         {
             if (label == "Choose research") { _overlay2 = "research"; return; }
             Act2.EndTurn(s, c);
             SaveNow();
+            // A battle involving you opens its window, so you can fight on or jump out.
+            if (s.Battles.FirstOrDefault(b => !b.Over && b.Sides.Contains(me.Id)) is { } bt) { _battleSel = bt.System; _overlay2 = "battle"; }
         }
     }
 
@@ -1013,7 +1062,7 @@ public sealed partial class App
         float y = r.Y + 112;
         foreach (var e in s.Empires.OrderByDescending(e => e.Score).Take(7))
         {
-            Gfx.DrawFit(EmpirePic(e), new Rectangle(r.X + 60, y, 40, 40), Color.White);
+            EmpireBadge(e, new Rectangle(r.X + 60, y, 40, 40), Color.White);
             G.Text(e.Name + (e.IsPlayer ? " (you)" : ""), r.X + 112, y + 8, 19, e.IsPlayer ? Gfx.Gold : EText(e));
             G.TextRight($"{e.Score}", r.X + r.Width - 60, y + 8, 19, Gfx.Ink);
             y += 44;

@@ -6,7 +6,7 @@ public static partial class Act1Ai
 {
     static readonly string[] ArmyMix = { "melee", "ranged", "melee", "anti_cavalry", "heavy_cavalry", "ranged", "light_cavalry", "siege" };
 
-    static IEnumerable<UnitState> Army(Act1State s, CivState civ) => s.UnitsOf(civ.Id);
+    static IEnumerable<UnitState> Army(Act1State s, CivState civ) => s.UnitsOf(civ.Id).Where(u => !Military.IsCivilian(u));
 
     /// <summary>How many units the civ wants: a garrison per city, more at war or in later eras.</summary>
     public static int WantedUnits(Act1State s, Content c, CivState civ)
@@ -20,7 +20,7 @@ public static partial class Act1Ai
     /// <summary>The unit a city should train next for a balanced army, or null.</summary>
     static string? BestUnit(Act1State s, Content c, CivState civ, CityState city)
     {
-        var trainable = c.Units.Where(u => u.Line != "recon" && Military.CantTrain(s, c, city, u.Type) == null).ToList();
+        var trainable = c.Units.Where(u => u.Line is not ("recon" or "civilian") && Military.CantTrain(s, c, city, u.Type) == null).ToList();
         if (trainable.Count == 0) return null;
         var have = Army(s, civ).GroupBy(u => c.Unit[u.Type].Line).ToDictionary(g => g.Key, g => g.Count());
         bool war = s.Wars.Any(w => w.A == civ.Id || w.B == civ.Id);
@@ -60,7 +60,9 @@ public static partial class Act1Ai
 
         var cities = s.CitiesOf(civ.Id).ToList();
         if (cities.Count == 0) return;
-        var enemies = s.Civs.Where(o => o.Alive && s.AtWar(o.Id, civ.Id)).Select(o => o.Id).ToHashSet();
+        var enemies = s.Majors.Where(o => o.Alive && s.AtWar(o.Id, civ.Id)).Select(o => o.Id).ToHashSet();
+        // Units locked in a losing fight pull back.
+        foreach (var u in Army(s, civ).Where(u => u.Engaged >= 0 && u.Hp < 35).ToList()) Military.Withdraw(s, c, u);
         // Garrisons: the unit nearest each empty city goes home.
         var garrisoned = new HashSet<int>();
         foreach (var city in cities)
@@ -73,9 +75,19 @@ public static partial class Act1Ai
             garrisoned.Add(g.Id);
             if (Military.PathTo(s, g, city.X, city.Y) is { } path) Military.Step(s, g, path);
         }
+        // A tribal camp near home is worth clearing (gold, and no more raids).
+        var camp = Enumerable.Range(0, s.Tiles.Length).Where(i => s.Tiles[i].Camp).Select(i => (x: i % s.W, y: i / s.W))
+            .Where(t => cities.Any(ct => Hex.Distance(ct.X, ct.Y, t.x, t.y, s.W) <= 8)).Select(t => ((int, int)?)t).FirstOrDefault();
+        UnitState? hunter = camp is { } cp && enemies.Count == 0
+            ? Army(s, civ).Where(u => !garrisoned.Contains(u.Id) && u.Hp > 70 && !c.Unit[u.Type].IsRanged).OrderBy(u => Hex.Distance(u.X, u.Y, cp.Item1, cp.Item2, s.W)).FirstOrDefault() : null;
+        if (hunter != null && camp is { } cmp)
+        {
+            TryAttack(s, c, hunter, c.Unit[hunter.Type]);
+            if (s.Units.Contains(hunter) && hunter.Moves > 0 && Military.PathTo(s, hunter, cmp.Item1, cmp.Item2, null, 3000) is { } hp) Military.Step(s, hunter, hp);
+        }
         foreach (var u in Army(s, civ).ToList())
         {
-            if (!s.Units.Contains(u)) continue;
+            if (!s.Units.Contains(u) || u == hunter) continue;
             var info = c.Unit[u.Type];
             // Shoot or strike whatever is in reach first.
             TryAttack(s, c, u, info);
@@ -153,7 +165,7 @@ public static partial class Act1Ai
         if (!s.Rng.Chance(0.02 * civ.Aggression * mood)) return;
         double mine = Military.ArmyPower(s, c, civ.Id);
         var mineCities = s.CitiesOf(civ.Id).ToList();
-        var target = s.Civs.Where(o => o.Alive && o.Id != civ.Id)
+        var target = s.Majors.Where(o => o.Alive && o.Id != civ.Id && s.HasMet(civ.Id, o.Id) && !s.Allied(civ.Id, o.Id))
             .Select(o => (o, dist: s.CitiesOf(o.Id).SelectMany(x => mineCities.Select(m => Hex.Distance(x.X, x.Y, m.X, m.Y, s.W))).DefaultIfEmpty(99).Min()))
             .Where(x => x.dist <= 10 && mine > Military.ArmyPower(s, c, x.o.Id) * Rules.AiWarPowerRatio + 50)
             .OrderBy(x => x.dist).Select(x => x.o).FirstOrDefault();

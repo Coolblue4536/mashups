@@ -2,7 +2,7 @@ namespace StellarAscension;
 
 /// <summary>Makes the Act 1 world: continents from wrapping value noise, Civ VI terrain by latitude and moisture,
 /// hills and mountain ranges, features, natural wonders and start positions.</summary>
-public static class Act1Map
+public static partial class Act1Map
 {
     public static int TerrainIndex(string id) => Array.FindIndex(Defs.Terrains, t => t.Id == id);
     public static int FeatureIndex(string id) => Array.FindIndex(Defs.Features, f => f.Id == id);

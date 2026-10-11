@@ -66,7 +66,7 @@ public sealed class Civ6Data
         "Civilizations", "Leaders", "CivilizationLeaders", "CityNames", "PlayerColors", "Colors", "Technologies", "TechnologyPrereqs",
         "Buildings", "Features", "Feature_YieldChanges", "Feature_ValidTerrains", "Terrains", "Terrain_YieldChanges", "Projects", "Districts", "Eras",
         "IconDefinitions", "IconTextureAtlases", "Resources", "Resource_YieldChanges", "Resource_ValidTerrains", "Resource_ValidFeatures", "Improvements", "Difficulties",
-        "Units", "UnitUpgrades"
+        "Units", "UnitUpgrades", "CivilizationTraits", "Traits"
     };
 
     void LoadXmlTree(string dir)

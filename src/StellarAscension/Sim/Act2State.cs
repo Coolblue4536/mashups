@@ -17,6 +17,8 @@ public sealed class Planet
     public bool Homeworld { get; set; }
     /// <summary>Construction queue: (district or building id, months left).</summary>
     public List<QueueItem> Queue { get; set; } = new();
+    /// <summary>An exotic site on this world (exotic_sites id), or null.</summary>
+    public string? Exotic { get; set; }
 }
 
 public sealed class QueueItem
@@ -65,6 +67,34 @@ public sealed class Fleet
     public double OrderMonths { get; set; }
     public double Damage { get; set; }
     public string Name { get; set; } = "";
+    /// <summary>Months left missing after an emergency FTL jump (it reappears at home); 0: here.</summary>
+    public int MiaMonths { get; set; }
+}
+
+/// <summary>A space battle in a system, lasting as long as both sides have warships there (several turns for big fleets).</summary>
+public sealed class Battle
+{
+    public int System { get; set; }
+    public List<int> Sides { get; set; } = new();
+    public int StartMonth { get; set; }
+    public int Months { get; set; }
+    /// <summary>Hull damage each empire has taken, in total.</summary>
+    public Dictionary<int, double> Taken { get; set; } = new();
+    public Dictionary<int, int> ShipsLost { get; set; } = new();
+    /// <summary>Recent rounds for the battle window: (month, text).</summary>
+    public List<string> Log { get; set; } = new();
+    public bool Over { get; set; }
+    public string Result { get; set; } = "";
+}
+
+/// <summary>An Act 2 trade deal: each month From pays Amount of Resource to To, until Until (month).</summary>
+public sealed class TradeDeal
+{
+    public int From { get; set; }
+    public int To { get; set; }
+    public string Resource { get; set; } = "";
+    public double Amount { get; set; }
+    public int Until { get; set; }
 }
 
 public sealed class Empire
@@ -99,6 +129,16 @@ public sealed class Empire
     public List<QueueItem> Shipyard { get; set; } = new();
     public double Score { get; set; }
     public int NextAiThink { get; set; }
+    /// <summary>civ_traits id.</summary>
+    public string Trait { get; set; } = "";
+    /// <summary>Exotic sites this empire held in Act 1 (their technologies are open to it).</summary>
+    public List<string> Exotics { get; set; } = new();
+    /// <summary>Empires it has made contact with.</summary>
+    public List<int> Contacts { get; set; } = new();
+    /// <summary>Empires it has established communications with.</summary>
+    public List<int> Comms { get; set; } = new();
+    /// <summary>Envoys at work: target empire → month the task ends ("comms") or -1 (improving relations, ongoing).</summary>
+    public Dictionary<int, int> EnvoyTasks { get; set; } = new();
 }
 
 public sealed class Nebula
@@ -128,6 +168,9 @@ public sealed class Act2State
     public List<Empire> Empires { get; set; } = new();
     public List<Fleet> Fleets { get; set; } = new();
     public List<War> Wars { get; set; } = new();
+    public List<Battle> Battles { get; set; } = new();
+    public List<TradeDeal> Deals { get; set; } = new();
+    public List<int[]> Alliances { get; set; } = new();
     public List<Nebula> Nebulae { get; set; } = new();
     public float GalaxyRadius { get; set; }
     public List<Act2Event> Events { get; set; } = new();
@@ -145,4 +188,9 @@ public sealed class Act2State
     public IEnumerable<Planet> PlanetsOf(int empire) => Systems.SelectMany(s => s.Planets).Where(p => p.Owner == empire);
     public IEnumerable<StarSystem> SystemsOf(int empire) => Systems.Where(s => s.Owner == empire);
     public bool AtWar(int a, int b) => a != b && Wars.Any(w => w.A == a && w.B == b || w.A == b && w.B == a);
+    public bool Allied(int a, int b) => Alliances.Any(x => x[0] == Math.Min(a, b) && x[1] == Math.Max(a, b));
+    public bool HasContact(int a, int b) => a == b || Empires[a].Contacts.Contains(b);
+    public bool HasComms(int a, int b) => a == b || Empires[a].Comms.Contains(b) || Empires[b].Comms.Contains(a);
+    /// <summary>Fleets present in the galaxy (not missing after an emergency jump).</summary>
+    [JsonIgnore] public IEnumerable<Fleet> Active => Fleets.Where(f => f.MiaMonths <= 0);
 }

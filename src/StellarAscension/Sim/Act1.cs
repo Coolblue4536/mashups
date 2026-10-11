@@ -36,15 +36,20 @@ public static class Act1
         for (int i = 0; i < picks.Count; i++)
         {
             var c = new CivState { Id = i, CivType = picks[i].Type, Leader = picks[i].Leader, IsPlayer = i == 0, YieldMult = i == 0 ? 1 : diff.AiYieldMult,
-                                   Aggression = 0.2 + rng.Double() * 0.6 };
+                                   Aggression = 0.2 + rng.Double() * 0.6, Trait = content.Trait(picks[i].Type).Id };
             s.Civs.Add(c);
             FoundCity(s, content, c, starts[i].x, starts[i].y);
         }
-        Act1Map.PlaceResources(s, content, rng, starts.Take(s.Civs.Count).ToList());
+        var startList = starts.Take(s.Civs.Count).ToList();
+        Act1Map.PlaceResources(s, content, rng, startList);
+        Act1Map.PlaceExotics(s, rng, startList, size.NaturalWonders <= 4 ? 3 : size.NaturalWonders <= 6 ? 4 : 5);
+        // The tribes: one more "civ", at war with everyone, with camps and villages in the wilds.
+        s.Civs.Add(new CivState { Id = s.Civs.Count, CivType = "CIVILIZATION_BARBARIAN", Leader = "", IsTribe = true, Trait = "militaristic" });
+        Tribes.Setup(s, content, rng, startList);
         // Everyone starts with a Warrior beside the capital, as in Civ VI.
-        foreach (var c in s.Civs)
+        foreach (var c in s.Majors)
             if (Military.Spawn(s, content, c, "UNIT_WARRIOR", starts[c.Id].x, starts[c.Id].y) is { } w) w.Moves = content.Unit[w.Type].Moves;
-        foreach (var c in s.Civs.Where(c => !c.IsPlayer)) Act1Ai.ChooseResearch(s, content, c);
+        foreach (var c in s.Majors.Where(c => !c.IsPlayer)) Act1Ai.ChooseResearch(s, content, c);
         Reveal(s);
         s.Events.Add(new Act1Event(1, "start", $"{CivName(content, s.Player)} is founded. Win the race to space: complete the Moon Landing first.", 0));
         return s;
@@ -53,8 +58,9 @@ public static class Act1
     // ------------------------------------------------------------------ names
 
     public static Civ6Civ? CivDef(Content content, CivState c) => content.Civs.FirstOrDefault(x => x.Type == c.CivType && x.Leader == c.Leader);
-    public static string CivName(Content content, CivState c) => CivDef(content, c) is { } d ? content.Text(d.DescLoc) : c.CivType;
-    public static string CivAdjective(Content content, CivState c) => CivDef(content, c) is { } d ? content.Text(d.AdjLoc) : c.CivType;
+    public static string CivName(Content content, CivState c) => c.IsTribe ? "the Tribes" : CivDef(content, c) is { } d ? content.Text(d.DescLoc) : c.CivType;
+    public static string CivAdjective(Content content, CivState c) => c.IsTribe ? "Tribal" : CivDef(content, c) is { } d ? content.Text(d.AdjLoc) : c.CivType;
+    public static CivTraitDef Trait(CivState c) => Defs.CivTrait.TryGetValue(c.Trait, out var t) ? t : Defs.CivTraits[0];
     public static string LeaderName(Content content, CivState c) => CivDef(content, c) is { } d ? content.Text(d.LeaderNameLoc) : c.Leader;
 
     // ------------------------------------------------------------------ tiles
@@ -79,6 +85,14 @@ public static class Act1
         if (tile.Resource != null && ResourceDefs.TryGetValue(tile.Resource, out var r) && (civ == null || r.PrereqTech == "none" || civ.Techs.Contains(r.PrereqTech)))
         {
             f += r.Yield.Food; p += r.Yield.Production; g += r.Yield.Gold; sc += r.Yield.Science;
+        }
+        if (tile.Improvement != null && Defs.Improvement.TryGetValue(tile.Improvement, out var im))
+        {
+            f += im.Food; p += im.Production; g += im.Gold; sc += im.Science;
+        }
+        if (tile.Exotic != null && Defs.ExoticSite.TryGetValue(tile.Exotic, out var ex))
+        {
+            f += ex.Food; p += ex.Production; g += ex.Gold; sc += ex.Science;
         }
         return new Yields(f, p, g, sc);
     }
@@ -105,6 +119,7 @@ public static class Act1
         if (civ.IsPlayer && !s.At(x, y).Revealed) return false;
         if (s.At(x, y).Built != null) return false;
         if (s.UnitAt(x, y) is { } u && u.Owner != civ.Id) return false;
+        if (s.At(x, y).Camp || s.At(x, y).Exotic != null) return false;
         var owner = s.At(x, y).City;
         if (owner >= 0 && s.City(owner)?.Owner != civ.Id) return false;
         int min = (int)Rules.CityMinDistance;
@@ -200,6 +215,11 @@ public static class Act1
             f += e.food; p += e.prod; g += e.gold; sc += e.sci;
             fp += e.foodPct; pp += e.prodPct; gp += e.goldPct; sp += e.sciPct;
         }
+        // The civilization's trait, and exotic sites it holds with enough land around them.
+        var tr = Trait(civ);
+        fp += tr.FoodPct + Exotics.Bonus(s, civ, "food_pct"); pp += tr.ProductionPct + Exotics.Bonus(s, civ, "production_pct");
+        gp += tr.GoldPct + Exotics.Bonus(s, civ, "gold_pct"); sp += tr.SciencePct + Exotics.Bonus(s, civ, "science_pct");
+        if (city.Build != null && Defs.Wonder.ContainsKey(city.Build)) pp += tr.WonderPct;
         double m = civ.YieldMult;
         f *= (1 + fp / 100) * (1 + (m - 1) * 0.5);
         p *= (1 + pp / 100) * m;
@@ -235,8 +255,8 @@ public static class Act1
 
     public static double BuildCost(Act1State s, Content content, CivState civ, string id) => id switch
     {
-        Settler => Math.Round((Rules.SettlerCost + Rules.SettlerCostStep * civ.SettlersBuilt) * Rules.Act1BuildCostMult),
-        _ when content.Unit.TryGetValue(id, out var u) => u.Cost,
+        Settler => Math.Round((Rules.SettlerCost + Rules.SettlerCostStep * civ.SettlersBuilt) * Rules.Act1BuildCostMult * (1 + Trait(civ).SettlerCostPct / 100.0)),
+        _ when content.Unit.TryGetValue(id, out var u) => Math.Round(u.Cost * (u.Line == "civilian" ? 1 : 1 + Trait(civ).UnitCostPct / 100.0)),
         _ when content.BuildingCost.TryGetValue(id, out var b) => b,
         _ when content.WonderCost.TryGetValue(id, out var w) => w,
         _ when content.ProjectCost.TryGetValue(id, out var p) => p,
@@ -281,6 +301,8 @@ public static class Act1
             if (p.Kind == "satellite" && civ.SatelliteDone) return "Already launched.";
             if (p.Kind == "moon" && !civ.SatelliteDone) return $"Launch the {content.Name("PROJECT_LAUNCH_EARTH_SATELLITE")} first.";
             if (p.Kind == "moon" && civ.MoonTurn > 0) return "Already done.";
+            if (p.Kind == "moon" && Defs.PreftlTechs.Where(t => t.Core && !civ.Techs.Contains(t.Id)).Select(t => content.Name(t.Id)).ToList() is { Count: > 0 } missing)
+                return "Needs pre-FTL research: " + string.Join(", ", missing) + ".";
             if (s.CitiesOf(civ.Id).Any(c => c.Id != city.Id && c.Build == id)) return "Already being built in another of your cities.";
             return null;
         }
@@ -319,7 +341,7 @@ public static class Act1
     public static int CalendarYear(Act1State s, Content content)
     {
         double best = 0;
-        foreach (var civ in s.Civs.Where(c => c.Alive))
+        foreach (var civ in s.Majors.Where(c => c.Alive))
         {
             int era = EraIndex(content, civ);
             var inEra = content.Techs.Where(t => t.EraIndex == era).ToList();
@@ -337,9 +359,10 @@ public static class Act1
     public static void EndTurn(Act1State s, Content content)
     {
         if (s.Outcome != "") return;
-        var order = s.Civs.Where(c => c.Alive).ToList();
+        var order = s.Majors.Where(c => c.Alive).ToList();
         s.Rng.Shuffle(order);
         foreach (var civ in order.Where(c => !c.IsPlayer)) { if (civ.Alive) Act1Ai.TakeTurn(s, content, civ); if (s.Outcome != "") return; }
+        Tribes.Turn(s, content);
         foreach (var civ in order.Where(c => c.Alive))
         {
             double science = 0, gold = 0;
@@ -365,7 +388,8 @@ public static class Act1
             Research(s, content, civ, science);
             if (s.Outcome != "") break;
         }
-        foreach (var civ in s.Civs.Where(c => !c.IsPlayer && c.Alive)) Act1Ai.PlaceSettlers(s, content, civ);
+        foreach (var civ in s.Majors.Where(c => !c.IsPlayer && c.Alive)) Act1Ai.PlaceSettlers(s, content, civ);
+        Diplomacy1.Turn(s, content);
         // Cities fire on enemies next to them, then everyone's units get their moves back and heal.
         foreach (var civ in s.Civs.Where(c => c.Alive).ToList()) Military.CityStrikes(s, content, civ);
         Military.NewTurn(s, content);
@@ -431,6 +455,7 @@ public static class Act1
         {
             case "unit" when id != Settler:
                 var u = Military.Spawn(s, content, civ, id, city.X, city.Y);
+                if (u != null && id == "UNIT_BUILDER") u.Charges = (int)Rules.BuilderCharges + Trait(civ).BuilderCharges;
                 string un = content.Text(content.Unit[id].NameLoc);
                 if (civ.IsPlayer) s.Events.Add(new Act1Event(s.Turn, "trained", u != null ? $"{city.Name} trained a {un}." : $"{city.Name} trained a {un}, but there was no room for it.", civ.Id, city.X, city.Y));
                 break;
@@ -496,7 +521,7 @@ public static class Act1
     /// <summary>At the turn limit, everyone who hasn't landed is ranked by technologies and Act 1 ends.</summary>
     static void TimeLimit(Act1State s, Content content)
     {
-        foreach (var c in s.Civs.Where(c => c.Alive && c.MoonTurn == 0).OrderByDescending(c => c.Techs.Count))
+        foreach (var c in s.Majors.Where(c => c.Alive && c.MoonTurn == 0).OrderByDescending(c => c.Techs.Count))
         {
             c.MoonTurn = s.Turn;
             s.SpaceOrder.Add(c.Id);

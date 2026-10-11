@@ -17,7 +17,7 @@ public static class Handoff
         var s = new Act2State { Setup = a1.Setup, EndYear = length.EndYear, Rng = rng };
 
         // ---- empires: every Act 1 civ (player first), then Stellaris's own aliens
-        var civs = a1.Civs.Where(c => c.Alive).OrderByDescending(c => c.IsPlayer).ToList();
+        var civs = a1.Majors.Where(c => c.Alive).OrderByDescending(c => c.IsPlayer).ToList();
         foreach (var c in civs)
         {
             var def = Act1.CivDef(content, c);
@@ -32,6 +32,11 @@ public static class Handoff
             // Civ VI's primary colours can be near-white or near-black; keep them visible on a dark galaxy.
             if (e.ColorR + e.ColorG + e.ColorB < 120) { e.ColorR = def?.Secondary.r ?? 160; e.ColorG = def?.Secondary.g ?? 160; e.ColorB = def?.Secondary.b ?? 160; }
             foreach (var l in Defs.TechLegacy) if (c.Techs.Contains(l.CivTech)) e.Modifiers.Add(l.Modifier);
+            // The civilization's trait, its pre-FTL research (Stellaris's starting technologies) and the exotic sites it held.
+            e.Trait = c.Trait;
+            e.Modifiers.AddRange(Act1.Trait(c).Act2Modifiers);
+            foreach (var t in c.Techs.Where(t => Defs.Act2Tech.ContainsKey(t))) { e.Techs.Add(t); e.Modifiers.AddRange(Defs.Act2Tech[t].Modifiers); }
+            e.Exotics.AddRange(Exotics.Held(a1, c, needRing: false).Select(x => x.Id).Distinct());
             s.Empires.Add(e);
         }
         int playerRank = s.Player.SpaceRank;
@@ -55,7 +60,21 @@ public static class Handoff
                 Kind = "alien", Portrait = p?.Portrait ?? "", SpeciesClass = p?.SpeciesClass ?? "", ColorR = r, ColorG = g, ColorB = b,
                 AiMult = gd.AiMult, Aggression = (0.3 + rng.Double() * 0.5) * gd.Aggression,
             });
+            // Native species: every pre-FTL technology, and a trait of their own.
+            var al = s.Empires[^1];
+            al.Trait = Defs.CivTraits[rng.Int(Defs.CivTraits.Length)].Id;
+            al.Modifiers.AddRange(Defs.CivTrait[al.Trait].Act2Modifiers);
+            foreach (var t in Defs.Act2Techs.Where(t => t.Tier == 0)) { al.Techs.Add(t.Id); al.Modifiers.AddRange(t.Modifiers); }
         }
+        // Civilizations that knew each other on Earth keep in touch: met → contact; envoys exchanged → communications.
+        for (int i = 0; i < civs.Count; i++)
+            for (int j = 0; j < civs.Count; j++)
+            {
+                if (i == j) continue;
+                if (a1.HasMet(civs[i].Id, civs[j].Id) && !s.Empires[i].Contacts.Contains(j)) s.Empires[i].Contacts.Add(j);
+                if (a1.Relations(civs[i].Id, civs[j].Id) && !s.Empires[i].Comms.Contains(j)) s.Empires[i].Comms.Add(j);
+                if (i < j && a1.Allied(civs[i].Id, civs[j].Id)) s.Alliances.Add(new[] { i, j });
+            }
         DistinctColors(s, content);
         foreach (var e in s.Empires)
             foreach (var res in Defs.Resources) e.Stock[res.Id] = res.Start;
@@ -86,6 +105,20 @@ public static class Handoff
             if (!sys.Planets.Any(p => Defs.PlanetClass.TryGetValue(p.Class, out var pc) && pc.Habitable))
                 sys.Planets.Add(NewPlanet(s, sys, "pc_gaia", rng.Range(14, 20), rng));
             for (int k = 0; k < sys.Planets.Count; k++) sys.Planets[k].Name = $"{sys.Name} {Roman(k + 1)}";
+        }
+        // ---- exotic worlds: a few, near the core (equally far from every arm), different each game
+        var exotics = Defs.ExoticSites.ToList();
+        rng.Shuffle(exotics);
+        float R = s.GalaxyRadius > 0 ? s.GalaxyRadius : 600;
+        var coreSystems = s.Systems.Where(x => !x.Home && x.Owner < 0 && x.RareFeature == null && x.Planets.Count > 0)
+            .OrderBy(x => MathF.Sqrt(x.X * x.X + x.Y * x.Y)).Take(Math.Max(8, s.Systems.Count / 5)).OrderBy(_ => rng.Double()).ToList();
+        foreach (var ex in exotics.Take((int)Rules.ExoticsAct2))
+        {
+            var sys = coreSystems.FirstOrDefault(x => x.Planets.All(p => p.Exotic == null) && !s.Systems.Any(o => o.Planets.Any(p => p.Exotic != null) && o.Lanes.Contains(x.Id)));
+            if (sys == null) break;
+            var planet = sys.Planets.OrderByDescending(p => p.Size).First();
+            planet.Exotic = ex.Id;
+            coreSystems.Remove(sys);
         }
         s.Act1Summary.Add($"Reached space: " + string.Join(", ", a1.SpaceOrder.Select((id, i) => $"{i + 1}. {Act1.CivName(content, a1.Civs[id])}")));
         s.Events.Add(new Act2Event(0, "start", $"{s.Player.Name} enters the space age. The galaxy holds {s.Empires.Count - 1} other empires.", s.Player.Id, s.Player.Capital));

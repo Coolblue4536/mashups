@@ -1,0 +1,57 @@
+# v0.4 screens: setup with traits, units, builder, attack preview, diplomacy, research with pre-FTL, galaxy fleets, battle, system view, tech tree, diplomacy in space
+click New Game
+wait 0.5
+shot v01_setup
+click Start
+wait 1
+click ×
+builder
+wait 1
+shot v02_builder
+attackprompt
+wait 0.8
+shot v03_attack_prompt
+click Attack
+wait 0.6
+shot v04_battle_banner
+turns1 60
+meetall
+overlay diplomacy
+wait 0.8
+shot v05_diplomacy
+overlay
+unit
+hover 2 1
+wait 1
+shot v06_units_t60
+hover off
+exotic
+wait 1
+shot v06b_exotic
+hover off
+finish1
+wait 0.5
+click Continue
+wait 1.5
+shot v07_handoff
+click Begin
+wait 1.5
+click ×
+turns2 12
+system home
+wait 1
+shot v08_galaxy
+spacebattle
+wait 1.5
+shot v09_battle
+overlay
+systemview home
+wait 1.5
+shot v10_system_view
+overlay research
+wait 1
+shot v11_tech_tree
+overlay empires
+wait 1
+shot v12_diplomacy_space
+quit

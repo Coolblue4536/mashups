@@ -43,7 +43,7 @@ public static class Playtest
                 foreach (var (k, ok) in new[] { ("rocketry", pl.Techs.Contains("TECH_ROCKETRY")), ("satellites", pl.Techs.Contains("TECH_SATELLITES")),
                              ("spaceport", st.CitiesOf(pl.Id).Any(c => c.Buildings.Contains("DISTRICT_SPACEPORT"))), ("satellite", pl.SatelliteDone) })
                     if (ok && !marks.ContainsKey(k)) marks[k] = st.Turn;
-                if (i > 0) return;
+                if (i > 0 && Environment.GetEnvironmentVariable("SA_VERBOSE") == null) return;
                 if (st.Turn % 25 != 0) return;
                 var y = Act1.CivYields(st, content, st.Player);
                 Log.Info($"  turn {st.Turn} {Act1.YearText(st.Year)}: cities {st.CitiesOf(st.Player.Id).Count()}, pop {st.CitiesOf(st.Player.Id).Sum(c => c.Pop)}, "
@@ -147,12 +147,12 @@ public static class Playtest
             string where = place == 0 ? "never reached space" : $"#{place} of {a1.SpaceOrder.Count} in space";
             Log.Info($"matrix {i + 1}: {race}, {size}, {rivals} rivals, {Defs.Difficulty[diff].Name}, {length} game{(rename ? ", long non-English names" : "")}; {Act1.CivName(content, a1.Player)}: act 1 {a1.Outcome} at turn {a1.Turn} ({Act1.YearText(a1.Year)}), player {where}, {wonders} wonders, {a1.Tiles.Count(t => t.Natural != null)} natural wonders, "
                      + $"{a1.Units.Count} units (best {a1.Units.Select(u => content.Unit[u.Type]).OrderByDescending(u => u.Combat).Select(u => content.Text(u.NameLoc)).FirstOrDefault()}), {a1.Civs.Count(c => !c.Alive)} civs destroyed, {a1.Cities.Count(c => c.Founder != c.Owner)} cities captured");
-            Check(a1.Civs.Count == rivals + 1, "civ count");
-            Check(a1.Cities.Select(c => c.Name).Concat(a1.Civs.Select(c => Act1.CivName(content, c))).All(n => !Gfx.Fold(n).Contains('?')), "every Act 1 name drawable");
+            Check(a1.Majors.Count() == rivals + 1, "civ count");
+            Check(a1.Cities.Select(c => c.Name).Concat(a1.Majors.Select(c => Act1.CivName(content, c))).All(n => !Gfx.Fold(n).Contains('?')), "every Act 1 name drawable");
             if (race == "ruthless") Check((a1.Outcome == "defeat") == (a1.SpaceOrder.Count > 0 && a1.SpaceOrder[0] != a1.Player.Id), "Ruthless: defeat exactly when a rival is first");
             if (a1.Outcome != "space") continue;
             var s = PlayAct2(content, a1);
-            Check(s.Empires.Count(e => e.Kind == "civ") == a1.Civs.Count(cv => cv.Alive), "every surviving civ became an empire");
+            Check(s.Empires.Count(e => e.Kind == "civ") == a1.Majors.Count(cv => cv.Alive), "every surviving civ became an empire");
             Check(s.Systems.Count(x => x.Home) == s.Empires.Count, "one home per empire");
             Check(Handoff.Bfs(s, 0).Count == s.Systems.Count, "galaxy connected");
             var bad = s.Systems.Select(x => x.Name).Concat(s.Systems.SelectMany(x => x.Planets).Select(p => p.Name)).Concat(s.Empires.Select(e => e.Name)).Where(n => !Gfx.Drawable(Gfx.Fold(n)) || Gfx.Fold(n).Contains('?') && !n.Contains('?')).ToList();

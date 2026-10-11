@@ -165,6 +165,63 @@ public sealed partial class App
                 if (Current == Screen.Act2 && (arg == "home" ? A2.Sys(A2.Player.Capital) : A2.Systems.FirstOrDefault(x => x.Name.StartsWith(arg))) is { } hsys)
                 { Gfx.FakeMouse = S2(hsys.X, hsys.Y); ScriptLog(true, "hoversys " + hsys.Name); }
                 break;
+            case "meetall": // Act 1 test aid: meet every civilization and open relations with the first
+                if (Current == Screen.Act1)
+                {
+                    var pl = A1.Player;
+                    foreach (var o in A1.Majors.Where(o => !o.IsPlayer)) Diplomacy1.Meet(A1, Content!, pl, o);
+                    var first = A1.Majors.First(o => !o.IsPlayer);
+                    pl.Envoys[first.Id] = A1.Turn;
+                    _dipSel = first.Id;
+                    ScriptLog(true, "meetall");
+                }
+                break;
+            case "builder": // Act 1 test aid: a Builder next to your capital, selected
+                if (Current == Screen.Act1 && A1.CitiesOf(A1.Player.Id).FirstOrDefault(x => x.Capital) is { } bc)
+                {
+                    var spot = Hex.Within(bc.X, bc.Y, 2, A1.W, A1.H).Where(t => A1.At(t.x, t.y).City == bc.Id && (t.x != bc.X || t.y != bc.Y) && Builders.Options(A1, Content!, A1.Player, t.x, t.y).Any()).Select(t => ((int, int)?)t).FirstOrDefault() ?? (bc.X, bc.Y);
+                    var bu = Military.Spawn(A1, Content!, A1.Player, "UNIT_BUILDER", spot.Item1, spot.Item2);
+                    if (bu != null) { bu.Charges = 3; bu.Moves = 2; _selUnit = bu.Id; _selCity = -1; CenterOn(bu.X, bu.Y); }
+                    ScriptLog(bu != null, "builder");
+                }
+                break;
+            case "attackprompt": // Act 1 test aid: a tribal raider next to your first soldier, and the attack preview
+                if (Current == Screen.Act1 && A1.UnitsOf(A1.Player.Id).FirstOrDefault(u => !Military.IsCivilian(u)) is { } su2)
+                {
+                    var nb = Hex.Neighbors(su2.X, su2.Y, A1.W, A1.H).FirstOrDefault(t => Military.EnterCost(A1, A1.Player, t.x, t.y) > 0 && A1.UnitAt(t.x, t.y) == null && A1.CityAt(t.x, t.y) == null);
+                    var raider = Military.Spawn(A1, Content!, A1.Tribe!, "UNIT_SWORDSMAN", nb.x, nb.y);
+                    if (raider != null) { (raider.X, raider.Y) = nb; su2.Moves = 2; su2.Attacked = false; _selUnit = su2.Id; CenterOn(su2.X, su2.Y); _attackPrompt = (su2.Id, nb.x, nb.y); }
+                    ScriptLog(raider != null, "attackprompt");
+                }
+                break;
+            case "spacebattle": // Act 2 test aid: war with a neighbour and their fleet at your capital
+                if (Current == Screen.Act2)
+                {
+                    var me2 = A2.Player;
+                    var foe2 = A2.Empires.Where(e => !e.IsPlayer && e.Alive).OrderBy(e => e.Kind == "alien" ? 0 : 1).First();
+                    Diplomacy2.Contact(A2, me2, foe2);
+                    Act2.DeclareWar(A2, me2, foe2);
+                    A2.Fleets.Add(new Fleet { Id = A2.NextFleetId++, Owner = foe2.Id, System = me2.Capital, Name = foe2.Adjective + " Raiders", Ships = new() { ["destroyer"] = 3, ["corvette"] = 5 } });
+                    if (!A2.Fleets.Any(f => f.Owner == me2.Id && f.System == me2.Capital && Act2.IsMilitary(f)))
+                        A2.Fleets.Add(new Fleet { Id = A2.NextFleetId++, Owner = me2.Id, System = me2.Capital, Name = "Home Guard", Ships = new() { ["corvette"] = 6, ["destroyer"] = 2 } });
+                    for (int m = 0; m < 2; m++) Act2.Tick(A2, Content!);
+                    _battleSel = me2.Capital; _overlay2 = "battle";
+                    ScriptLog(A2.Battles.Any(b => !b.Over), "spacebattle");
+                }
+                break;
+            case "systemview": if (Current == Screen.Act2) { _selSystem = arg == "home" || arg == "" ? A2.Player.Capital : A2.Systems.First(x => x.Name.StartsWith(arg)).Id; _overlay2 = "system"; ScriptLog(true, "systemview"); } break;
+            case "exotic": // Act 1 test aid: show the first exotic site (revealed) under the pretend mouse
+                if (Current == Screen.Act1 && Enumerable.Range(0, A1.Tiles.Length).FirstOrDefault(i => A1.Tiles[i].Exotic != null) is var ei && A1.Tiles[ei].Exotic != null)
+                {
+                    int ex = ei % A1.W, ey = ei / A1.W;
+                    foreach (var (tx, ty) in Hex.Within(ex, ey, 3, A1.W, A1.H)) A1.At(tx, ty).Revealed = true;
+                    CenterOn(ex, ey);
+                    _selUnit = -1; _selCity = -1;
+                    Gfx.FakeMouse = new System.Numerics.Vector2(Gfx.W / 2, Gfx.H / 2);
+                    ScriptLog(true, "exotic " + A1.Tiles[ei].Exotic);
+                }
+                break;
+            case "overlay": if (Current == Screen.Act1) _overlay1 = arg; else if (Current == Screen.Act2) _overlay2 = arg; ScriptLog(true, "overlay " + arg); break;
             case "lens": _yieldLens = arg != "off"; ScriptLog(true, "lens " + arg); break;
             case "quit": FinishScript(); return;
             default: ScriptLog(false, "unknown command " + cmd); break;

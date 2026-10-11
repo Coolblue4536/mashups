@@ -24,7 +24,11 @@ public static class Act2
             foreach (var w in p.Wonders)
                 if (Defs.Wonder.TryGetValue(w, out var wd)) list.Add((wd.Modifier, w));
         foreach (var sys in s.SystemsOf(e.Id))
+        {
             if (sys.RareModifier != null) list.Add((sys.RareModifier, "rare:" + sys.Id));
+            foreach (var pl in sys.Planets)
+                if (pl.Exotic != null && Defs.ExoticSite.TryGetValue(pl.Exotic, out var ex)) list.Add((ex.Act2Modifier, "exotic:" + pl.Id));
+        }
         return list;
     }
 
@@ -152,6 +156,7 @@ public static class Act2
         foreach (var e in s.Empires.Where(e => e.Alive)) Shipyard(s, content, e);
         foreach (var f in s.Fleets.ToList()) Move(s, content, f);
         Combat(s, content);
+        Diplomacy2.Month(s, content);
         Capture(s, content);
         foreach (var e in s.Empires.Where(e => e.Alive && !e.IsPlayer))
             if (s.Month >= e.NextAiThink) { Act2Ai.Think(s, content, e); e.NextAiThink = s.Month + 2; }
@@ -173,7 +178,7 @@ public static class Act2
             {
                 e.ResearchProgress -= t.Cost;
                 e.Techs.Add(t.Id);
-                if (t.Modifier != "none") e.Modifiers.Add(t.Modifier);
+                e.Modifiers.AddRange(t.Modifiers);
                 if (e.IsPlayer) s.Events.Add(new Act2Event(s.Month, "tech", $"Researched {Name(content, t.NameLoc, t.Id)}.", e.Id));
                 e.Researching = null;
             }
@@ -275,8 +280,22 @@ public static class Act2
         return true;
     }
 
-    public static bool CanResearch(Empire e, string tech) =>
-        Defs.Act2Tech.TryGetValue(tech, out var t) && !e.Techs.Contains(tech) && (t.Requires == "none" || e.Techs.Contains(t.Requires));
+    /// <summary>Research is open when every prerequisite is known (Stellaris's tiers) and, for an exotic technology,
+    /// the empire holds that exotic site (from Act 1, or a planet now).</summary>
+    public static bool CanResearch(Act2State s, Empire e, string tech) =>
+        Defs.Act2Tech.TryGetValue(tech, out var t) && !e.Techs.Contains(tech) && t.Requires.All(e.Techs.Contains)
+        && (t.Feature == "none" || Exotics.Known(s, e).Contains(t.Feature));
+
+    /// <summary>Why a technology isn't open yet, or null.</summary>
+    public static string? CantResearch(Act2State s, Empire e, string tech, Content? c = null)
+    {
+        var t = Defs.Act2Tech[tech];
+        if (e.Techs.Contains(tech)) return "Researched.";
+        var missing = t.Requires.Where(r => !e.Techs.Contains(r)).ToList();
+        if (missing.Count > 0) return "Needs " + string.Join(" and ", missing.Select(m => c != null ? Name(c, m, m) : m)) + ".";
+        if (t.Feature != "none" && !Exotics.Known(s, e).Contains(t.Feature)) return $"Needs the {Defs.ExoticSite[t.Feature].Name}: hold one (from Act 1, or a planet with it).";
+        return null;
+    }
 
     /// <summary>Shortest hyperlane route from a to b (systems after a), or null.</summary>
     public static List<int>? Route(Act2State s, int a, int b)
@@ -327,6 +346,18 @@ public static class Act2
     {
         var e = s.Empires[f.Owner];
         if (!e.Alive) { s.Fleets.Remove(f); return; }
+        // Missing after an emergency jump: it limps home.
+        if (f.MiaMonths > 0)
+        {
+            if (--f.MiaMonths == 0)
+            {
+                f.System = e.Capital >= 0 ? e.Capital : f.System;
+                f.Path.Clear(); f.LaneProgress = 0;
+                if (e.IsPlayer) s.Events.Add(new Act2Event(s.Month, "returned", $"{f.Name} has found its way home after its emergency jump.", e.Id, f.System));
+            }
+            return;
+        }
+        f.Damage = Math.Max(0, f.Damage - Stat(s, e, "ship_repair_add"));
         if (f.Path.Count > 0)
         {
             f.LaneProgress += Speed(s, e, f);
@@ -342,6 +373,7 @@ public static class Act2
         // Repairs in friendly space.
         if (s.Sys(f.System).Owner == f.Owner) f.Damage = Math.Max(0, f.Damage - 50);
         if (f.Order == "" || f.System != f.OrderSystem) return;
+        if (s.Battles.Any(b => !b.Over && b.System == f.System && b.Sides.Contains(e.Id))) return; // no work under fire
         var sys = s.Sys(f.System);
         switch (f.Order)
         {
@@ -399,30 +431,46 @@ public static class Act2
     {
         foreach (var sys in s.Systems)
         {
-            var here = s.Fleets.Where(f => f.System == sys.Id && f.Path.Count == 0 || f.System == sys.Id && f.LaneProgress == 0).ToList();
+            var here = s.Active.Where(f => f.System == sys.Id && f.Path.Count == 0 || f.System == sys.Id && f.LaneProgress == 0).ToList();
             var parties = here.Select(f => f.Owner).Distinct().ToList();
             bool starbase = sys.Owner >= 0 && s.Empires[sys.Owner].Alive && sys.StarbaseDamage < StarbaseHp(s, s.Empires[sys.Owner]);
             if (sys.Owner >= 0 && !parties.Contains(sys.Owner) && starbase) parties.Add(sys.Owner);
             bool fight = parties.Any(a => parties.Any(b => s.AtWar(a, b) && (here.Any(f => f.Owner == a && IsMilitary(f)) || a == sys.Owner && starbase)));
+            var battle = s.Battles.FirstOrDefault(x => !x.Over && x.System == sys.Id);
             if (!fight)
             {
                 if (sys.StarbaseDamage > 0 && sys.Owner >= 0) sys.StarbaseDamage = Math.Max(0, sys.StarbaseDamage - 60);
+                if (battle != null) EndBattle(s, battle, here);
                 continue;
             }
+            if (battle == null)
+            {
+                battle = new Battle { System = sys.Id, StartMonth = s.Month };
+                s.Battles.Add(battle);
+                if (s.Battles.Count > 40) s.Battles.RemoveAt(0);
+            }
+            foreach (var pa in parties.Where(p => !battle.Sides.Contains(p) && parties.Any(q => s.AtWar(p, q)))) battle.Sides.Add(pa);
+            battle.Months++;
+            // Each side deals part of its power as hull damage each month, so big fleets fight over several turns.
             var dealt = new Dictionary<int, double>();
+            var power = new Dictionary<int, double>();
             foreach (var a in parties)
             {
                 var ea = s.Empires[a];
-                double power = here.Where(f => f.Owner == a).Sum(f => Power(s, ea, f));
-                if (a == sys.Owner && starbase) power += Rules.Act2StarbasePower * (1 + Stat(s, ea, "starbase_power_mult"));
+                double pw = here.Where(f => f.Owner == a).Sum(f => Power(s, ea, f));
+                if (a == sys.Owner && starbase) pw += Rules.Act2StarbasePower * (1 + Stat(s, ea, "starbase_power_mult"));
+                power[a] = pw;
                 var enemies = parties.Where(b => s.AtWar(a, b)).ToList();
-                foreach (var b in enemies) dealt[b] = dealt.GetValueOrDefault(b) + power / enemies.Count;
+                foreach (var b in enemies) dealt[b] = dealt.GetValueOrDefault(b) + pw * Rules.Act2BattleDamage / enemies.Count;
             }
+            var round = new List<string>();
             foreach (var (b, dmg) in dealt)
             {
                 var eb = s.Empires[b];
                 var fleets = here.Where(f => f.Owner == b).OrderBy(f => IsMilitary(f) ? 0 : 1).ToList();
                 double left = dmg;
+                battle.Taken[b] = battle.Taken.GetValueOrDefault(b) + dmg;
+                int before = fleets.Sum(f => f.Ships.Values.Sum());
                 // Military fleets and the starbase soak damage first; civilians die when unprotected.
                 foreach (var f in fleets.Where(IsMilitary))
                 {
@@ -442,8 +490,53 @@ public static class Act2
                         s.Fleets.Remove(f);
                         if (eb.IsPlayer) s.Events.Add(new Act2Event(s.Month, "lost", $"Your {f.Name} was destroyed at {sys.Name}.", b, sys.Id));
                     }
+                int lost = before - fleets.Where(s.Fleets.Contains).Sum(f => f.Ships.Values.Sum());
+                if (lost > 0) battle.ShipsLost[b] = battle.ShipsLost.GetValueOrDefault(b) + lost;
+                round.Add($"{eb.Adjective} took {Math.Round(dmg)}" + (lost > 0 ? $" and lost {lost} ship{(lost == 1 ? "" : "s")}" : ""));
+            }
+            battle.Log.Add($"{Year(s.Month)}.{s.Month % 12 + 1:00}  " + string.Join("; ", round) + ".");
+            if (battle.Log.Count > 30) battle.Log.RemoveAt(0);
+            if (battle.Months == 1 && battle.Sides.Any(x => s.Empires[x].IsPlayer))
+                s.Events.Add(new Act2Event(s.Month, "battle", $"Battle at {sys.Name}! " + string.Join(" against ", battle.Sides.Select(x => s.Empires[x].Name)) + ".", s.Player.Id, sys.Id));
+            // AI fleets losing badly jump out (emergency FTL), as Stellaris's do.
+            foreach (var f in here.Where(f => s.Fleets.Contains(f) && IsMilitary(f) && !s.Empires[f.Owner].IsPlayer).ToList())
+            {
+                double mine = power.GetValueOrDefault(f.Owner), theirs = parties.Where(o => s.AtWar(o, f.Owner)).Sum(o => power.GetValueOrDefault(o));
+                if (theirs > mine * 2.8 && f.Damage > 0) EmergencyFtl(s, content, f);
             }
         }
+    }
+
+    static int Year(int month) => (int)Rules.Act2StartYear + month / 12;
+
+    static void EndBattle(Act2State s, Battle battle, List<Fleet> here)
+    {
+        battle.Over = true;
+        var standing = battle.Sides.Where(x => here.Any(f => f.Owner == x && IsMilitary(f)) || s.Sys(battle.System).Owner == x).ToList();
+        battle.Result = standing.Count == 1 ? $"{s.Empires[standing[0]].Name} won" : "Both sides broke off";
+        if (battle.Sides.Any(x => s.Empires[x].IsPlayer))
+            s.Events.Add(new Act2Event(s.Month, "battle_end", $"The battle at {s.Sys(battle.System).Name} is over after {battle.Months} month{(battle.Months == 1 ? "" : "s")}: {battle.Result}.", s.Player.Id, battle.System));
+    }
+
+    /// <summary>Emergency FTL: the fleet jumps out blind, loses some ships, and is missing for a while before it turns up at home.</summary>
+    public static bool EmergencyFtl(Act2State s, Content content, Fleet f)
+    {
+        if (f.MiaMonths > 0 || !s.Fleets.Contains(f)) return false;
+        var e = s.Empires[f.Owner];
+        int total = f.Ships.Values.Sum();
+        int lose = total > 1 ? Math.Max(1, (int)Math.Floor(total * Rules.EmergencyFtlLoss)) : 0;
+        for (int i = 0; i < lose && f.Ships.Count > 0; i++)
+        {
+            var k = s.Rng.Pick(f.Ships.Keys.ToList());
+            if (--f.Ships[k] == 0) f.Ships.Remove(k);
+        }
+        string from = s.Sys(f.System).Name;
+        f.Path.Clear(); f.LaneProgress = 0; f.Order = "";
+        f.MiaMonths = (int)Rules.EmergencyFtlMonths;
+        f.Damage *= 0.5;
+        if (e.IsPlayer || s.Battles.Any(b => !b.Over && b.System == f.System && b.Sides.Contains(s.Player.Id)))
+            s.Events.Add(new Act2Event(s.Month, "ftl", $"{f.Name} ({e.Adjective}) made an emergency FTL jump out of {from}" + (lose > 0 ? $", losing {lose} ship{(lose == 1 ? "" : "s")}." : ".") + $" It will be missing for about {Rules.EmergencyFtlMonths / MonthsPerTurn} turns.", e.Id, f.System));
+        return true;
     }
 
     static void Attrition(Act2State s, Content content, Fleet f, Empire owner)
@@ -452,6 +545,7 @@ public static class Act2
         while (f.Ships.Count > 0)
         {
             var weakest = f.Ships.Keys.OrderBy(k => Defs.Ship[k].Hull).First();
+            if (f.MiaMonths > 0) break;
             double hull = Defs.Ship[weakest].Hull * hullMult;
             if (f.Damage < hull) break;
             f.Damage -= hull;
@@ -469,8 +563,8 @@ public static class Act2
         foreach (var sys in s.Systems.Where(x => x.Owner >= 0))
         {
             var owner = s.Empires[sys.Owner];
-            var attackers = s.Fleets.Where(f => f.System == sys.Id && f.Path.Count == 0 && IsMilitary(f) && s.AtWar(f.Owner, sys.Owner)).ToList();
-            bool defended = s.Fleets.Any(f => f.System == sys.Id && f.Owner == sys.Owner && IsMilitary(f)) || sys.StarbaseDamage < StarbaseHp(s, owner);
+            var attackers = s.Active.Where(f => f.System == sys.Id && f.Path.Count == 0 && IsMilitary(f) && s.AtWar(f.Owner, sys.Owner)).ToList();
+            bool defended = s.Active.Any(f => f.System == sys.Id && f.Owner == sys.Owner && IsMilitary(f)) || sys.StarbaseDamage < StarbaseHp(s, owner);
             if (attackers.Count == 0 || defended) { sys.CaptureProgress = 0; sys.CaptureBy = -1; continue; }
             int by = attackers.GroupBy(f => f.Owner).OrderByDescending(g => g.Sum(f => Power(s, s.Empires[g.Key], f))).First().Key;
             if (sys.CaptureBy != by) { sys.CaptureBy = by; sys.CaptureProgress = 0; }
@@ -505,6 +599,14 @@ public static class Act2
         if (a.Id == b.Id || !b.Alive || s.AtWar(a.Id, b.Id)) return false;
         s.Wars.Add(new War { A = a.Id, B = b.Id, StartMonth = s.Month });
         s.Events.Add(new Act2Event(s.Month, "war", $"{a.Name} declared war on {b.Name}.", a.Id));
+        // Breaking an alliance or a deal ends it; the defender's allies join in.
+        s.Alliances.RemoveAll(x => x[0] == Math.Min(a.Id, b.Id) && x[1] == Math.Max(a.Id, b.Id));
+        s.Deals.RemoveAll(d => d.From == a.Id && d.To == b.Id || d.From == b.Id && d.To == a.Id);
+        foreach (var ally in s.Empires.Where(o => o.Alive && o.Id != a.Id && o.Id != b.Id && s.Allied(o.Id, b.Id) && !s.AtWar(o.Id, a.Id)).ToList())
+        {
+            s.Wars.Add(new War { A = ally.Id, B = a.Id, StartMonth = s.Month });
+            s.Events.Add(new Act2Event(s.Month, "war", $"{ally.Name} joins the war on {a.Name}, honouring its alliance.", ally.Id));
+        }
         return true;
     }
 
@@ -548,7 +650,7 @@ public static class Act2
         if (!e.Alive) return 0;
         double pops = s.PlanetsOf(e.Id).Sum(p => p.Pops);
         int systems = s.SystemsOf(e.Id).Count();
-        double power = s.Fleets.Where(f => f.Owner == e.Id).Sum(f => Power(s, e, f));
+        double power = s.Active.Where(f => f.Owner == e.Id).Sum(f => Power(s, e, f));
         return Math.Round(pops * Rules.Act2ScorePerPop + systems * Rules.Act2ScorePerSystem + e.Techs.Count * Rules.Act2ScorePerTech
                           + power * Rules.Act2ScorePerPower + e.Stock.GetValueOrDefault("unity") / 100);
     }

@@ -1,6 +1,10 @@
 namespace StellarAscension;
 
-public sealed record TechInfo(string Type, string Era, int EraIndex, int Cost, string[] Prereqs, string NameLoc);
+public sealed record TechInfo(string Type, string Era, int EraIndex, int Cost, string[] Prereqs, string NameLoc)
+{
+    /// <summary>A Stellaris pre-FTL technology researched in Act 1 (lower-case Stellaris key).</summary>
+    public bool PreFtl => Type.StartsWith("tech_", StringComparison.Ordinal);
+}
 
 /// <summary>An Act 1 land unit: the sheet's roster with Civ VI's own numbers from the install.</summary>
 public sealed record UnitInfo(string Type, string Line, int Combat, int Ranged, int Range, int Moves, int Cost, int Maintenance, string PrereqTech,
@@ -29,6 +33,8 @@ public sealed class Content
     /// <summary>Natural wonders the player's Civ VI has (FeatureType → land?), sheet rows first.</summary>
     public readonly List<(string type, bool land)> NaturalWonders = new();
     public readonly List<UnitInfo> Units = new();
+    /// <summary>Each civilization's own Civ VI ability name (for the trait's title).</summary>
+    public readonly Dictionary<string, string> AbilityName = new(StringComparer.Ordinal);
     public readonly Dictionary<string, UnitInfo> Unit = new(StringComparer.Ordinal);
     public readonly List<MapResource> MapResources = new();
     public readonly Dictionary<string, MapResource> MapResource = new(StringComparer.Ordinal);
@@ -37,8 +43,12 @@ public sealed class Content
 
     static readonly string[] EraOrder = { "ERA_ANCIENT", "ERA_CLASSICAL", "ERA_MEDIEVAL", "ERA_RENAISSANCE", "ERA_INDUSTRIAL", "ERA_MODERN", "ERA_ATOMIC", "ERA_INFORMATION" };
 
+    /// <summary>The content in use (for the few rules that run without it being passed in).</summary>
+    public static Content? Current;
+
     public Content(Civ6Data civ6, StellarisData? stellaris)
     {
+        Current = this;
         Civ6 = civ6;
         Stellaris = stellaris;
 
@@ -60,6 +70,10 @@ public sealed class Content
             Techs.Add(t);
         }
         foreach (var t in Techs) Tech[t.Type] = t;
+        // Stellaris's pre-FTL research joins the tree at the end of the Information Era.
+        foreach (var pf in Defs.PreftlTechs)
+            Techs.Add(new TechInfo(pf.Id, "ERA_INFORMATION", 7, (int)Math.Round(pf.Cost * Rules.Act1TechCostMult / 0.33 * (pf.Core ? 0.6 : 0.5)), pf.Requires, pf.Id));
+        foreach (var t in Techs) Tech[t.Type] = t;
         // Drop prerequisites the base tree doesn't have.
         for (int i = 0; i < Techs.Count; i++)
         {
@@ -69,6 +83,13 @@ public sealed class Content
         }
         Techs.Sort((a, b) => a.Cost != b.Cost ? a.Cost.CompareTo(b.Cost) : string.CompareOrdinal(a.Type, b.Type));
         Civs = civ6.Civilizations();
+        foreach (var cv in Civs.Select(c => c.Type).Distinct())
+        {
+            // The civilization's own ability (its TRAIT_CIVILIZATION_ row that isn't a unique unit, building or district).
+            var trait = civ6.Rows("CivilizationTraits").Where(r => r.Get("CivilizationType") == cv).Select(r => r.Get("TraitType") ?? "")
+                .FirstOrDefault(t => t.StartsWith("TRAIT_CIVILIZATION_") && !t.Contains("_UNIT_") && !t.Contains("_BUILDING_") && !t.Contains("_DISTRICT_") && !t.Contains("_IMPROVEMENT_"));
+            if (trait != null && civ6.Row("Traits", "TraitType", trait)?.Get("Name") is { } nameLoc) AbilityName[cv] = civ6.T(nameLoc);
+        }
         foreach (var b in Defs.Buildings)
             BuildingCost[b.Id] = Scaled(civ6.Row("Buildings", "BuildingType", b.Id)?.Int("Cost") ?? civ6.Row("Districts", "DistrictType", b.Id)?.Int("Cost") ?? b.Cost, b.Cost);
         // The Spaceport is part of the space race: it gets the space cost multiplier too.
@@ -148,8 +169,15 @@ public sealed class Content
 
     public static string EraOf(int index) => EraOrder[Math.Clamp(index, 0, EraOrder.Length - 1)];
 
+    /// <summary>The civilization's trait: the sheet's mapping, else one picked from its name.</summary>
+    public CivTraitDef Trait(string civType) =>
+        Defs.CivTraitMapById.TryGetValue(civType, out var m) ? Defs.CivTrait[m.Trait] : Defs.CivTraits[(int)((uint)civType.Aggregate(17, (h, ch) => h * 31 + ch) % (uint)Defs.CivTraits.Length)];
+
+    public string TraitTitle(string civType) => AbilityName.TryGetValue(civType, out var n) && !n.StartsWith("LOC_") ? n : Trait(civType).Name;
+
     public string Name(string type) => type switch
     {
+        _ when type.StartsWith("tech_", StringComparison.Ordinal) => Stellaris?.Text(type) is { Length: > 0 } st ? st : type[5..].Replace('_', ' '),
         _ when type.StartsWith("TECH_") => Text(Tech.TryGetValue(type, out var t) ? t.NameLoc : "LOC_" + type + "_NAME"),
         _ => Text("LOC_" + type + "_NAME"),
     };

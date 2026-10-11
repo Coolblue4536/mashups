@@ -9,6 +9,124 @@
 - **Civ VI.** Its `.blp` art packages are decoded directly: texture entries, BC1 to BC4 and RGBA textures, and the tile atlases used for icons and leader pictures. Its XML gameplay data and text databases supply the techs, civilizations, leaders, buildings, wonders and names. Fonts come from the install too.
 - **Stellaris.** `.dds` pictures, localisation, planet classes, star names, prescripted empires, loading screens and music.
 
+## v0.4.0, 2026-10-11: Builders, traits, diplomacy with envoys, tribes, multi-turn battles with retreat, pre-FTL research, exotic sites, a tiered tech tree, ship icons and the system view
+
+### What was asked
+- **Builders and traits:** Builders that make farms, quarries and the like to raise a tile's yields, and civilization traits that help in both acts.
+- **Diplomacy:** trade, war and alliances in both acts. Relations need an envoy first, Stellaris style, including with new species.
+- **Battles:**
+  - Appealing battle actions when engaging hostiles.
+  - Starship combat over several turns with an emergency FTL retreat: the fleet goes missing, then returns home.
+  - The same multi-turn fights early in Act 1, with a way to retreat.
+- **Act 1 world:** tribes, and nicer units that move like Civ VI's.
+- **Galaxy view:** better Stellaris-style ship icons, and a system view (for looks).
+- **Pre-FTL research** before the space age (Stellaris's tier-0 list).
+- **Exotic wonders** like a Living Metal Lake or Exotic Gas Swamp:
+  - a bonus in Act 1 for holding the tiles around them,
+  - a related technology in space (for example Regenerative Hull Tissue),
+  - only a few per game, for replayability.
+- **New research in both acts,** tiered like Stellaris's, with costs that rise with strength, and no top-tier research first.
+
+### What was built
+1. **Builders** (Civ VI's `UNIT_BUILDER`, 3 charges, more for Master Builders).
+   - They make **farms, mines, quarries, plantations, pastures, camps, fishing boats, lumber mills and oil wells** inside your borders. The new `improvements` table gives each one's tech, yields, valid terrain, features and resources (resources must take the improvement that works them).
+   - Builders share a tile with a soldier and can be captured by enemy soldiers at war.
+   - The AI trains and uses them.
+   - Improvements show as Civ VI's strategic-view sprites, and the tile card names them.
+2. **Traits** (`civ_traits`, `civ_trait_map`): nine traits, mapped to 54 civilizations (any other civilization gets one picked from its name).
+   - Each is titled with the civilization's own Civ VI ability name, read from `CivilizationTraits` and `Traits`.
+   - Act 1 effects: yields, wonder production, unit strength and cost, Settler cost, Builder charges, opinion, early embarking.
+   - Act 2 effects come as modifiers, including the new `trade_mult` and `envoys_add`.
+   - Traits show on the New Game screen and in diplomacy.
+3. **Tribes:**
+   - **Camps** (1.6 per 100 land tiles) send raiders after nearby civilizations. Raiders are the best units most civs know, they pillage, and they stop once someone reaches the modern era.
+   - Moving a unit in clears a camp (+50 gold).
+   - **Villages** (2.2 per 100 land tiles) give gold, science, a citizen, a free unit or maps.
+   - The tribes are a hidden "civ" at war with everyone, outside the space race and diplomacy.
+4. **Act 1 diplomacy** (`Diplomacy1`):
+   - **Meeting** happens when units or borders come within 3 tiles.
+   - An **envoy** (25 gold, 3 turns) opens relations; war and peace need only a meeting.
+   - **Trade** for 30 turns: share resources (they count as yours for units that need them), pay gold each turn, or open borders.
+   - **Alliances:** allies join defensive wars, and a war against them breaks deals.
+   - **Opinion** comes with reasons.
+   - The AI sends envoys, swaps resources and allies with friends, and only attacks civs it has met and isn't allied with.
+   - The screen is Civ VI-like: leader picture, ability name, opinion, status chips, resource-icon trading.
+5. **Fights in Act 1:**
+   - Units are medallions with Civ VI's unit portraits (`ICON_UNIT_*_PORTRAIT`), class badge, health and veteran pips.
+   - They glide between tiles and lunge when they attack. Damage numbers float up, and a result banner shows both sides.
+   - An **attack preview** (portraits, strength, expected damage) asks before each attack.
+   - **Multi-turn melee:** a melee fight both survive locks the pair in battle for up to 4 more rounds, one each turn. **Withdraw** pulls back for half a round's damage; walking away does the same, and the AI withdraws badly hurt units.
+6. **Pre-FTL research** (`preftl_techs`):
+   - 18 of Stellaris's starting technologies (Red Lasers, Fission Power, Deflectors, Scientific Method, Unified Government, Eco Simulation, Space Exploration, Ground Defense Planning, Industrial Base, Offworld Construction, Mechanized Mining, Chemical Thrusters, Mass Drivers, Nuclear Missiles, Flak Battery, Nanocomposite Materials, Corvettes, Starbase Construction) join the end of the Civ VI tree. They have Stellaris's names and icons and need late Civ VI technologies.
+   - Six are **core** and needed for the Moon Landing.
+   - Each one researched is known in Act 2, along with its modifiers. Native species know all of them.
+   - Science and construction ships and corvettes now need their pre-FTL technology.
+7. **Exotic sites** (`exotic_sites`): nine, using Stellaris's deposit pictures and resource icons.
+   - **Act 1:** 3–5 per map (by map size), placed away from starts. Each yields well; with 3 of its 6 neighbouring tiles also inside your borders it gives an empire-wide bonus (production, science, gold, food, or unit strength).
+   - **The handoff:** sites you hold carry into space.
+   - **Act 2:** 4 random sites sit on planets near the core, reachable from every arm. Holding one gives a modifier.
+   - **Technology:** each site opens its own technology (Regenerative Hull Tissue then Living Metal, Exotic Gas Refining, Crystal-Infused Plating, Dark Matter Power then Dark Matter Deflectors, Nanite Transmutation, Archaeostudies, Psionic Theory, Mote Stabilization, Field Modulation).
+8. **The Act 2 tech tree** (`act2_techs` rebuilt): 67 technologies in Stellaris's tiers 0–5, each with Stellaris's name and icon.
+   - Each technology needs everything in its `requires` list (for example Mega-Engineering needs Zero Point Power and the Mega Shipyard, and Zero Point Power needs Antimatter, which needs Cold Fusion).
+   - Costs rise by tier (about 600, 1,000, 2,100, 3,700, 6,300 and 11,000 on average) and with strength.
+   - The research window shows the tiers as columns, colour-coded by area, with locked, open, exotic and researched states.
+9. **Space battles** (`Battle`): each month both sides deal 45% of their power as hull damage, so battles of equal fleets last several turns.
+   - The battle window shows both fleets (Stellaris class silhouettes in empire colours), hulls, losses and a monthly log.
+   - It opens itself when a battle involves you, with **Fight on**, **Emergency FTL** and **View system**.
+   - **Emergency FTL:** the fleet loses about a quarter of its ships and is **missing** for 18 months, then reappears at the capital. AI fleets jump when outgunned nearly 3 to 1.
+   - **Regenerative Hull Tissue** mends ships even in battle.
+   - Battles show as a pulsing ring on the map, and a rail button opens the current one.
+10. **Act 2 diplomacy** (`Diplomacy2`):
+    - **First contact** happens through ships in someone's space or touching borders.
+    - **Envoys** (2, plus traits and Xeno-Linguistics) **establish communications** in 12 months, or stay to **improve relations** (+25 opinion).
+    - Communications open **monthly trade deals** for 10 years and **alliances**, whose members join defensive wars.
+    - Contacts, communications and alliances carry over from Act 1.
+    - Unknown empires show as "?".
+    - The Empires window is now the diplomacy screen.
+11. **Galaxy fleets:**
+    - They use Stellaris's map markers (`ship_icons_type.dds`, coloured by relation) pointing along their route, with the ship-class icon (`ship_classes.dds`), count and health.
+    - The outliner shows missing fleets ("home in ~3 turns") and fleets in battle.
+12. **System view** (View button or a double-click): the star with its glow, planets on their orbits (slowly turning), names and owners, exotic worlds glowing, ships near the star and the starbase.
+
+### Fixed while testing
+- **Long Act 1:** pre-FTL research at first made Act 1 run 235–355 turns. Core pre-FTL costs went down 40% and the others 50%; Act 1 is now about 220–255 turns.
+- **Early tribes too harsh:** in one test game the player was left with a single city. Raiders now start after turn 15, one per camp in the ancient era, within 6 tiles of their camp.
+- **The UI test couldn't rebuild** while the matrix ran in the background (the program was locked). The tests now run one after another.
+- **Ship pictures (cropped paintings) looked like tiles** in the battle window and system view. They are now Stellaris's class silhouettes in empire colours.
+- **Alien empires had no portrait** (this install has none). They now get an emblem in their colours.
+- **The battle banner touched the unit panel.** It now moves aside and hides behind open windows.
+
+### Tested
+- **Preflight:** clean against both installs, with checks for every new table (Civ VI ids, base techs, improvement sprites, Stellaris icons, tier order and costs).
+- **Self-test: ALL PASS.** New checks:
+  - The 28-unit roster with the Builder.
+  - Tribal camps and villages, exotic sites on the map, and a trait for every civ.
+  - A Builder's farm adds 1 food and uses a charge.
+  - Camps send raiders, and clearing one pays gold.
+  - The tribes can't be talked to.
+  - Meeting alone doesn't open trade; an envoy takes 3 turns; a gold-and-open-borders deal works; an ally joins a defensive war.
+  - A melee fight both survive goes on, the next round deals damage, and a unit can withdraw.
+  - No Moon Landing without the core pre-FTL research.
+  - In space: pre-FTL research carries over, natives know tier 0, 4 exotic worlds exist, and traits carry over.
+  - Top-tier research is closed at the start, prerequisites never come from a higher tier, and costs rise tier by tier.
+  - An exotic technology needs its site.
+  - An envoy needs contact and establishes communications after a year.
+  - Equal fleets fight for at least 3 months.
+  - Emergency FTL loses ships, the fleet goes missing, then returns home.
+- **Matrix (10 games): ALL PASS.**
+  - Act 1 ends at turns 133–300 (Ruthless and conquered games end early).
+  - Units reach Modern Armor or Helicopters.
+  - In 3 games a deliberately weak or Deity-difficulty player was conquered.
+  - Act 2 runs up to 24 seconds headless in a huge galaxy.
+- **UI scripts:** `both-acts` (31), `units` (22), `galaxy` (23), and the new `v4` (37): setup with traits, a Builder, the attack preview, the battle banner, diplomacy, an exotic site, the handoff, galaxy fleets, a space battle, the system view, the tech tree, and diplomacy in space. All pass.
+- **Screenshots:** 16 shots at 1080p in `docs/screenshots/`.
+
+### Still open
+- **Some of the "Fight on / Emergency FTL" choice is automatic:** the battle window opens at the end of your turn, and fleets keep fighting through the turn's six months before you see it.
+- **No naval units or ranged city attacks you control.** City strikes are automatic.
+- **AI trade offers to the player:** AIs trade with each other, but you start deals with them, not the other way round.
+- **Balance needs human play:** tribes, war frequency, the pace of pre-FTL research, and Act 2 battle length.
+
 ## v0.3.0, 2026-10-11: galaxy options, Act 1 units and war, resources and the tile card, a Stellaris-style galaxy view
 
 ### What was asked

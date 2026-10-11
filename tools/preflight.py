@@ -21,7 +21,7 @@ import design  # noqa: E402
 STATS = {"energy_mult", "minerals_mult", "food_mult", "alloys_mult", "research_mult", "unity_mult",
          "energy_add", "minerals_add", "food_add", "alloys_add", "research_add", "unity_add", "influence_add",
          "naval_cap_add", "ship_hull_mult", "ship_damage_mult", "ship_speed_mult", "ship_build_speed_mult",
-         "build_speed_mult", "survey_speed_mult", "pop_growth_mult", "starbase_power_mult"}
+         "build_speed_mult", "survey_speed_mult", "pop_growth_mult", "starbase_power_mult", "trade_mult", "envoys_add", "ship_repair_add"}
 
 
 def main(argv):
@@ -68,11 +68,39 @@ def main(argv):
         for c in ("rival_lead_modifiers", "player_first_modifiers"):
             for m in r[c]:
                 ref(f"space_race.{r['id']}.{c}", m, mods, False)
+    exotic = ids("exotic_sites")
+    tiers = {r["id"]: r["tier"] for r in S["act2_techs"]["rows"]}
     for r in S["act2_techs"]["rows"]:
-        ref(f"act2_techs.{r['id']}.requires", r["requires"], a2techs)
-        ref(f"act2_techs.{r['id']}.modifier", r["modifier"], mods)
+        for q in r["requires"]:
+            ref(f"act2_techs.{r['id']}.requires", q, a2techs, False)
+            if q in tiers and tiers[q] > r["tier"]:
+                errors.append(f"act2_techs.{r['id']}: needs {q} from a higher tier")
+        for m in r["modifiers"]:
+            ref(f"act2_techs.{r['id']}.modifiers", m, mods, False)
         ref(f"act2_techs.{r['id']}.unlocks", r["unlocks"], ids("ships") | ids("planet_buildings"))
+        ref(f"act2_techs.{r['id']}.feature", r["feature"], exotic)
         ref(f"act2_techs.{r['id']}.art", r["art"], assets, False)
+    for r in S["preftl_techs"]["rows"]:
+        ref(f"preftl_techs.{r['id']}", r["id"], a2techs, False)
+        for q in r["requires"]:
+            if q.startswith("tech_"):
+                ref(f"preftl_techs.{r['id']}.requires", q, ids("preftl_techs"), False)
+    for r in S["exotic_sites"]["rows"]:
+        ref(f"exotic_sites.{r['id']}.act2_modifier", r["act2_modifier"], mods, False)
+        ref(f"exotic_sites.{r['id']}.unlock_tech", r["unlock_tech"], a2techs, False)
+        ref(f"exotic_sites.{r['id']}.art", r["art"], assets, False)
+        ref(f"exotic_sites.{r['id']}.icon", r["icon"], assets, False)
+        if r["act1_stat"] not in ("food_pct", "production_pct", "gold_pct", "science_pct", "unit_strength"):
+            errors.append(f"exotic_sites.{r['id']}.act1_stat: unknown {r['act1_stat']}")
+    traits = ids("civ_traits")
+    for r in S["civ_traits"]["rows"]:
+        for m in r["act2_modifiers"]:
+            ref(f"civ_traits.{r['id']}.act2_modifiers", m, mods, False)
+    for r in S["civ_trait_map"]["rows"]:
+        ref(f"civ_trait_map.{r['id']}.trait", r["trait"], traits, False)
+    for r in S["improvements"]["rows"]:
+        for t in r["terrains"]:
+            ref(f"improvements.{r['id']}.terrains", t, ids("terrains"), False)
     for r in S["ships"]["rows"]:
         ref(f"ships.{r['id']}.requires_tech", r["requires_tech"], a2techs)
         ref(f"ships.{r['id']}.art", r["art"], assets, False)
@@ -98,7 +126,7 @@ def main(argv):
     units = ids("units")
     for r in S["units"]["rows"]:
         ref(f"units.{r['id']}.upgrade", r["upgrade"], units)
-        if r["line"] not in ("recon", "melee", "anti_cavalry", "ranged", "light_cavalry", "heavy_cavalry", "siege"):
+        if r["line"] not in ("civilian", "recon", "melee", "anti_cavalry", "ranged", "light_cavalry", "heavy_cavalry", "siege"):
             errors.append(f"units.{r['id']}.line: unknown line {r['line']}")
         if (r["ranged"] > 0) != (r["range"] > 0):
             errors.append(f"units.{r['id']}: ranged strength and range go together")
@@ -117,11 +145,21 @@ def main(argv):
         base_techs = set(re.findall(r'TechnologyType="(TECH_[A-Z_]+)"', Path(civ6, "Base", "Assets", "Gameplay", "Data", "Technologies.xml").read_text(encoding="utf-8")))
         for s, cols in (("buildings", ["id", "requires_tech"]), ("wonders", ["id", "requires_tech"]), ("projects", ["id", "requires_tech", "requires_building"]),
                         ("terrains", ["id", "icon"]), ("features", ["id", "icon"]), ("natural_wonders", ["id"]), ("difficulties", ["id"]),
-                        ("eras", ["id"]), ("yields", ["icon"]), ("tech_legacy", ["civ_tech"]), ("units", ["id", "prereq_tech", "resource"])):
+                        ("eras", ["id"]), ("yields", ["icon"]), ("tech_legacy", ["civ_tech"]), ("units", ["id", "prereq_tech", "resource"]),
+                        ("improvements", ["id", "icon", "prereq_tech"]), ("civ_trait_map", ["id"])):
             for r in S[s]["rows"]:
                 for c in cols:
                     civ(f"{s}.{r[cols[0]]}.{c}", r[c])
-        for s, c in (("buildings", "requires_tech"), ("wonders", "requires_tech"), ("projects", "requires_tech"), ("tech_legacy", "civ_tech"), ("units", "prereq_tech")):
+        for r in S["preftl_techs"]["rows"]:
+            for q in r["requires"]:
+                if not q.startswith("tech_") and q not in base_techs:
+                    errors.append(f"preftl_techs.{r['id']}.requires: {q} is not a base-game tech")
+        for r in S["improvements"]["rows"]:
+            for q in r["resources"]:
+                civ(f"improvements.{r['id']}.resources", q)
+            for q in r["features"]:
+                civ(f"improvements.{r['id']}.features", q)
+        for s, c in (("buildings", "requires_tech"), ("wonders", "requires_tech"), ("projects", "requires_tech"), ("tech_legacy", "civ_tech"), ("units", "prereq_tech"), ("improvements", "prereq_tech")):
             for r in S[s]["rows"]:
                 if r[c] != "none" and r[c] not in base_techs:
                     errors.append(f"{s}.{r[S[s]['columns'][0]]}.{c}: {r[c]} is not a base-game tech")

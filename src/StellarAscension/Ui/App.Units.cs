@@ -36,20 +36,37 @@ public sealed partial class App
     void DrawTileExtras(Act1State s, Content c, List<(Vector2 p, Vector2 w, int x, int y)> tiles, (int x, int y)? hover)
     {
         float size = HexW * _zoom1;
+        float t = (float)Raylib.GetTime();
         foreach (var (p, w, x, y) in tiles)
         {
             var tile = s.At(x, y);
             if (!tile.Revealed) continue;
+            bool seen = Act1.Visible(s, x, y);
+            // Exotic sites: Stellaris's painting in a glowing frame.
+            if (tile.Exotic is { } ex && Defs.ExoticSite.TryGetValue(ex, out var xd))
+            {
+                float pulse = 0.5f + 0.5f * MathF.Sin(t * 2 + x);
+                Raylib.BeginBlendMode(BlendMode.Additive);
+                Raylib.DrawCircleGradient(p, size * 0.75f, new Color(170, 110, 255, (int)(70 + 50 * pulse)), new Color(0, 0, 0, 0));
+                Raylib.EndBlendMode();
+                var pic = St(xd.Art);
+                var r = new Rectangle(p.X - size * 0.42f, p.Y - size * 0.33f, size * 0.84f, size * 0.64f);
+                Raylib.DrawRectangleRounded(Inflate(r, 3), 0.2f, 6, new Color(20, 10, 40, 230));
+                if (pic != null) Gfx.DrawCover(pic, r, seen ? Color.White : new Color(200, 190, 210, 230));
+                Raylib.DrawRectangleRoundedLinesEx(Inflate(r, 3), 0.2f, 6, 2, new Color(200, 150, 255, (int)(160 + 90 * pulse)));
+                Gfx.DrawFit(St(xd.Icon), new Rectangle(r.X + r.Width - size * 0.18f, r.Y - size * 0.12f, size * 0.3f, size * 0.3f), Color.White);
+            }
+            if (tile.Camp) Sprite(MapTex(seen ? "Improvements_BarbarianCamp_Visible" : "Improvements_BarbarianCamp_Revealed") ?? MapTex("Improvements_BarbarianCamp_Visible"), p, size * 1.1f, Color.White, size * 0.06f);
+            if (tile.Village) Sprite(MapTex(seen ? "Improvements_GoodyHut_Visible" : "Improvements_GoodyHut_Revealed") ?? MapTex("Improvements_GoodyHut_Visible"), p, size * 1.0f, Color.White, size * 0.06f);
             if (tile.Resource is { } res && Military.CanSee(c, s.Player, res) && tile.Built == null && s.CityAt(x, y) == null)
             {
                 float rs = size * 0.34f;
                 var at = p + new Vector2(-size * 0.2f, size * 0.12f);
                 Raylib.DrawCircleV(at, rs * 0.62f, new Color(16, 22, 34, 200));
-                bool seen = Act1.Visible(s, x, y);
                 Gfx.DrawFit(ResourceIcon(res, !seen), new Rectangle(at.X - rs / 2, at.Y - rs / 2, rs, rs), seen ? Color.White : new Color(210, 200, 180, 220));
             }
             // The lens covers the land you can see now (Civ VI's yield icons); hovering shows any tile's.
-            bool lens = _yieldLens && Act1.Visible(s, x, y) || hover is { } h && h.x == x && h.y == y;
+            bool lens = _yieldLens && seen || hover is { } h && h.x == x && h.y == y;
             if (lens && Act1.Workable(s, x, y) && s.CityAt(x, y) == null) DrawYields(s, p, x, y, size);
         }
     }
@@ -72,43 +89,81 @@ public sealed partial class App
     }
 
     /// <summary>Unit flags: Civ VI's shield in the owner's colours with the unit's symbol, and a health bar.</summary>
+    Color UnitColor(Content c, CivState civ, bool secondary = false) =>
+        civ.IsTribe ? (secondary ? new Color(230, 220, 200, 255) : new Color(120, 30, 30, 255)) : CivColor(c, civ, secondary);
+
+    /// <summary>Units as Civ VI shows them: a medallion with the unit's portrait in its owner's colours (a flag when zoomed
+    /// out), gliding from tile to tile and lunging when they attack.</summary>
     void DrawUnits(Act1State s, Content c, List<(Vector2 p, Vector2 w, int x, int y)> tiles)
     {
         _unitHits.Clear();
         var me = s.Player;
-        float fs = Math.Clamp(30 * _zoom1, 18, 44);
+        float r0 = HexR * _zoom1;
+        bool close = _zoom1 >= 0.65f;
+        float now = (float)Raylib.GetTime();
         foreach (var (p, w, x, y) in tiles)
         {
-            var u = s.UnitAt(x, y);
-            if (u == null || !s.At(x, y).Revealed || u.Owner != me.Id && !Act1.Visible(s, x, y)) continue;
-            var civ = s.Civs[u.Owner];
-            var col = CivColor(c, civ);
-            var col2 = CivColor(c, civ, true);
-            var at = s.CityAt(x, y) != null ? p + new Vector2(-HexW * _zoom1 * 0.3f, HexR * _zoom1 * 0.38f) : p + new Vector2(0, -HexR * _zoom1 * 0.12f);
-            float wdt = fs * 0.86f, hgt = fs;
-            // Shield: a rounded top and a pointed bottom.
-            var body = new Rectangle(at.X - wdt / 2, at.Y - hgt / 2, wdt, hgt * 0.7f);
-            var shadow = new Color(0, 0, 0, 110);
-            Raylib.DrawRectangleRounded(new Rectangle(body.X + 2, body.Y + 3, body.Width, body.Height), 0.35f, 6, shadow);
-            Raylib.DrawTriangle(new Vector2(body.X + 2, body.Y + body.Height + 2), new Vector2(at.X + 2, at.Y + hgt / 2 + 3), new Vector2(body.X + body.Width + 2, body.Y + body.Height + 2), shadow);
-            Raylib.DrawRectangleRounded(body, 0.35f, 6, col);
-            Raylib.DrawTriangle(new Vector2(body.X, body.Y + body.Height - 1), new Vector2(at.X, at.Y + hgt / 2), new Vector2(body.X + body.Width, body.Y + body.Height - 1), col);
-            Raylib.DrawRectangleRoundedLinesEx(Inflate(body, 1), 0.35f, 6, 1.5f, u.Id == _selUnit ? Gfx.Gold : col2);
-            Gfx.DrawFit(UnitSymbol(u.Type), new Rectangle(at.X - wdt * 0.36f, at.Y - hgt * 0.44f, wdt * 0.72f, wdt * 0.72f), col2);
-            // Health
-            if (u.Hp < 100)
+            var here = s.Units.Where(u => u.X == x && u.Y == y).OrderBy(u => Military.IsCivilian(u) ? 0 : 1).ToList();
+            if (here.Count == 0 || !s.At(x, y).Revealed) continue;
+            foreach (var u in here)
             {
-                var hb = new Rectangle(at.X - wdt / 2, at.Y + hgt / 2 + 2, wdt, 4);
-                Raylib.DrawRectangleRec(hb, new Color(20, 20, 20, 220));
-                Raylib.DrawRectangleRec(new Rectangle(hb.X, hb.Y, hb.Width * (float)(u.Hp / 100), hb.Height), u.Hp > 60 ? Gfx.Good : u.Hp > 30 ? Gfx.Rgb(230, 190, 60) : Gfx.Bad);
+                if (u.Owner != me.Id && !Act1.Visible(s, x, y)) continue;
+                var civ = s.Civs[u.Owner];
+                var col = UnitColor(c, civ);
+                var col2 = UnitColor(c, civ, true);
+                // Where it is drawn: its gliding position (world), shifted like this copy of the tile.
+                var world = TileCenter(x, y);
+                var shown = AnimPos(u, world);
+                var at = p + (shown - world) * _zoom1;
+                if (s.CityAt(x, y) != null) at += new Vector2(-HexW * _zoom1 * 0.3f, r0 * 0.36f);
+                else if (Military.IsCivilian(u) && here.Count > 1) at += new Vector2(r0 * 0.45f, r0 * 0.3f);
+                else at += new Vector2(0, -r0 * 0.1f);
+                if (_lunge.TryGetValue(u.Id, out var lg) && now - lg.t0 < 0.35f)
+                {
+                    float k = MathF.Sin((now - lg.t0) / 0.35f * MathF.PI) * 0.4f;
+                    at += (ToScreen(lg.target) - ToScreen(world)) * k;
+                }
+                float rad = (close ? 0.5f : 0.38f) * r0 * (Military.IsCivilian(u) ? 0.8f : 1f);
+                bool sel = u.Id == _selUnit;
+                Raylib.DrawCircleV(at + new Vector2(2, 3), rad + 2, new Color(0, 0, 0, 110));
+                Raylib.DrawCircleV(at, rad + 2.5f, sel ? Gfx.Gold : col2);
+                Raylib.DrawCircleV(at, rad, new Color((byte)(col.R * 0.6f), (byte)(col.G * 0.6f), (byte)(col.B * 0.6f), (byte)255));
+                Raylib.DrawCircleGradient(at - new Vector2(0, rad * 0.3f), rad, new Color(col.R, col.G, col.B, (byte)230), new Color(col.R, col.G, col.B, (byte)0));
+                if (close) Gfx.DrawFit(UnitPortrait(u.Type), new Rectangle(at.X - rad * 0.95f, at.Y - rad * 1.05f, rad * 1.9f, rad * 1.9f), Color.White);
+                else Gfx.DrawFit(UnitSymbol(u.Type), new Rectangle(at.X - rad * 0.7f, at.Y - rad * 0.7f, rad * 1.4f, rad * 1.4f), col2);
+                // Class badge, health, veteran pips, state marks.
+                if (close)
+                {
+                    float bs = rad * 0.62f;
+                    var badge = new Vector2(at.X - rad * 0.78f, at.Y - rad * 0.78f);
+                    Raylib.DrawCircleV(badge, bs * 0.62f, col);
+                    Raylib.DrawCircleLinesV(badge, bs * 0.62f, col2);
+                    Gfx.DrawFit(UnitSymbol(u.Type), new Rectangle(badge.X - bs * 0.45f, badge.Y - bs * 0.45f, bs * 0.9f, bs * 0.9f), col2);
+                }
+                if (u.Hp < 100)
+                {
+                    var hb = new Rectangle(at.X - rad, at.Y + rad + 3, rad * 2, 4);
+                    Raylib.DrawRectangleRec(hb, new Color(20, 20, 20, 220));
+                    Raylib.DrawRectangleRec(new Rectangle(hb.X, hb.Y, hb.Width * (float)(u.Hp / 100), hb.Height), u.Hp > 60 ? Gfx.Good : u.Hp > 30 ? Gfx.Rgb(230, 190, 60) : Gfx.Bad);
+                }
+                for (int k = 0; k < Military.Level(u); k++) Raylib.DrawCircleV(new Vector2(at.X - 6 + k * 6, at.Y - rad - 5), 2.4f, Gfx.Gold);
+                if (u.Fortified) Raylib.DrawCircleLinesV(at, rad + 5, new Color(255, 255, 255, 140));
+                if (u.Type == "UNIT_BUILDER" && close) G.TextCentered($"{u.Charges}", new Rectangle(at.X + rad * 0.3f, at.Y + rad * 0.2f, rad, rad), rad * 0.6f, Gfx.Gold);
+                if (u.Owner == me.Id && u.Moves > 0 && !u.Fortified && !u.Skipped) Raylib.DrawCircleV(new Vector2(at.X + rad * 0.8f, at.Y - rad * 0.8f), 3.5f, Gfx.Good);
+                if (u.Owner != me.Id && s.AtWar(u.Owner, me.Id)) Raylib.DrawCircleV(new Vector2(at.X + rad * 0.8f, at.Y - rad * 0.8f), 3.5f, Gfx.Bad);
+                // Locked in battle: crossed lines toward the foe.
+                if (u.Engaged >= 0 && s.Unit(u.Engaged) is { } foe && u.Id < foe.Id)
+                {
+                    var fp = at + (ToScreen(TileCenter(foe.X, foe.Y)) - ToScreen(world));
+                    var mid = (at + fp) / 2;
+                    Raylib.DrawLineEx(at, fp, 2, new Color(255, 90, 60, 160));
+                    Raylib.DrawLineEx(mid + new Vector2(-6, -6), mid + new Vector2(6, 6), 3, new Color(255, 200, 80, 230));
+                    Raylib.DrawLineEx(mid + new Vector2(-6, 6), mid + new Vector2(6, -6), 3, new Color(255, 200, 80, 230));
+                }
+                _unitHits.Add((new Rectangle(at.X - rad, at.Y - rad, rad * 2, rad * 2), u.Id));
             }
-            // Level pips, fortified mark, and "has moves" dot for the player's units.
-            for (int k = 0; k < Military.Level(u); k++) Raylib.DrawCircleV(new Vector2(body.X + 4 + k * 6, body.Y - 3), 2.4f, Gfx.Gold);
-            if (u.Fortified) Raylib.DrawRectangleRoundedLinesEx(Inflate(body, 3), 0.35f, 6, 1.2f, new Color(255, 255, 255, 140));
-            if (u.Owner == me.Id && u.Moves > 0 && !u.Fortified && !u.Skipped) Raylib.DrawCircleV(new Vector2(body.X + body.Width, body.Y), 3.5f, Gfx.Good);
-            if (u.Owner != me.Id && s.AtWar(u.Owner, me.Id)) Raylib.DrawCircleV(new Vector2(body.X + body.Width, body.Y), 3.5f, Gfx.Bad);
-            _unitHits.Add((new Rectangle(at.X - wdt / 2, at.Y - hgt / 2, wdt, hgt), u.Id));
         }
+        DrawFloaters();
     }
 
     /// <summary>The selected unit's reach (blue), its targets (red) and the path to the hovered tile.</summary>
@@ -156,10 +211,7 @@ public sealed partial class App
         if (SelectedUnit(s) is not { } u) return false;
         if (Military.CanAttack(s, c, u, h.x, h.y))
         {
-            Military.Attack(s, c, u, h.x, h.y);
-            Act1.Reveal(s);
-            if (!s.Units.Contains(u)) _selUnit = -1;
-            SaveNow();
+            _attackPrompt = (u.Id, h.x, h.y);
             return true;
         }
         if (h.x == u.X && h.y == u.Y) return false;
@@ -176,32 +228,58 @@ public sealed partial class App
     void UnitPanel(Act1State s, Content c, UnitState u)
     {
         var info = c.Unit[u.Type];
-        var panel = new Rectangle(12, Gfx.H - 196, 460, 184);
+        bool builder = u.Type == "UNIT_BUILDER";
+        var options = builder ? Defs.Improvements.Select(i => (i, why: Builders.CantImprove(s, c, s.Player, u.X, u.Y, i))).Where(o => o.why == null || o.why.StartsWith("Needs")).Take(4).ToList() : new();
+        float extra = builder ? Math.Max(1, options.Count) * 42 + 26 : 0;
+        var panel = new Rectangle(12, Gfx.H - 196 - extra, 460, 184 + extra);
         G.Panel(panel);
+        Raylib.DrawCircleV(new Vector2(panel.X + 65, panel.Y + 65), 54, UnitColor(c, s.Player));
         Gfx.DrawFit(UnitPortrait(u.Type), new Rectangle(panel.X + 10, panel.Y + 10, 110, 110), Color.White);
         float x = panel.X + 132, y = panel.Y + 10;
         G.Text(UnitName(c, u), x, y, 24, Gfx.Gold, true);
         if (G.Button(new Rectangle(panel.X + panel.Width - 36, y, 26, 26), "×", size: 16)) { _selUnit = -1; return; }
         y += 32;
-        string line = info.Line switch { "recon" => "Recon", "melee" => "Melee", "anti_cavalry" => "Anti-cavalry", "ranged" => "Ranged", "light_cavalry" => "Light cavalry", "heavy_cavalry" => "Heavy cavalry", _ => "Siege" };
-        G.Text(line + (Military.Level(u) > 0 ? $" · veteran {Military.Level(u)} (+{Military.Level(u) * Military.LevelStrength})" : "") + $" · {u.Xp} XP", x, y, 15, Gfx.Muted);
+        string line = info.Line switch { "civilian" => "Civilian", "recon" => "Recon", "melee" => "Melee", "anti_cavalry" => "Anti-cavalry", "ranged" => "Ranged", "light_cavalry" => "Light cavalry", "heavy_cavalry" => "Heavy cavalry", _ => "Siege" };
+        G.Text(line + (builder ? $" · {u.Charges} charge{(u.Charges == 1 ? "" : "s")} left" : (Military.Level(u) > 0 ? $" · veteran {Military.Level(u)} (+{Military.Level(u) * Military.LevelStrength})" : "") + $" · {u.Xp} XP"), x, y, 15, Gfx.Muted);
         y += 22;
-        string str = $"Strength {info.Combat}" + (info.IsRanged ? $" · {(info.Siege ? "Bombard" : "Ranged")} {info.Ranged} (range {info.Range})" : "");
-        G.Text(str, x, y, 17, Gfx.Ink); y += 22;
-        G.Text($"Moves {Gfx.Num(u.Moves)}/{info.Moves} · upkeep {Gfx.Num(info.Maintenance * Rules.UnitMaintenanceMult)} gold", x, y, 16, Gfx.Ink); y += 22;
-        var hb = new Rectangle(x, y + 2, panel.Width - (x - panel.X) - 16, 8);
-        Raylib.DrawRectangleRounded(hb, 0.5f, 4, new Color(20, 20, 20, 220));
-        Raylib.DrawRectangleRounded(new Rectangle(hb.X, hb.Y, hb.Width * (float)(u.Hp / 100), hb.Height), 0.5f, 4, u.Hp > 60 ? Gfx.Good : u.Hp > 30 ? Gfx.Rgb(230, 190, 60) : Gfx.Bad);
-        G.Text($"{Math.Ceiling(u.Hp)} HP", hb.X, hb.Y + 10, 14, Gfx.Muted);
+        string str = builder ? "Improves tiles in your borders: farms, mines, quarries and more." : $"Strength {info.Combat}" + (info.IsRanged ? $" · {(info.Siege ? "Bombard" : "Ranged")} {info.Ranged} (range {info.Range})" : "");
+        G.Text(G.Clip(str, 16, panel.Width - (x - panel.X) - 10), x, y, 16, Gfx.Ink); y += 22;
+        G.Text($"Moves {Gfx.Num(u.Moves)}/{info.Moves}" + (builder ? "" : $" · upkeep {Gfx.Num(info.Maintenance * Rules.UnitMaintenanceMult)} gold"), x, y, 16, Gfx.Ink); y += 22;
+        if (!builder)
+        {
+            var hb = new Rectangle(x, y + 2, panel.Width - (x - panel.X) - 16, 8);
+            Raylib.DrawRectangleRounded(hb, 0.5f, 4, new Color(20, 20, 20, 220));
+            Raylib.DrawRectangleRounded(new Rectangle(hb.X, hb.Y, hb.Width * (float)(u.Hp / 100), hb.Height), 0.5f, 4, u.Hp > 60 ? Gfx.Good : u.Hp > 30 ? Gfx.Rgb(230, 190, 60) : Gfx.Bad);
+            G.Text($"{Math.Ceiling(u.Hp)} HP" + (u.Engaged >= 0 ? " · LOCKED IN BATTLE" : ""), hb.X, hb.Y + 10, 14, u.Engaged >= 0 ? Gfx.Bad : Gfx.Muted);
+        }
+        if (builder)
+        {
+            float by2 = panel.Y + 134;
+            G.Text("Improve this tile", panel.X + 12, by2, 16, Gfx.Gold);
+            by2 += 22;
+            if (options.Count == 0) G.Text("Nothing to build here. Move to a tile in your borders.", panel.X + 12, by2 + 6, 14, Gfx.Muted);
+            foreach (var (imp, why) in options)
+            {
+                string gain = string.Join(" ", new[] { (imp.Food, "food"), (imp.Production, "production"), (imp.Gold, "gold"), (imp.Science, "science") }.Where(t => t.Item1 > 0).Select(t => $"+{t.Item1} {t.Item2}"));
+                if (G.IconButton(new Rectangle(panel.X + 10, by2, panel.Width - 20, 38), Icon(imp.Icon), c.Text(imp.NameLoc), why ?? gain, why == null && u.Moves > 0, tip: c.Text(imp.NameLoc.Replace("_NAME", "_DESCRIPTION"), "")))
+                { Builders.Improve(s, c, u, imp.Id); SaveNow(); if (!s.Units.Contains(u)) { _selUnit = -1; return; } }
+                by2 += 42;
+            }
+        }
         // Orders
         float by = panel.Y + panel.Height - 46, bw = (panel.Width - 20 - 15) / 4;
-        if (G.Button(new Rectangle(panel.X + 10, by, bw, 36), u.Fortified ? "Fortified" : "Fortify", !u.Fortified, tip: $"+{Rules.FortifyBonus} strength when attacked; heals if it doesn't move. (F)", size: 15))
+        if (u.Engaged >= 0)
+        {
+            if (G.Button(new Rectangle(panel.X + 10, by, bw, 36), "Withdraw", u.Moves > 0, tip: $"Pull back from the fight; the enemy gets a parting blow ({Rules.WithdrawHit * 100:0}% of a round).", size: 15))
+            { Military.Withdraw(s, c, u); SaveNow(); if (!s.Units.Contains(u)) { _selUnit = -1; return; } }
+        }
+        else if (G.Button(new Rectangle(panel.X + 10, by, bw, 36), u.Fortified ? "Fortified" : "Fortify", !u.Fortified && !builder, tip: $"+{Rules.FortifyBonus} strength when attacked; heals if it doesn't move. (F)", size: 15))
         { u.Fortified = true; u.TargetX = u.TargetY = -1; SelectNextUnit(s); }
         if (G.Button(new Rectangle(panel.X + 15 + bw, by, bw, 36), "Skip turn", u.Moves > 0, tip: "Leave this unit for this turn. (Space)", size: 15)) { u.Skipped = true; SelectNextUnit(s); }
-        var to = Military.UpgradeTarget(s, c, u);
-        string? why = Military.CantUpgrade(s, c, u);
-        if (G.Button(new Rectangle(panel.X + 20 + bw * 2, by, bw, 36), to != null ? $"Upgrade {Military.UpgradeCost(c, u, to)}g" : "Upgrade", why == null,
-                tip: to != null ? $"Becomes a {c.Text(to.NameLoc)} (strength {to.Combat}" + (to.IsRanged ? $", ranged {to.Ranged}" : "") + ")." + (why != null ? "\n" + why : "") : why, size: 15))
+        var to = builder ? null : Military.UpgradeTarget(s, c, u);
+        string? why2 = builder ? "Builders don't upgrade." : Military.CantUpgrade(s, c, u);
+        if (G.Button(new Rectangle(panel.X + 20 + bw * 2, by, bw, 36), to != null ? $"Upgrade {Military.UpgradeCost(c, u, to)}g" : "Upgrade", why2 == null,
+                tip: to != null ? $"Becomes a {c.Text(to.NameLoc)} (strength {to.Combat}" + (to.IsRanged ? $", ranged {to.Ranged}" : "") + ")." + (why2 != null ? "\n" + why2 : "") : why2, size: 15))
         { Military.Upgrade(s, c, u); SaveNow(); }
         if (G.Button(new Rectangle(panel.X + 25 + bw * 3, by, bw, 36), "Disband", tip: "Removes the unit (no more upkeep).", size: 15))
         { s.Units.Remove(u); _selUnit = -1; SaveNow(); }
@@ -248,6 +326,16 @@ public sealed partial class App
             var t = Defs.Terrains[tile.Terrain];
             title = tile.Natural != null ? c.Name(tile.Natural) : c.Text(t.NameLoc) + (tile.Feature >= 0 ? ", " + c.Text(Defs.Features[tile.Feature].NameLoc) : "");
             if (tile.Natural != null) lines.Add(($"Natural wonder. In Act 2 it becomes a rare star system: {Defs.Modifier[c.NaturalDef(tile.Natural).Modifier].EffectText}.", Gfx.Gold));
+            if (tile.Exotic is { } exo && Defs.ExoticSite.TryGetValue(exo, out var xd))
+            {
+                title = xd.Name;
+                string stat = xd.Act1Stat switch { "unit_strength" => $"+{xd.Act1Value} unit strength", var st => $"+{xd.Act1Value}% {st.Replace("_pct", "")}" };
+                lines.Add(($"Exotic site. {xd.Desc}", new Color(200, 160, 255, 255)));
+                lines.Add(($"Hold it and {Rules.ExoticRingNeeded} of the tiles around it: {stat} across your empire. In space: {Defs.Modifier[xd.Act2Modifier].EffectText.Replace(" while you hold it", "")} and {c.Name(xd.UnlockTech)}.", Gfx.Gold));
+            }
+            if (tile.Improvement is { } impId && Defs.Improvement.TryGetValue(impId, out var impDef)) lines.Add(($"Improvement: {c.Text(impDef.NameLoc)}.", Gfx.Good));
+            if (tile.Camp) lines.Add(("A tribal camp: raiders come from here. Move a unit in to clear it (+" + Rules.TribeCampGold + " gold).", Gfx.Bad));
+            if (tile.Village) lines.Add(("A tribal village: the first unit to enter gets a gift.", Gfx.Gold));
             if (tile.Resource is { } r && c.MapResource.TryGetValue(r, out var rd))
             {
                 if (Military.CanSee(c, me, r))

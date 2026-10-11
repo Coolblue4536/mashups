@@ -9,6 +9,13 @@ public static class Military
 {
     public static UnitInfo Info(Content c, UnitState u) => c.Unit[u.Type];
     public static bool IsUnit(string id) => id.StartsWith("UNIT_", StringComparison.Ordinal);
+    public static bool IsCivilian(UnitState u) => u.Type == "UNIT_BUILDER";
+
+    /// <summary>Extra strength from the civilization's trait and exotic sites it holds.</summary>
+    static double CivStrength(Act1State s, CivState civ) => civ.IsTribe ? 0 : Act1.Trait(civ).UnitStrength + Exotics.Bonus(s, civ, "unit_strength");
+
+    /// <summary>Whether the civ knows the unit's technology (resources aside).</summary>
+    public static string? CantTrainBasic(CivState civ, UnitInfo u) => TechOk(civ, u) ? null : "Needs its technology.";
 
     // ------------------------------------------------------------------ what a civ can train
 
@@ -17,11 +24,13 @@ public static class Military
     /// <summary>The strategic resources inside the civ's borders that it can see (Iron after Bronze Working, ...).</summary>
     public static HashSet<string> OwnedResources(Act1State s, Content c, CivState civ)
     {
-        string key = $"{s.Turn}:{s.NextCityId}:{s.Cities.Count(x => x.Owner == civ.Id)}:{civ.Techs.Count}:{s.GetHashCode()}";
+        string key = $"{s.Turn}:{s.NextCityId}:{s.Cities.Count(x => x.Owner == civ.Id)}:{civ.Techs.Count}:{s.Deals.Count}:{s.GetHashCode()}";
         if (_resCache.TryGetValue(civ.Id, out var hit) && hit.key == key) return hit.set;
         var set = new HashSet<string>();
         foreach (var t in s.Tiles)
             if (t.Resource != null && t.City >= 0 && s.City(t.City)?.Owner == civ.Id && CanSee(c, civ, t.Resource)) set.Add(t.Resource);
+        // Resources traded to it.
+        foreach (var d in s.Deals.Where(d => d.Kind == "resource" && d.To == civ.Id && d.Until >= s.Turn)) set.Add(d.Resource);
         _resCache[civ.Id] = (key, set);
         return set;
     }
@@ -56,7 +65,7 @@ public static class Military
     public static double CityStrength(Act1State s, Content c, CityState city)
     {
         var civ = s.Civs[city.Owner];
-        int best = c.Units.Where(u => TechOk(civ, u) && u.Line != "siege").Select(u => u.Combat).DefaultIfEmpty(20).Max();
+        int best = c.Units.Where(u => TechOk(civ, u) && u.Line is not ("siege" or "civilian")).Select(u => u.Combat).DefaultIfEmpty(20).Max();
         return Rules.CityBaseStrength + best * 0.9 + (city.Capital ? 3 : 0);
     }
 
@@ -65,7 +74,7 @@ public static class Military
     static double Defense(Act1State s, Content c, UnitState d, UnitState? attacker)
     {
         var info = Info(c, d);
-        double str = info.Combat + Level(d) * LevelStrength - (100 - d.Hp) / 10;
+        double str = info.Combat + Level(d) * LevelStrength - (100 - d.Hp) / 10 + CivStrength(s, s.Civs[d.Owner]);
         if (Embarked(s, d)) return Math.Max(5, str * 0.4);
         var tile = s.At(d.X, d.Y);
         if (Defs.Terrains[tile.Terrain].Id.EndsWith("_HILLS") || tile.Feature >= 0 && Defs.Features[tile.Feature].Id is "FEATURE_FOREST" or "FEATURE_JUNGLE") str += Rules.TerrainDefenseBonus;
@@ -81,7 +90,7 @@ public static class Military
         if (info.IsRanged && vsCity && !info.Siege) str -= Rules.RangedVsCityPenalty;
         if (info.Siege && !vsCity) str -= 10;
         if (defender != null && info.Line == "anti_cavalry" && Info(c, defender).IsCavalry) str += Rules.AntiCavalryBonus;
-        return str + Level(a) * LevelStrength - (100 - a.Hp) / 10;
+        return str + Level(a) * LevelStrength - (100 - a.Hp) / 10 + CivStrength(s, s.Civs[a.Owner]);
     }
 
     static double Damage(double diff) => Rules.CombatDamage * Math.Exp(0.04 * diff);
@@ -96,7 +105,7 @@ public static class Military
         if (tile.Natural != null) return -1;
         if (!t.Land)
         {
-            if (!civ.Techs.Contains("TECH_SHIPBUILDING")) return -1;
+            if (!civ.Techs.Contains("TECH_SHIPBUILDING") && !(Act1.Trait(civ).EmbarkEarly && t.Id == "TERRAIN_COAST")) return -1;
             if (t.Id == "TERRAIN_OCEAN" && !civ.Techs.Contains("TECH_CARTOGRAPHY")) return -1;
             return 1;
         }
@@ -115,9 +124,19 @@ public static class Military
         if (EnterCost(s, civ, x, y) < 0) return false;
         if (s.CityAt(x, y) is { } city && city.Owner != u.Owner) return false;
         int owner = s.OwnerAt(x, y);
-        if (owner >= 0 && owner != u.Owner && !s.AtWar(owner, u.Owner)) return false;
-        var other = s.UnitAt(x, y);
-        if (other != null && other.Id != u.Id && (other.Owner != u.Owner || stop)) return false;
+        if (owner >= 0 && owner != u.Owner && !s.AtWar(owner, u.Owner) && !s.OpenBorders(owner, u.Owner)) return false;
+        bool civilian = IsCivilian(u);
+        foreach (var other in s.Units)
+        {
+            if (other.X != x || other.Y != y || other.Id == u.Id) continue;
+            if (other.Owner != u.Owner)
+            {
+                // A lone enemy Builder is captured by a soldier walking in; anything else foreign blocks.
+                if (!civilian && IsCivilian(other) && s.AtWar(other.Owner, u.Owner)) continue;
+                return false;
+            }
+            if (stop && IsCivilian(other) == civilian) return false;
+        }
         return true;
     }
 
@@ -206,11 +225,33 @@ public static class Military
 
     public static void MoveTo(Act1State s, UnitState u, int x, int y, double movesLeft)
     {
+        // Walking away from a fight: the enemy gets a parting blow.
+        if (u.Engaged >= 0 && s.Unit(u.Engaged) is { } foe && Hex.Distance(x, y, foe.X, foe.Y, s.W) > 1 && Content.Current is { } cc)
+        {
+            u.Hp -= Damage(Offense(s, cc, foe, u, false) - Defense(s, cc, u, foe)) * Rules.WithdrawHit;
+            foe.Engaged = -1; u.Engaged = -1;
+            if (u.Hp <= 0) { s.Units.Remove(u); return; }
+        }
         u.X = x; u.Y = y;
         u.Moves = movesLeft;
         u.Acted = true;
         u.Fortified = false;
         if (u.TargetX == x && u.TargetY == y) { u.TargetX = u.TargetY = -1; }
+        if (Content.Current is { } c) Arrive(s, c, u);
+    }
+
+    /// <summary>Things that happen on arrival: capture an enemy Builder, clear a camp, open a village.</summary>
+    static void Arrive(Act1State s, Content c, UnitState u)
+    {
+        if (!IsCivilian(u))
+            foreach (var b in s.Units.Where(o => o.X == u.X && o.Y == u.Y && o.Owner != u.Owner && IsCivilian(o)).ToList())
+            {
+                b.Owner = u.Owner;
+                if (s.Civs[u.Owner].IsTribe) s.Units.Remove(b);
+                Log(s, $"A {c.Text(Info(c, b).NameLoc)} was captured.", u.Owner, b.Owner, u.X, u.Y);
+            }
+        var t = s.At(u.X, u.Y);
+        if (t.Camp || t.Village) Tribes.Enter(s, c, u);
     }
 
     /// <summary>Player order: go to a tile (this turn if reachable, else over several turns).</summary>
@@ -240,11 +281,11 @@ public static class Military
     public sealed record Odds(double ToDefender, double ToAttacker, bool Kills, bool Captures, string Target);
 
     public static bool IsEnemyAt(Act1State s, UnitState u, int x, int y) =>
-        s.UnitAt(x, y) is { } d && s.AtWar(d.Owner, u.Owner) || s.CityAt(x, y) is { } c && s.AtWar(c.Owner, u.Owner);
+        s.MilitaryAt(x, y) is { } d && s.AtWar(d.Owner, u.Owner) || s.CityAt(x, y) is { } c && s.AtWar(c.Owner, u.Owner);
 
     public static bool CanAttack(Act1State s, Content c, UnitState u, int x, int y)
     {
-        if (u.Moves <= 0 || u.Attacked || !IsEnemyAt(s, u, x, y)) return false;
+        if (u.Moves <= 0 || u.Attacked || IsCivilian(u) || !IsEnemyAt(s, u, x, y)) return false;
         var info = Info(c, u);
         int d = Hex.Distance(u.X, u.Y, x, y, s.W);
         if (info.IsRanged) return d >= 1 && d <= info.Range && !Embarked(s, u);
@@ -256,7 +297,7 @@ public static class Military
     public static Odds Preview(Act1State s, Content c, UnitState a, int x, int y)
     {
         var info = Info(c, a);
-        if (s.UnitAt(x, y) is { } d && s.AtWar(d.Owner, a.Owner) && s.CityAt(x, y) == null)
+        if (s.MilitaryAt(x, y) is { } d && s.AtWar(d.Owner, a.Owner) && s.CityAt(x, y) == null)
         {
             double atk = Offense(s, c, a, d, false), def = Defense(s, c, d, a);
             double to = Damage(atk - def), back = info.IsRanged ? 0 : Damage(def - atk);
@@ -280,7 +321,8 @@ public static class Military
         a.Fortified = false;
         a.Moves = info.IsRanged || !info.IsCavalry ? 0 : Math.Max(0, a.Moves - 1);
         string text;
-        if (s.UnitAt(x, y) is { } d && s.CityAt(x, y) == null)
+        int fromX = a.X, fromY = a.Y;
+        if (s.MilitaryAt(x, y) is { } d && s.CityAt(x, y) == null)
         {
             double atk = Offense(s, c, a, d, false), def = Defense(s, c, d, a);
             double to = Damage(atk - def) * Luck(s), back = info.IsRanged ? 0 : Damage(def - atk) * Luck(s);
@@ -288,14 +330,18 @@ public static class Military
             a.Xp += 5; d.Xp += 4;
             string dName = Act1.CivAdjective(c, s.Civs[d.Owner]) + " " + c.Text(Info(c, d).NameLoc);
             text = $"{aName} attacked {dName}: {Math.Round(to)} damage dealt, {Math.Round(back)} taken.";
-            if (d.Hp <= 0)
+            bool killed = d.Hp <= 0;
+            if (killed)
             {
                 s.Units.Remove(d);
                 a.Xp += 5;
                 text = $"{aName} destroyed {dName}" + (back > 0 ? $" (took {Math.Round(back)} damage)." : ".");
-                if (!info.IsRanged && a.Hp > 0 && CanEnter(s, a, x, y, true)) { a.X = x; a.Y = y; } // melee advances
+                if (!info.IsRanged && a.Hp > 0 && CanEnter(s, a, x, y, true)) { a.X = x; a.Y = y; Arrive(s, c, a); } // melee advances
             }
             if (a.Hp <= 0) { s.Units.Remove(a); text = $"{aName} was destroyed attacking {dName}."; }
+            // Both still standing after a melee clash: they stay locked in battle, a round each turn, until one falls or withdraws.
+            if (!info.IsRanged && !killed && a.Hp > 0 && s.Units.Contains(d)) { a.Engaged = d.Id; d.Engaged = a.Id; a.EngageRounds = d.EngageRounds = 0; text += " The battle goes on."; }
+            Note(s, a, d.Owner, d.Type, dName, to, back, Math.Max(0, a.Hp), Math.Max(0, d.Hp), killed, false, x, y, fromX, fromY, text);
             Log(s, text, a.Owner, d.Owner, x, y);
             return text;
         }
@@ -307,13 +353,66 @@ public static class Military
         a.Hp -= backCity;
         a.Xp += 4;
         text = $"{aName} attacked {city.Name}: {Math.Round(toCity)} damage" + (backCity > 0 ? $", took {Math.Round(backCity)}." : ".");
+        int cityOwner = city.Owner;
+        bool captured = false;
         if (a.Hp <= 0) { s.Units.Remove(a); text = $"{aName} was destroyed attacking {city.Name}."; }
         else if (!info.IsRanged && city.Hp <= 0)
         {
             text = Capture(s, c, city, a);
+            captured = true;
         }
+        Note(s, a, cityOwner, "city", city.Name, toCity, backCity, Math.Max(0, a.Hp), city.Hp, false, captured, x, y, fromX, fromY, text);
         Log(s, text, a.Owner, city.Owner, x, y);
         return text;
+    }
+
+    static void Note(Act1State s, UnitState a, int defCiv, string defType, string defName, double to, double back, double aHp, double dHp, bool killed, bool captured, int x, int y, int fx, int fy, string text)
+    {
+        s.Battles.Add(new BattleNote(s.Turn, a.Owner, a.Type, defCiv, defType, defName, to, back, aHp, dHp, killed, captured, x, y, fx, fy, text));
+        if (s.Battles.Count > 40) s.Battles.RemoveAt(0);
+    }
+
+    /// <summary>Engaged pairs fight another round at the start of each turn.</summary>
+    static void EngagementRounds(Act1State s, Content c)
+    {
+        foreach (var a in s.Units.Where(u => u.Engaged >= 0).ToList())
+        {
+            if (!s.Units.Contains(a) || a.Engaged < 0) continue;
+            var d = s.Unit(a.Engaged);
+            if (d == null || d.Engaged != a.Id || Hex.Distance(a.X, a.Y, d.X, d.Y, s.W) != 1 || !s.AtWar(a.Owner, d.Owner) || ++a.EngageRounds > Rules.Act1EngageRounds)
+            {
+                a.Engaged = -1; if (d != null && d.Engaged == a.Id) d.Engaged = -1;
+                continue;
+            }
+            d.EngageRounds = a.EngageRounds;
+            double sa = Offense(s, c, a, d, false), sd = Defense(s, c, d, a);
+            double toD = Damage(sa - sd) * 0.6 * Luck(s), toA = Damage(sd - sa) * 0.6 * Luck(s);
+            d.Hp -= toD; a.Hp -= toA;
+            a.Acted = d.Acted = true;
+            string an = Act1.CivAdjective(c, s.Civs[a.Owner]) + " " + c.Text(Info(c, a).NameLoc), dn = Act1.CivAdjective(c, s.Civs[d.Owner]) + " " + c.Text(Info(c, d).NameLoc);
+            string text = $"The battle between {an} and {dn} goes on: {Math.Round(toD)} and {Math.Round(toA)} damage.";
+            if (d.Hp <= 0) { s.Units.Remove(d); a.Xp += 6; a.Engaged = -1; text = $"{an} won its battle with {dn}."; }
+            if (a.Hp <= 0) { s.Units.Remove(a); d.Xp += 6; d.Engaged = -1; text = $"{dn} won its battle with {an}."; }
+            Note(s, a, d.Owner, d.Type, dn, toD, toA, Math.Max(0, a.Hp), Math.Max(0, d.Hp), d.Hp <= 0, false, d.X, d.Y, a.X, a.Y, text);
+            Log(s, text, a.Owner, d.Owner, d.X, d.Y);
+        }
+    }
+
+    /// <summary>Pulls an engaged unit back to the safest neighbouring tile; the enemy gets a parting blow.</summary>
+    public static bool Withdraw(Act1State s, Content c, UnitState u)
+    {
+        if (u.Engaged < 0 || s.Unit(u.Engaged) is not { } foe) return false;
+        var spot = Hex.Neighbors(u.X, u.Y, s.W, s.H).Where(t => CanEnter(s, u, t.x, t.y, true) && Hex.Distance(t.x, t.y, foe.X, foe.Y, s.W) >= 2)
+            .OrderByDescending(t => s.OwnerAt(t.x, t.y) == u.Owner).ThenByDescending(t => Hex.Distance(t.x, t.y, foe.X, foe.Y, s.W)).Select(t => ((int, int)?)t).FirstOrDefault();
+        if (spot is not { } to) return false;
+        double hit = Damage(Offense(s, c, foe, u, false) - Defense(s, c, u, foe)) * Rules.WithdrawHit * Luck(s);
+        u.Hp -= hit;
+        u.Engaged = -1; foe.Engaged = -1;
+        if (u.Hp <= 0) { s.Units.Remove(u); return true; }
+        (u.X, u.Y) = to;
+        u.Moves = 0; u.Acted = true; u.Fortified = false; u.TargetX = u.TargetY = -1;
+        Log(s, $"{c.Text(Info(c, u).NameLoc)} withdrew from battle (took {Math.Round(hit)} damage).", u.Owner, foe.Owner, to.Item1, to.Item2);
+        return true;
     }
 
     static void Log(Act1State s, string text, int a, int b, int x, int y)
@@ -380,6 +479,7 @@ public static class Military
     /// <summary>End of a round: units get their movement back and heal if they rested; cities heal; upkeep is paid.</summary>
     public static void NewTurn(Act1State s, Content c)
     {
+        EngagementRounds(s, c);
         foreach (var u in s.Units.ToList())
         {
             var civ = s.Civs[u.Owner];
@@ -397,7 +497,7 @@ public static class Military
         foreach (var city in s.Cities)
             if (city.LastAttacked < s.Turn - 1 || city.LastAttacked < s.Turn && city.Hp < Rules.CityMaxHp * 0.5)
                 city.Hp = Math.Min(Rules.CityMaxHp, city.Hp + Rules.CityHeal);
-        foreach (var civ in s.Civs.Where(x => x.Alive))
+        foreach (var civ in s.Majors.Where(x => x.Alive))
         {
             double upkeep = Upkeep(s, c, civ);
             civ.Gold -= upkeep;
@@ -419,9 +519,9 @@ public static class Military
     public static UnitState? Spawn(Act1State s, Content c, CivState civ, string type, int x, int y)
     {
         var u = new UnitState { Id = s.NextUnitId++, Owner = civ.Id, Type = type, X = x, Y = y, Moves = 0 };
-        if (s.UnitAt(x, y) != null || !CanEnter(s, u, x, y, true) && s.CityAt(x, y)?.Owner != civ.Id)
+        if (!CanEnter(s, u, x, y, true))
         {
-            var spot = Hex.Within(x, y, 3, s.W, s.H).Where(t => s.UnitAt(t.x, t.y) == null && Defs.Terrains[s.At(t.x, t.y).Terrain].Land && CanEnter(s, u, t.x, t.y, true))
+            var spot = Hex.Within(x, y, 3, s.W, s.H).Where(t => Defs.Terrains[s.At(t.x, t.y).Terrain].Land && CanEnter(s, u, t.x, t.y, true))
                 .OrderBy(t => Hex.Distance(x, y, t.x, t.y, s.W)).Select(t => ((int, int)?)t).FirstOrDefault();
             if (spot is not { } p) return null;
             (u.X, u.Y) = p;
@@ -472,17 +572,26 @@ public static class Military
 
     public static void DeclareWar(Act1State s, Content c, CivState a, CivState b)
     {
-        if (s.AtWar(a.Id, b.Id) || !a.Alive || !b.Alive || a.Id == b.Id) return;
+        if (s.AtWar(a.Id, b.Id) || !a.Alive || !b.Alive || a.Id == b.Id || a.IsTribe || b.IsTribe) return;
         s.Wars.Add(new WarState { A = a.Id, B = b.Id, Since = s.Turn });
         s.Events.Add(new Act1Event(s.Turn, "war", $"{Act1.CivName(c, a)} declared war on {Act1.CivName(c, b)}.", a.IsPlayer ? a.Id : b.Id));
+        // Breaking an alliance ends it; the defender's allies join the war.
+        s.Alliances.RemoveAll(x => x[0] == Math.Min(a.Id, b.Id) && x[1] == Math.Max(a.Id, b.Id));
+        s.Deals.RemoveAll(d => d.From == a.Id && d.To == b.Id || d.From == b.Id && d.To == a.Id);
+        foreach (var ally in s.Majors.Where(o => o.Alive && o.Id != a.Id && o.Id != b.Id && s.Allied(o.Id, b.Id) && !s.AtWar(o.Id, a.Id)).ToList())
+        {
+            s.Wars.Add(new WarState { A = ally.Id, B = a.Id, Since = s.Turn });
+            s.Events.Add(new Act1Event(s.Turn, "war", $"{Act1.CivName(c, ally)} joins the war on {Act1.CivName(c, a)}, honouring its alliance.", ally.IsPlayer || a.IsPlayer ? (ally.IsPlayer ? ally.Id : a.Id) : b.Id));
+        }
     }
 
     public static double ArmyPower(Act1State s, Content c, int civ) =>
-        s.UnitsOf(civ).Sum(u => Math.Pow(Math.Max(1, Info(c, u).IsRanged ? Info(c, u).Ranged : Info(c, u).Combat), 1.5) * u.Hp / 100);
+        s.UnitsOf(civ).Where(u => !IsCivilian(u)).Sum(u => Math.Pow(Math.Max(1, Info(c, u).IsRanged ? Info(c, u).Ranged : Info(c, u).Combat), 1.5) * u.Hp / 100);
 
     /// <summary>Whether the AI side would accept peace now.</summary>
     public static bool WouldAcceptPeace(Act1State s, Content c, CivState ai, CivState other)
     {
+        if (ai.IsTribe || other.IsTribe) return false;
         var w = s.Wars.FirstOrDefault(w => w.A == ai.Id && w.B == other.Id || w.A == other.Id && w.B == ai.Id);
         if (w == null) return false;
         int len = s.Turn - w.Since;

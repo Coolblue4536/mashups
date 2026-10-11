@@ -122,6 +122,12 @@ public sealed partial class App
         Gfx.DrawFit(sym, new Rectangle(mid.X + 30, mid.Y + mid.Height - 100, 60, 60), new Color(pick.Secondary.r, pick.Secondary.g, pick.Secondary.b, (byte)255));
         G.Text(c.Text(pick.LeaderNameLoc), mid.X + 116, mid.Y + mid.Height - 104, 28, Gfx.Ink, true);
         G.Text(c.Text(pick.DescLoc) + (pick.CapitalLoc != null ? $" · capital {c.Text(pick.CapitalLoc)}" : ""), mid.X + 116, mid.Y + mid.Height - 66, 19, Gfx.Muted);
+        // The civilization's trait, which helps on Earth and in space.
+        var trait = c.Trait(pick.Type);
+        var tb = new Rectangle(mid.X + 16, mid.Y + 16, mid.Width - 32, 62);
+        Raylib.DrawRectangleRounded(tb, 0.15f, 4, new Color(10, 14, 28, 210));
+        G.Text($"{c.TraitTitle(pick.Type)}  ·  {trait.Name}", tb.X + 12, tb.Y + 8, 18, Gfx.Gold, true);
+        G.Text(G.Clip(trait.Desc, 15, tb.Width - 24), tb.X + 12, tb.Y + 36, 15, Gfx.Ink);
 
         // Options: Earth (Act 1) and the galaxy (Act 2), one row each: a label, then the choices.
         var opt = new Rectangle(Gfx.W - 540, 90, 500, Gfx.H - 130);

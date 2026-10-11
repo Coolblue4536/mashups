@@ -85,8 +85,12 @@ public sealed partial class App
         if (SelectedUnit(s) is { } unit) UnitPanel(s, c, unit);
         else _selUnit = -1;
         EndTurnButton(s, c);
-        if (_cardTile is { } ct && _overlay1 == "" && s.Outcome == "" && G.MouseOnMap) TileCard(s, c, ct.x, ct.y);
+        WatchBattles(s, c);
+        BattleBanner(s, c);
+        if (_cardTile is { } ct && _overlay1 == "" && s.Outcome == "" && G.MouseOnMap && _attackPrompt == null) TileCard(s, c, ct.x, ct.y);
+        AttackPrompt(s, c);
         if (_overlay1 == "research") ResearchOverlay(s, c);
+        else if (_overlay1 == "diplomacy") Diplomacy1Overlay(s, c);
         else if (_overlay1 == "race") RaceOverlay(s, c);
         else if (_overlay1 == "wonders") WondersOverlay(s, c);
         else if (_overlay1 == "menu") MenuOverlay();
@@ -203,25 +207,13 @@ public sealed partial class App
         Raylib.DrawTexturePro(tex, new Rectangle(0, 0, tex.Width, tex.Height), new Rectangle(p.X - w / 2, p.Y - h / 2 - lift, w, h), Vector2.Zero, 0, tint);
     }
 
-    // Worked-tile improvements, recomputed once a turn.
-    Dictionary<int, string> _improve = new();
-    int _improveTurn = -1, _improveCities = -1;
-
+    /// <summary>Improvement pictures on the map: Builders' real improvements (Civ VI's strategic-view sprites).</summary>
     Dictionary<int, string> Improvements(Act1State s)
     {
-        if (_improveTurn == s.Turn && _improveCities == s.Cities.Sum(c => c.Pop + c.Id)) return _improve;
-        _improveTurn = s.Turn; _improveCities = s.Cities.Sum(c => c.Pop + c.Id);
-        _improve = new();
-        foreach (var c in s.Cities)
-            foreach (var (x, y) in Act1.WorkTiles(s, c))
-            {
-                var t = s.At(x, y);
-                var ter = Defs.Terrains[t.Terrain];
-                string on = t.Natural != null ? "" : t.Feature >= 0 ? Defs.Features[t.Feature].Id : !ter.Land ? "water" : ter.Id.EndsWith("_HILLS") ? "hills" : "flat";
-                var imp = Defs.Improvements.FirstOrDefault(i => i.On == on);
-                if (imp != null) _improve[y * s.W + x] = imp.Sprite;
-            }
-        return _improve;
+        var d = new Dictionary<int, string>();
+        for (int i = 0; i < s.Tiles.Length; i++)
+            if (s.Tiles[i].Improvement is { } im && Defs.Improvement.TryGetValue(im, out var def)) d[i] = def.Sprite;
+        return d;
     }
 
     void DrawMap1(Act1State s, Content c)
@@ -468,22 +460,24 @@ public sealed partial class App
         // Research
         string when = $"Turn {s.Turn} · {Act1.YearText(s.Year)}";
         // The research box takes what's left between the yields and the buttons on the right.
-        float right = Gfx.W - 94 - G.Measure(when, 20) - 20 - (120 + 6 + 110 + 6 + 86 + 12);
+        float right = Gfx.W - 94 - G.Measure(when, 20) - 20 - (112 + 6 + 108 + 6 + 100 + 6 + 80 + 12);
         var rr = new Rectangle(x + 10, 6, Math.Clamp(right - x - 10, 200, 330), 36);
         if (p.Researching != null)
         {
             var t = c.Tech[p.Researching];
             double sci = Math.Max(1, y.Science);
             int turns = (int)Math.Ceiling(Math.Max(0, t.Cost - p.ResearchProgress) / sci);
-            if (G.IconButton(rr, Icon("ICON_" + t.Type), $"{c.Name(t.Type)} · {turns} turn{(turns == 1 ? "" : "s")}", null, tip: "Research. Click to change."))
+            if (G.IconButton(rr, TechIcon(t.Type), $"{c.Name(t.Type)} · {turns} turn{(turns == 1 ? "" : "s")}", null, tip: "Research. Click to change."))
                 _overlay1 = "research";
             Raylib.DrawRectangle((int)rr.X + 40, (int)(rr.Y + rr.Height - 6), (int)((rr.Width - 46) * Math.Min(1, p.ResearchProgress / t.Cost)), 3, Gfx.Rgb(80, 170, 240));
         }
         else if (G.Button(rr, "Choose research", size: 18)) _overlay1 = "research";
         x = rr.X + rr.Width + 12;
-        if (G.Button(new Rectangle(x, 6, 120, 36), "Space Race", size: 17, selected: _overlay1 == "race", tip: "Every civilization's progress, and war and peace.")) _overlay1 = _overlay1 == "race" ? "" : "race";
-        if (G.Button(new Rectangle(x + 126, 6, 110, 36), "Wonders", size: 17, selected: _overlay1 == "wonders")) _overlay1 = _overlay1 == "wonders" ? "" : "wonders";
-        if (G.Button(new Rectangle(x + 242, 6, 86, 36), "Yields", size: 17, selected: _yieldLens, tip: "Show every tile's food, production, gold and science (Y).")) _yieldLens = !_yieldLens;
+        if (G.Button(new Rectangle(x, 6, 112, 36), "Space Race", size: 16, selected: _overlay1 == "race", tip: "Every civilization's progress toward the stars.")) _overlay1 = _overlay1 == "race" ? "" : "race";
+        bool newsDip = s.Majors.Any(o => !o.IsPlayer && s.HasMet(p.Id, o.Id) && !p.Envoys.ContainsKey(o.Id) && o.Alive);
+        if (G.Button(new Rectangle(x + 118, 6, 108, 36), newsDip ? "Diplomacy !" : "Diplomacy", size: 16, selected: _overlay1 == "diplomacy", tip: "Civilizations you have met: envoys, trade, alliances, war and peace.")) _overlay1 = _overlay1 == "diplomacy" ? "" : "diplomacy";
+        if (G.Button(new Rectangle(x + 232, 6, 100, 36), "Wonders", size: 16, selected: _overlay1 == "wonders")) _overlay1 = _overlay1 == "wonders" ? "" : "wonders";
+        if (G.Button(new Rectangle(x + 338, 6, 80, 36), "Yields", size: 16, selected: _yieldLens, tip: "Show every tile's food, production, gold and science (Y).")) _yieldLens = !_yieldLens;
         G.TextRight(when, Gfx.W - 94, 14, 20, Gfx.Gold);
         if (G.Button(new Rectangle(Gfx.W - 80, 6, 70, 36), "Menu", size: 17, tip: "Save, quit, or go back to the title (Esc)")) _overlay1 = _overlay1 == "menu" ? "" : "menu";
     }
@@ -534,6 +528,8 @@ public sealed partial class App
     }
 
     // ---------------------------------------------------------------- city
+
+    Texture2D? TechIcon(string type) => type.StartsWith("tech_") ? St("st_" + type) : Icon("ICON_" + type);
 
     Texture2D? BuildIcon(string id) => id == Act1.Settler ? Icon("ICON_UNIT_SETTLER") : Military.IsUnit(id) ? UnitPortrait(id) : Icon("ICON_" + id);
 
@@ -681,7 +677,7 @@ public sealed partial class App
         var p = s.Player;
         var r = Overlay("Research");
         double sci = Math.Max(1, Act1.CivYields(s, c, p).Science);
-        G.Text($"{p.Techs.Count} of {c.Techs.Count} technologies known · {Gfx.Num(sci)} science a turn. Rocketry and Satellites lead to the Moon Landing.", r.X + 24, r.Y + 58, 17, Gfx.Muted);
+        G.Text($"{p.Techs.Count} of {c.Techs.Count} technologies known · {Gfx.Num(sci)} science a turn. the Moon Landing needs Satellites and the core pre-FTL research (marked).", r.X + 24, r.Y + 58, 17, Gfx.Muted);
         var options = Act1.Researchable(c, p).OrderBy(t => t.Cost).ToList();
         float cw = (r.Width - 60) / 3, ch = 118, x0 = r.X + 22, y0 = r.Y + 92;
         var area = new Rectangle(r.X + 10, y0, r.Width - 20, r.Height - (y0 - r.Y) - 12);
@@ -698,7 +694,9 @@ public sealed partial class App
             var legacy = Defs.TechLegacy.FirstOrDefault(l => l.CivTech == t.Type);
             string tip = c.Text("LOC_" + t.Type + "_DESCRIPTION", "") is { Length: > 0 } d && !d.StartsWith("LOC_") ? d : "";
             if (legacy != null) tip = (tip.Length > 0 ? tip + "\n\n" : "") + $"Space Age legacy: {legacy.Title}. In Stellaris: {Defs.Modifier[legacy.Modifier].EffectText}.";
-            if (G.IconButton(new Rectangle(cell.X, cell.Y, cell.Width, 62), Icon("ICON_" + t.Type), c.Name(t.Type), $"{turns} turn{(turns == 1 ? "" : "s")} · {c.Text("LOC_" + t.Era + "_NAME")}",
+            string eraText = t.PreFtl ? (Defs.PreftlTech[t.Type].Core ? "Pre-FTL · needed for the Moon Landing" : "Pre-FTL · a head start in space") : c.Text("LOC_" + t.Era + "_NAME");
+            if (t.PreFtl && tip.Length == 0) tip = $"Stellaris's pre-FTL research. In Act 2 you start with it: {string.Join(", ", Defs.Act2Tech[t.Type].Modifiers.Select(m => Defs.Modifier[m].EffectText).DefaultIfEmpty(Defs.Act2Tech[t.Type].Unlocks != "none" ? "unlocks a ship" : "groundwork"))}.";
+            if (G.IconButton(new Rectangle(cell.X, cell.Y, cell.Width, 62), TechIcon(t.Type), c.Name(t.Type), $"{turns} turn{(turns == 1 ? "" : "s")} · {eraText}",
                     selected: sel, tip: tip.Length > 0 ? tip : null) && (G.Hover(area) || G.ScriptActive))
             {
                 Act1.SetResearch(c, p, t.Type);
@@ -721,13 +719,15 @@ public sealed partial class App
         G.Text("Civilization", r.X + 120, y, 17, Gfx.Gold); G.Text("Era", r.X + 520, y, 17, Gfx.Gold); G.Text("Techs", r.X + 700, y, 17, Gfx.Gold);
         G.Text("Satellite", r.X + 740, y, 17, Gfx.Gold); G.Text("Moon Landing", r.X + 840, y, 17, Gfx.Gold); G.Text("Army", r.X + 640, y, 17, Gfx.Gold);
         y += 30;
-        foreach (var civ in s.Civs.OrderByDescending(x => x.Alive).ThenByDescending(x => x.MoonTurn > 0).ThenBy(x => x.MoonTurn).ThenByDescending(x => x.Techs.Count))
+        foreach (var civ in s.Majors.OrderByDescending(x => x.Alive).ThenByDescending(x => x.MoonTurn > 0).ThenBy(x => x.MoonTurn).ThenByDescending(x => x.Techs.Count))
         {
             Gfx.DrawFit(CivIcon(civ.Leader), new Rectangle(r.X + 40, y, 64, 64), Color.White);
             G.Text(Act1.CivName(c, civ) + (civ.IsPlayer ? " (you)" : ""), r.X + 120, y + 8, 20, civ.IsPlayer ? Gfx.Gold : Gfx.Ink);
             G.Text(Act1.LeaderName(c, civ), r.X + 120, y + 36, 16, Gfx.Muted);
             G.Text(c.Text("LOC_" + Content.EraOf(Act1.EraIndex(c, civ)) + "_NAME"), r.X + 520, y + 20, 18, Gfx.Ink);
-            G.Text($"{civ.Techs.Count}", r.X + 700, y + 20, 18, Gfx.Ink);
+            int core = Defs.PreftlTechs.Count(t => t.Core), coreHave = Defs.PreftlTechs.Count(t => t.Core && civ.Techs.Contains(t.Id));
+            G.Text($"{civ.Techs.Count}", r.X + 700, y + 10, 18, Gfx.Ink);
+            G.Text($"pre-FTL {coreHave}/{core}", r.X + 700, y + 34, 13, coreHave == core ? Gfx.Good : Gfx.Muted);
             G.Text(civ.SatelliteDone ? "Launched" : "—", r.X + 740, y + 20, 18, civ.SatelliteDone ? Gfx.Good : Gfx.Muted);
             int rank = s.SpaceOrder.IndexOf(civ.Id) + 1;
             G.Text(rank > 0 ? $"#{rank} (turn {civ.MoonTurn})" : civ.Alive ? "—" : "Destroyed", r.X + 840, y + 20, 18, rank == 1 ? Gfx.Gold : rank > 0 ? Gfx.Good : civ.Alive ? Gfx.Muted : Gfx.Bad);

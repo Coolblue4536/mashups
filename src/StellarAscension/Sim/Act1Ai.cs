@@ -11,7 +11,8 @@ public static partial class Act1Ai
     {
         if (_spacePath != null) return _spacePath;
         var set = new HashSet<string>();
-        var stack = new Stack<string>(Defs.Projects.Select(p => p.RequiresTech).Concat(Defs.Buildings.Where(b => b.Id == "DISTRICT_SPACEPORT").Select(b => b.RequiresTech)));
+        var stack = new Stack<string>(Defs.Projects.Select(p => p.RequiresTech).Concat(Defs.Buildings.Where(b => b.Id == "DISTRICT_SPACEPORT").Select(b => b.RequiresTech))
+            .Concat(Defs.PreftlTechs.Where(t => t.Core).Select(t => t.Id)));
         while (stack.Count > 0)
         {
             var t = stack.Pop();
@@ -44,6 +45,7 @@ public static partial class Act1Ai
     {
         if (civ.Researching == null) ChooseResearch(s, content, civ);
         Units(s, content, civ);
+        foreach (var b in s.UnitsOf(civ.Id).Where(Military.IsCivilian).ToList()) Builders.Automate(s, content, b);
         foreach (var city in s.CitiesOf(civ.Id).ToList())
         {
             if (city.Build != null && Act1.CantBuild(s, content, city, city.Build) == null) continue;
@@ -91,6 +93,11 @@ public static partial class Act1Ai
             {
                 case "unit" when id == Act1.Settler:
                     if (wantSettlers && city.Pop >= (city.Capital ? 2 : 3)) scored.Add((id, 2.2 / Math.Sqrt(cost)));
+                    break;
+                case "unit" when id == "UNIT_BUILDER":
+                    int builders = s.UnitsOf(civ.Id).Count(Military.IsCivilian) + cities.Count(c => c.Build == id);
+                    int unimproved = cities.Sum(c => Act1.WorkTiles(s, c).Count(t => s.At(t.x, t.y).Improvement == null && Builders.Options(s, content, civ, t.x, t.y).Any()));
+                    if (builders < Math.Min(1 + cities.Count / 2, unimproved / 2 + (unimproved > 0 ? 1 : 0))) scored.Add((id, 2.4 / Math.Sqrt(cost)));
                     break;
                 case "unit":
                     if (id == BestUnit(s, content, civ, city) && UnitScore(s, content, civ, city, id) is var us and > 0) scored.Add((id, us));

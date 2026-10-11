@@ -27,7 +27,7 @@ public static class SelfTest
 
         // ---- readers
         Check(content.Civs.Count >= 18, $"Civ VI civilizations read ({content.Civs.Count})");
-        Check(content.Techs.Count == 68, $"Civ VI base tech tree read ({content.Techs.Count} techs)");
+        Check(content.Techs.Count(t => !t.PreFtl) == 68 && content.Techs.Count(t => t.PreFtl) == Defs.PreftlTechs.Length, $"Civ VI base tech tree read ({content.Techs.Count(t => !t.PreFtl)} techs) plus {Defs.PreftlTechs.Length} pre-FTL");
         Check(civ6.Icon("ICON_TECH_ROCKETRY") is { W: > 64 }, "Civ VI tech icon decoded from Icons.blp");
         Check(civ6.Icon("ICON_BUILDING_PYRAMIDS") is { W: > 64 }, "Civ VI wonder icon decoded");
         Check(civ6.LeaderPicture("LEADER_TRAJAN") is { H: > 500 }, "Civ VI leader picture decoded");
@@ -44,16 +44,20 @@ public static class SelfTest
         var civ = content.Civs.First(c => c.Leader == "LEADER_TRAJAN");
         var setup = new GameSetup { Civ = civ.Type, Leader = civ.Leader, MapSize = "small", Rivals = 3, Seed = 777, SpaceRace = "standard" };
         var a1 = Act1.NewGame(setup, content);
-        Check(a1.Civs.Count == 4 && a1.Cities.Count == 4, "new game: player and 3 rivals, each with a capital");
+        Check(a1.Majors.Count() == 4 && a1.Cities.Count == 4 && a1.Tribe != null, "new game: player and 3 rivals, each with a capital, and the tribes");
         Check(a1.Tiles.Count(t => t.Natural != null) == Defs.MapSize["small"].NaturalWonders, "natural wonders placed");
         Check(a1.Tiles.Any(t => t.Revealed) && a1.Tiles.Any(t => !t.Revealed), "fog of war: some land seen, some not");
-        Check(content.Units.Count == Defs.Units.Length && content.Units.All(u => u.Combat > 0), $"Civ VI unit roster read ({content.Units.Count} units)");
+        Check(content.Units.Count == Defs.Units.Length && content.Units.All(u => u.Line == "civilian" || u.Combat > 0), $"Civ VI unit roster read ({content.Units.Count} units, Builder included)");
         Check(civ6.Icon("ICON_UNIT_WARRIOR_WHITE") != null && civ6.Icon("ICON_UNIT_TANK_PORTRAIT") != null && civ6.Icon("ICON_RESOURCE_IRON") != null, "unit flags, unit portraits and resource icons decoded");
-        Check(a1.Civs.All(cv => a1.UnitsOf(cv.Id).Count() == 1), "every civ starts with a Warrior");
+        Check(a1.Majors.All(cv => a1.UnitsOf(cv.Id).Count() == 1), "every civ starts with a Warrior");
         Check(a1.Tiles.Count(t => t.Resource != null) > a1.Tiles.Length / 20, $"resources on the map ({a1.Tiles.Count(t => t.Resource != null)})");
-        Check(a1.Civs.All(cv => a1.CitiesOf(cv.Id).First() is var cp && Hex.Within(cp.X, cp.Y, 4, a1.W, a1.H).Any(t => a1.At(t.x, t.y).Resource == "RESOURCE_IRON")
+        Check(a1.Majors.All(cv => a1.CitiesOf(cv.Id).First() is var cp && Hex.Within(cp.X, cp.Y, 4, a1.W, a1.H).Any(t => a1.At(t.x, t.y).Resource == "RESOURCE_IRON")
                                 && Hex.Within(cp.X, cp.Y, 3, a1.W, a1.H).Any(t => a1.At(t.x, t.y).Resource == "RESOURCE_HORSES")), "Horses and Iron near every start");
         Check(UnitRules(content), "units: movement, combat, capturing a city, upgrades, peace");
+        Check(a1.Tiles.Any(t => t.Camp) && a1.Tiles.Any(t => t.Village), "tribal camps and villages in the wilds");
+        Check(a1.Tiles.Count(t => t.Exotic != null) >= 2, $"exotic sites on the map ({string.Join(", ", a1.Tiles.Where(t => t.Exotic != null).Select(t => t.Exotic))})");
+        Check(a1.Majors.All(cv => Defs.CivTrait.ContainsKey(cv.Trait)), "every civilization has its trait");
+        Check(NewSystems(content), "builders, tribes, diplomacy, engagements, pre-FTL research");
         while (a1.Outcome == "" && a1.Turn < 120) { Act1Ai.TakeTurn(a1, content, a1.Player); Act1Ai.PlaceSettlers(a1, content, a1.Player); Act1.EndTurn(a1, content); }
         Check(a1.Tiles.Any(t => t.Built?.StartsWith("district:") == true), "districts stand on their own tiles");
         Check(RoundTrip(new SaveGame { Act1 = a1 }), "Act 1 save and load give the same game");
@@ -63,7 +67,7 @@ public static class SelfTest
 
         // ---- handoff and galaxy
         var a2 = Handoff.FromAct1(a1, content);
-        Check(a2.Empires.Count(e => e.Kind == "civ") == a1.Civs.Count(cv => cv.Alive) && a2.Empires.Any(e => e.Kind == "alien"), "every surviving civ becomes an empire, plus Stellaris aliens");
+        Check(a2.Empires.Count(e => e.Kind == "civ") == a1.Majors.Count(cv => cv.Alive) && a2.Empires.Any(e => e.Kind == "alien"), "every surviving civ becomes an empire, plus Stellaris aliens");
         Check(a2.Empires.Count(e => e.Kind == "alien") == Defs.MapSize["small"].Aliens, "the map size's number of alien empires");
         Check(a2.Systems.Count(x => x.Home) == a2.Empires.Count, "one home system per empire");
         Check(Handoff.Bfs(a2, 0).Count == a2.Systems.Count, "every system is reachable by hyperlane");
@@ -80,6 +84,11 @@ public static class SelfTest
         var legacy = Defs.TechLegacy.Count(l => a1.Player.Techs.Contains(l.CivTech));
         Check(a2.Player.Modifiers.Count(m => m.StartsWith("sa_legacy")) == legacy, "researched legacy techs become starting bonuses");
 
+        Check(a2.Player.Techs.Contains("tech_space_exploration") && a2.Player.Techs.Contains("tech_corvettes"), "pre-FTL research carries into space");
+        Check(a2.Empires.Where(e => e.Kind == "alien").All(e => Defs.Act2Techs.Where(t => t.Tier == 0).All(t => e.Techs.Contains(t.Id))), "native species know every pre-FTL technology");
+        Check(a2.Systems.SelectMany(x => x.Planets).Count(p => p.Exotic != null) == (int)Rules.ExoticsAct2, "exotic worlds in the galaxy");
+        Check(a2.Empires.All(e => Defs.CivTrait.ContainsKey(e.Trait)) && a2.Player.Modifiers.Any(m => m.StartsWith("sa_trait")), "traits carry into space");
+        Check(SpaceSystems(a2, content), "space: tech tiers and exotic gates, battles, emergency FTL, contact and communications");
         // ---- Act 2
         var start = Act2.Report(a2, a2.Player);
         Log.Info("Act 2 start income: " + string.Join(", ", start.Income.Select(kv => $"{kv.Key} {kv.Value:+0.0;-0.0}")) + " | jobs: " +
@@ -171,6 +180,112 @@ public static class SelfTest
         s3.Turn += (int)Rules.WarMinTurns + 1;
         Military.MakePeace(s3, content, a, b);
         Need(!s3.AtWar(a.Id, b.Id) && (!s3.Units.Contains(u3) || s3.OwnerAt(u3.X, u3.Y) != b.Id), "peace sends units out of the other's borders");
+        return ok;
+    }
+
+    /// <summary>Builders, the tribes, Act 1 diplomacy, multi-turn fights and pre-FTL research, on fresh maps.</summary>
+    static bool NewSystems(Content content)
+    {
+        bool ok = true;
+        void Need(bool cond, string what) { if (!cond) { Log.Info("   new systems: " + what); ok = false; } }
+        var civ = content.Civs.First(c => c.Leader == "LEADER_TRAJAN");
+        var s = Act1.NewGame(new GameSetup { Civ = civ.Type, Leader = civ.Leader, MapSize = "small", Rivals = 2, Seed = 6060, SpaceRace = "standard" }, content);
+        var me = s.Player;
+        var cap = s.CitiesOf(me.Id).First();
+        // A Builder farms a grassland or plains tile in the borders.
+        var spot = Hex.Within(cap.X, cap.Y, 2, s.W, s.H).FirstOrDefault(t => (t.x != cap.X || t.y != cap.Y) && s.At(t.x, t.y).City == cap.Id
+                     && Builders.CantImprove(s, content, me, t.x, t.y, Defs.Improvement["IMPROVEMENT_FARM"]) == null);
+        var b = Military.Spawn(s, content, me, "UNIT_BUILDER", spot.x, spot.y)!;
+        b.Charges = 3; b.Moves = 2; (b.X, b.Y) = spot;
+        double before = Act1.TileYield(s, spot.x, spot.y).Food;
+        Need(Builders.Improve(s, content, b, "IMPROVEMENT_FARM") && Act1.TileYield(s, spot.x, spot.y).Food == before + 1 && b.Charges == 2, "a Builder's farm adds food and uses a charge");
+        Need(Military.CanEnter(s, b, cap.X, cap.Y, true) || s.MilitaryAt(cap.X, cap.Y) != null, "a Builder can share a tile with a soldier");
+        // Tribes: a camp sends a raider; a unit walking in clears it.
+        var tribe = s.Tribe!;
+        var campIdx = Enumerable.Range(0, s.Tiles.Length).First(i => s.Tiles[i].Camp);
+        int cx = campIdx % s.W, cy = campIdx / s.W;
+        for (int t = 0; t < 40 && !s.UnitsOf(tribe.Id).Any(); t++) { s.Turn++; Tribes.Turn(s, content); }
+        Need(s.UnitsOf(tribe.Id).Any(), "tribal camps send raiders");
+        Need(s.AtWar(me.Id, tribe.Id) && !Diplomacy1.CantSendEnvoy(s, me, tribe)!.Equals(null), "the tribes are at war with everyone and can't be talked to");
+        s.Units.RemoveAll(u => u.Owner == tribe.Id);
+        var w = s.UnitsOf(me.Id).First(u => !Military.IsCivilian(u));
+        double gold = me.Gold;
+        Military.MoveTo(s, w, cx, cy, 0);
+        Need(!s.At(cx, cy).Camp && me.Gold >= gold + Rules.TribeCampGold, "clearing a camp pays gold");
+        // Diplomacy: meet, envoy, trade, alliance.
+        var other = s.Majors.First(x => !x.IsPlayer);
+        Diplomacy1.Meet(s, content, me, other);
+        Need(s.HasMet(me.Id, other.Id) && !s.Relations(me.Id, other.Id) && Diplomacy1.CantDeal(s, me, other) != null, "meeting alone doesn't open trade");
+        me.Gold = 200;
+        Need(Diplomacy1.SendEnvoy(s, me, other) && !s.Relations(me.Id, other.Id), "an envoy takes time to arrive");
+        s.Turn += (int)Rules.Act1EnvoyTurns;
+        Need(s.Relations(me.Id, other.Id), "relations open when the envoy arrives");
+        Need(Diplomacy1.Propose(s, content, me, other, "", "", 5, true, force: true) && s.OpenBorders(other.Id, me.Id) && s.Deals.Any(d => d.Kind == "gold"), "a trade deal (gold a turn, open borders)");
+        s.Alliances.Add(new[] { Math.Min(me.Id, other.Id), Math.Max(me.Id, other.Id) });
+        var third = s.Majors.First(x => !x.IsPlayer && x.Id != other.Id);
+        Military.DeclareWar(s, content, third, me);
+        Need(s.AtWar(third.Id, other.Id), "an ally joins a defensive war");
+        // An engagement lasts until one side withdraws.
+        var a = s.UnitsOf(me.Id).First(u => !Military.IsCivilian(u));
+        var foe = s.UnitsOf(third.Id).First();
+        var nb = Hex.Neighbors(a.X, a.Y, s.W, s.H).First(t => Military.EnterCost(s, third, t.x, t.y) > 0 && s.UnitAt(t.x, t.y) == null && s.CityAt(t.x, t.y) == null);
+        (foe.X, foe.Y) = nb; a.Hp = foe.Hp = 100; a.Moves = 2; a.Attacked = false;
+        foe.Type = a.Type = "UNIT_SPEARMAN";
+        Military.Attack(s, content, a, foe.X, foe.Y);
+        Need(s.Units.Contains(a) && s.Units.Contains(foe) && a.Engaged == foe.Id, "a melee fight both survive goes on");
+        double hpBefore = a.Hp + foe.Hp;
+        Military.NewTurn(s, content);
+        Need(!s.Units.Contains(a) || !s.Units.Contains(foe) || a.Hp + foe.Hp < hpBefore, "the battle goes on next turn");
+        if (s.Units.Contains(a) && s.Units.Contains(foe) && a.Engaged >= 0) { a.Moves = 2; Need(Military.Withdraw(s, content, a) && a.Engaged < 0, "a unit can withdraw from a fight"); }
+        // The Moon Landing needs the core pre-FTL research.
+        foreach (var t in content.Techs.Where(t => !t.PreFtl)) if (!me.Techs.Contains(t.Type)) me.Techs.Add(t.Type);
+        me.SatelliteDone = true;
+        if (!cap.Buildings.Contains("DISTRICT_SPACEPORT")) cap.Buildings.Add("DISTRICT_SPACEPORT");
+        Need(Act1.CantBuild(s, content, cap, "PROJECT_LAUNCH_MOON_LANDING")?.StartsWith("Needs pre-FTL") == true, "no Moon Landing without pre-FTL research");
+        foreach (var t in Defs.PreftlTechs.Where(t => t.Core)) me.Techs.Add(t.Id);
+        Need(Act1.CantBuild(s, content, cap, "PROJECT_LAUNCH_MOON_LANDING") == null, "the Moon Landing opens with the core pre-FTL research");
+        return ok;
+    }
+
+    /// <summary>Act 2: tech tiers and exotic gates, a battle over several months, emergency FTL and coming home, contact and communications.</summary>
+    static bool SpaceSystems(Act2State real, Content content)
+    {
+        bool ok = true;
+        void Need(bool cond, string what) { if (!cond) { Log.Info("   space: " + what); ok = false; } }
+        var s = JsonSerializer.Deserialize<SaveGame>(JsonSerializer.Serialize(new SaveGame { Phase = "act2", Act2 = real }))!.Act2!;
+        var me = s.Player;
+        Need(!Act2.CanResearch(s, me, "tech_zero_point_power") && !Act2.CanResearch(s, me, "tech_mega_engineering"), "top-tier research is out of reach at the start");
+        Need(Defs.Act2Techs.All(t => t.Requires.All(r => Defs.Act2Tech[r].Tier <= t.Tier)), "every technology needs only its own tier or lower");
+        Need(Defs.Act2Techs.GroupBy(t => t.Tier).OrderBy(g => g.Key).Select(g => g.Average(t => t.Cost)).Zip(Defs.Act2Techs.GroupBy(t => t.Tier).OrderBy(g => g.Key).Skip(1).Select(g => g.Average(t => t.Cost))).All(p => p.Second > p.First), "costs rise tier by tier");
+        var exoticTech = Defs.Act2Techs.First(t => t.Feature != "none" && !Exotics.Known(s, me).Contains(t.Feature));
+        foreach (var q in exoticTech.Requires) if (!me.Techs.Contains(q)) me.Techs.Add(q);
+        Need(!Act2.CanResearch(s, me, exoticTech.Id), "an exotic technology needs its site");
+        me.Exotics.Add(exoticTech.Feature);
+        Need(Act2.CanResearch(s, me, exoticTech.Id), "holding the site opens it");
+        // Contact and communications.
+        var other = s.Empires.First(e => !e.IsPlayer && e.Kind == "alien");
+        me.Contacts.Remove(other.Id); other.Contacts.Remove(me.Id); me.Comms.Remove(other.Id); other.Comms.Remove(me.Id);
+        Need(Diplomacy2.CantEstablish(s, me, other) != null, "no envoy without contact");
+        Diplomacy2.Contact(s, me, other);
+        Need(Diplomacy2.Establish(s, me, other) && !s.HasComms(me.Id, other.Id), "an envoy sets out");
+        for (int m = 0; m < Rules.Act2ContactMonths + 1; m++) { s.Month++; Diplomacy2.Month(s, content); }
+        Need(s.HasComms(me.Id, other.Id) && Diplomacy2.CantDeal(s, me, other) == null, "communications established after a year");
+        // A battle over several months, then emergency FTL.
+        var home = s.Sys(me.Capital);
+        var enemy = s.Empires.First(e => !e.IsPlayer && e.Id != other.Id);
+        Act2.DeclareWar(s, me, enemy);
+        var mine = new Fleet { Id = s.NextFleetId++, Owner = me.Id, System = home.Id, Name = "Test Fleet", Ships = new() { ["cruiser"] = 6 } };
+        var theirs = new Fleet { Id = s.NextFleetId++, Owner = enemy.Id, System = home.Id, Name = "Raiders", Ships = new() { ["cruiser"] = 6 } };
+        s.Fleets.Add(mine); s.Fleets.Add(theirs);
+        for (int m = 0; m < 3; m++) Act2.Tick(s, content);
+        var battle = s.Battles.LastOrDefault(b => b.System == home.Id);
+        Need(battle != null && !battle.Over && battle.Months >= 3 && s.Fleets.Contains(mine) && s.Fleets.Contains(theirs), "a battle between equal fleets lasts several months");
+        int shipsBefore = mine.Ships.Values.Sum();
+        Need(Act2.EmergencyFtl(s, content, mine) && mine.MiaMonths > 0 && mine.Ships.Values.Sum() < shipsBefore, "emergency FTL: some ships lost, the fleet goes missing");
+        Need(!s.Active.Contains(mine), "a missing fleet is out of the fight");
+        mine.System = theirs.System = s.Sys(home.Lanes[0]).Id; s.Fleets.Remove(theirs);
+        for (int m = 0; m < Rules.EmergencyFtlMonths + 1; m++) Act2.Tick(s, content);
+        Need(s.Fleets.Contains(mine) && mine.MiaMonths == 0 && mine.System == me.Capital, "it turns up at home later");
         return ok;
     }
 

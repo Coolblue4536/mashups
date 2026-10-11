@@ -34,9 +34,10 @@ public static class Act2Ai
 
     static void Research(Act2State s, Empire e)
     {
-        if (e.Researching != null && Act2.CanResearch(e, e.Researching)) return;
-        var options = Defs.Act2Techs.Where(t => Act2.CanResearch(e, t.Id)).ToList();
-        e.Researching = options.Count == 0 ? null : s.Rng.Weighted(options, t => (t.Unlocks != "none" ? 2.0 : 1.0) / t.Cost).Id;
+        if (e.Researching != null && Act2.CanResearch(s, e, e.Researching)) return;
+        var options = Defs.Act2Techs.Where(t => Act2.CanResearch(s, e, t.Id)).ToList();
+        // Cheaper (lower-tier) work first; ship hulls and exotic technologies are valued more.
+        e.Researching = options.Count == 0 ? null : s.Rng.Weighted(options, t => (t.Unlocks != "none" ? 2.0 : 1.0) * (t.Feature != "none" ? 1.5 : 1.0) / t.Cost).Id;
     }
 
     static void Planets(Act2State s, Empire e, EmpireReport r)
@@ -105,7 +106,7 @@ public static class Act2Ai
 
     static void Civilians(Act2State s, Empire e)
     {
-        foreach (var f in s.Fleets.Where(f => f.Owner == e.Id && !Act2.IsMilitary(f) && f.Order == "" && f.Path.Count == 0).ToList())
+        foreach (var f in s.Active.Where(f => f.Owner == e.Id && !Act2.IsMilitary(f) && f.Order == "" && f.Path.Count == 0).ToList())
         {
             var role = f.Ships.Keys.First();
             var taken = s.Fleets.Where(x => x.Owner == e.Id && x.Order != "").Select(x => (x.Order, x.OrderSystem, x.OrderPlanet)).ToHashSet();
@@ -143,14 +144,14 @@ public static class Act2Ai
     {
         if (s.Wars.Any(w => w.A == e.Id || w.B == e.Id)) return;
         if (s.Month < 36 || !s.Rng.Chance(e.Aggression * 0.06)) return;
-        var target = Neighbors(s, e).Select(o => (o, power: Act2.Report(s, o).FleetPower)).Where(x => r.FleetPower > Math.Max(30, x.power) * Rules.Act2AiWarPowerRatio)
+        var target = Neighbors(s, e).Where(o => s.HasContact(e.Id, o.Id) && !s.Allied(e.Id, o.Id)).Select(o => (o, power: Act2.Report(s, o).FleetPower)).Where(x => r.FleetPower > Math.Max(30, x.power) * Rules.Act2AiWarPowerRatio)
             .OrderBy(x => x.power).FirstOrDefault();
         if (target.o != null) Act2.DeclareWar(s, e, target.o);
     }
 
     static void Military(Act2State s, Empire e)
     {
-        var fleets = s.Fleets.Where(f => f.Owner == e.Id && Act2.IsMilitary(f)).ToList();
+        var fleets = s.Active.Where(f => f.Owner == e.Id && Act2.IsMilitary(f)).ToList();
         // Merge idle fleets that share a system.
         foreach (var g in fleets.Where(f => f.Path.Count == 0).GroupBy(f => f.System).Where(g => g.Count() > 1))
         {
@@ -162,7 +163,7 @@ public static class Act2Ai
                 s.Fleets.Remove(other);
             }
         }
-        fleets = s.Fleets.Where(f => f.Owner == e.Id && Act2.IsMilitary(f)).ToList();
+        fleets = s.Active.Where(f => f.Owner == e.Id && Act2.IsMilitary(f)).ToList();
         var enemies = s.Empires.Where(o => o.Alive && s.AtWar(e.Id, o.Id)).Select(o => o.Id).ToHashSet();
         foreach (var f in fleets.Where(f => f.Path.Count == 0))
         {

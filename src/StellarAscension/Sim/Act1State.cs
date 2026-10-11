@@ -32,6 +32,14 @@ public sealed class Tile
     public bool Revealed { get; set; }
     /// <summary>A Civ VI resource on the tile (RESOURCE_WHEAT...), or null.</summary>
     public string? Resource { get; set; }
+    /// <summary>A Builder's improvement (IMPROVEMENT_FARM...), or null.</summary>
+    public string? Improvement { get; set; }
+    /// <summary>A tribal camp stands here (raiders come from it).</summary>
+    public bool Camp { get; set; }
+    /// <summary>A tribal village (Civ VI's goody hut): the first unit to enter gets a reward.</summary>
+    public bool Village { get; set; }
+    /// <summary>An exotic site (exotic_sites id), or null.</summary>
+    public string? Exotic { get; set; }
 }
 
 /// <summary>An Act 1 land unit on the map.</summary>
@@ -56,6 +64,26 @@ public sealed class UnitState
     public int TargetY { get; set; } = -1;
     /// <summary>Combat experience: every 15 / 45 / 90 makes it a level stronger.</summary>
     public int Xp { get; set; }
+    /// <summary>Builder: improvements it can still make.</summary>
+    public int Charges { get; set; }
+    /// <summary>Locked in a fight with this unit (-1: none); a round is fought each turn until one dies or withdraws.</summary>
+    public int Engaged { get; set; } = -1;
+    public int EngageRounds { get; set; }
+    /// <summary>Tribes: the camp this raider came from.</summary>
+    public int HomeX { get; set; } = -1;
+    public int HomeY { get; set; } = -1;
+}
+
+/// <summary>An Act 1 trade deal: From gives To access to a resource, or gold each turn, or open borders, until Until.</summary>
+public sealed class DealState
+{
+    public int From { get; set; }
+    public int To { get; set; }
+    /// <summary>"resource", "gold" or "borders".</summary>
+    public string Kind { get; set; } = "";
+    public string Resource { get; set; } = "";
+    public int Gold { get; set; }
+    public int Until { get; set; }
 }
 
 public sealed class WarState
@@ -86,6 +114,14 @@ public sealed class CivState
     public int NextCityName { get; set; }
     /// <summary>How readily this AI goes to war (0-1).</summary>
     public double Aggression { get; set; } = 0.5;
+    /// <summary>civ_traits id.</summary>
+    public string Trait { get; set; } = "";
+    /// <summary>The tribes (barbarians): at war with everyone, never in the space race.</summary>
+    public bool IsTribe { get; set; }
+    /// <summary>Civs this one has met.</summary>
+    public List<int> Met { get; set; } = new();
+    /// <summary>Civ id → turn its envoy arrives (relations open from then on).</summary>
+    public Dictionary<int, int> Envoys { get; set; } = new();
 }
 
 public sealed class CityState
@@ -136,6 +172,11 @@ public sealed class Act1State
     public List<UnitState> Units { get; set; } = new();
     public int NextUnitId { get; set; }
     public List<WarState> Wars { get; set; } = new();
+    public List<DealState> Deals { get; set; } = new();
+    /// <summary>Alliances (pairs of civ ids, lower first).</summary>
+    public List<int[]> Alliances { get; set; } = new();
+    /// <summary>Recent fights for the screen (attacker unit, defender unit or city, damage each way, turn).</summary>
+    [JsonIgnore] public List<BattleNote> Battles { get; } = new();
     /// <summary>"" while playing; "space" when the player reached space; "defeat" when a rival won on Ruthless; "conquered" when the player lost every city.</summary>
     public string Outcome { get; set; } = "";
 
@@ -144,10 +185,25 @@ public sealed class Act1State
     public IEnumerable<CityState> CitiesOf(int civ) => Cities.Where(c => c.Owner == civ);
     public CityState? CityAt(int x, int y) => Cities.FirstOrDefault(c => c.X == x && c.Y == y);
     public CityState? City(int id) => Cities.FirstOrDefault(c => c.Id == id);
-    public UnitState? UnitAt(int x, int y) => Units.FirstOrDefault(u => u.X == x && u.Y == y);
+    public UnitState? UnitAt(int x, int y) => MilitaryAt(x, y) ?? CivilianAt(x, y);
     public IEnumerable<UnitState> UnitsOf(int civ) => Units.Where(u => u.Owner == civ);
     public UnitState? Unit(int id) => Units.FirstOrDefault(u => u.Id == id);
-    public bool AtWar(int a, int b) => a != b && Wars.Any(w => w.A == a && w.B == b || w.A == b && w.B == a);
+    public bool AtWar(int a, int b) => a != b && (Civs[a].IsTribe || Civs[b].IsTribe || Wars.Any(w => w.A == a && w.B == b || w.A == b && w.B == a));
+    /// <summary>The civilizations (not the tribes).</summary>
+    [JsonIgnore] public IEnumerable<CivState> Majors => Civs.Where(c => !c.IsTribe);
+    [JsonIgnore] public CivState? Tribe => Civs.FirstOrDefault(c => c.IsTribe);
+    public bool Allied(int a, int b) => Alliances.Any(x => x[0] == Math.Min(a, b) && x[1] == Math.Max(a, b));
+    /// <summary>Relations are open: they have met and a's envoy has arrived (or b's at a).</summary>
+    public bool Relations(int a, int b) => Civs[a].Envoys.TryGetValue(b, out var t) && t <= Turn || Civs[b].Envoys.TryGetValue(a, out var u) && u <= Turn;
+    public bool HasMet(int a, int b) => a == b || Civs[a].Met.Contains(b);
+    public bool OpenBorders(int owner, int visitor) => Deals.Any(d => d.Kind == "borders" && d.From == owner && d.To == visitor && d.Until >= Turn) || Allied(owner, visitor);
+    /// <summary>The military unit on a tile (one per tile), else a civilian (Builder).</summary>
+    public UnitState? CivilianAt(int x, int y) => Units.FirstOrDefault(u => u.X == x && u.Y == y && u.Type == "UNIT_BUILDER");
+    public UnitState? MilitaryAt(int x, int y) => Units.FirstOrDefault(u => u.X == x && u.Y == y && u.Type != "UNIT_BUILDER");
     /// <summary>The civ owning a tile's territory, or -1.</summary>
     public int OwnerAt(int x, int y) => At(x, y).City is var c and >= 0 && City(c) is { } city ? city.Owner : -1;
 }
+
+/// <summary>One fight, for the battle panel and the floating numbers on the map.</summary>
+public sealed record BattleNote(int Turn, int AttackerCiv, string AttackerType, int DefenderCiv, string DefenderType, string DefenderName,
+    double ToDefender, double ToAttacker, double AttackerHp, double DefenderHp, bool Killed, bool Captured, int X, int Y, int FromX, int FromY, string Text);

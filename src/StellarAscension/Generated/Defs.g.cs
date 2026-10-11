@@ -135,6 +135,46 @@ public static class Rules
     public const double WarMinTurns = 10.0;
     /// <summary>Share of tiles with a Civ VI resource (bonus, luxury or strategic).</summary>
     public const double MapResourceDensity = 0.16;
+    /// <summary>Improvements a Builder can make before it is used up (Civ VI).</summary>
+    public const double BuilderCharges = 3.0;
+    /// <summary>Tribal (barbarian) camps placed per 100 land tiles at the start.</summary>
+    public const double TribeCampsPer100Land = 1.6;
+    /// <summary>A camp sends out a raider every this many turns (at most two each).</summary>
+    public const double TribeSpawnTurns = 9.0;
+    /// <summary>Gold for clearing a tribal camp.</summary>
+    public const double TribeCampGold = 50.0;
+    /// <summary>Tribal villages (Civ VI goody huts) per 100 land tiles: entering one gives a reward.</summary>
+    public const double TribeVillagesPer100Land = 2.2;
+    /// <summary>Camps stop sending raiders once the most advanced civ reaches this era (0 = Ancient).</summary>
+    public const double TribeLastEra = 5.0;
+    /// <summary>Turns for an Act 1 envoy to reach a civ and open relations.</summary>
+    public const double Act1EnvoyTurns = 3.0;
+    /// <summary>Gold an Act 1 envoy costs.</summary>
+    public const double Act1EnvoyGold = 25.0;
+    /// <summary>Two civs meet when one's units or borders come within this many tiles of the other's.</summary>
+    public const double Act1MeetRange = 3.0;
+    /// <summary>How long an Act 1 trade deal runs.</summary>
+    public const double Act1TradeTurns = 30.0;
+    /// <summary>An Act 1 melee fight where both survive goes on for up to this many more turns (one round a turn) unless a side withdraws.</summary>
+    public const double Act1EngageRounds = 4.0;
+    /// <summary>A unit that withdraws from a fight takes this share of a normal round's damage.</summary>
+    public const double WithdrawHit = 0.5;
+    /// <summary>Envoys every empire has in Act 2 (Stellaris).</summary>
+    public const double Act2Envoys = 2.0;
+    /// <summary>Months an Act 2 envoy needs to establish communications with a new empire or species.</summary>
+    public const double Act2ContactMonths = 12.0;
+    /// <summary>How long an Act 2 trade deal runs.</summary>
+    public const double Act2TradeYears = 10.0;
+    /// <summary>Share of a fleet's power dealt as hull damage each month in an Act 2 battle (so battles run over several turns).</summary>
+    public const double Act2BattleDamage = 0.45;
+    /// <summary>Months a fleet that jumps out with emergency FTL is missing before it reappears at its home system.</summary>
+    public const double EmergencyFtlMonths = 18.0;
+    /// <summary>Share of its ships (rounded down, at least one if any) a fleet loses in an emergency FTL jump.</summary>
+    public const double EmergencyFtlLoss = 0.25;
+    /// <summary>Act 1: an exotic site gives its empire-wide bonus once at least this many of its six neighbouring tiles are inside your borders too.</summary>
+    public const double ExoticRingNeeded = 3.0;
+    /// <summary>Exotic planets placed in each Act 2 galaxy (a random few from the pool).</summary>
+    public const double ExoticsAct2 = 4.0;
 }
 
 /// <summary>How hard losing the race to space hits you. Chosen on the setup screen.</summary>
@@ -173,14 +213,26 @@ public sealed record ProjectDef(string Id, string RequiresTech, string RequiresB
 /// <summary>Act 1 land units, stone age to space age. Strength, cost, moves, upkeep, tech, resource and upgrade are read from the player's Civ VI (Units, UnitUpgrades); the numbers here are the base game's, used only if the install lacks a value. 'line' sets the role the AI gives it and what it upgrades along.</summary>
 public sealed record UnitDef(string Id, string Line, int Combat, int Ranged, int Range, int Moves, int Cost, int Maintenance, string PrereqTech, string Resource, string Upgrade, bool Siege);
 
+/// <summary>Act 1 tile improvements a Builder makes (Civ VI's: name, icon and picture from the install). A tile takes one improvement. terrains/features: where it can go; resources: resources it works (any terrain). A tile with woods, rainforest or marsh only takes improvements that list that feature or work its resource.</summary>
+public sealed record ImprovementDef(string Id, string NameLoc, string Icon, string PrereqTech, int Food, int Production, int Gold, int Science, string[] Terrains, string[] Features, string[] Resources, string Sprite);
+
+/// <summary>Each civilization's trait, helping in both acts. Its title in game is the civilization's own Civ VI ability name (from the install); these are the effects. Act 1: % to city yields, unit strength and costs, Builder charges, opinion with other civs. Act 2: modifiers.</summary>
+public sealed record CivTraitDef(string Id, string Name, int FoodPct, int ProductionPct, int GoldPct, int SciencePct, int WonderPct, int UnitStrength, int UnitCostPct, int SettlerCostPct, int BuilderCharges, int Opinion, bool EmbarkEarly, string[] Act2Modifiers, string Desc);
+
+/// <summary>Which trait each civilization has (civilizations not listed get one picked from their name).</summary>
+public sealed record CivTraitMapDef(string Id, string Trait);
+
+/// <summary>Out-of-this-world sites (Stellaris's deposits), a few per game. Act 1: on the map like natural wonders; the tile yields these and, held with some neighbouring tiles, gives act1_stat empire-wide; holding it at the handoff lets that empire research unlock_tech. Act 2: a few planets carry one; holding the system gives act2_modifier and lets you research unlock_tech.</summary>
+public sealed record ExoticSiteDef(string Id, string Name, string Art, string Icon, bool Land, int Food, int Production, int Gold, int Science, string Act1Stat, int Act1Value, string Act2Modifier, string UnlockTech, string Desc);
+
+/// <summary>Act 1's pre-FTL research (Stellaris's starting technologies): researched like Civ VI techs once their prerequisites are known. 'core' ones are needed for the Moon Landing; every one you have becomes a known technology in Act 2 (the rest can be researched there).</summary>
+public sealed record PreftlTechDef(string Id, string Area, string[] Requires, int Cost, bool Core);
+
 /// <summary>Civ VI techs that carry a Space Age legacy: each one you research gives its modifier at the start of Act 2. The tech's tooltip names it.</summary>
 public sealed record TechLegacyDef(string CivTech, string Title, string Modifier);
 
 /// <summary>Act 1 calendar: the year follows the most advanced civilization's progress through Civ VI's eras, so the space age arrives in the 20th century however fast the game goes. city_sprite: how cities look in that era (Civ VI strategic view; {v} is Visible or Revealed).</summary>
 public sealed record EraDef(string Id, int StartYear, string CitySprite);
-
-/// <summary>What a city's worked tiles show (Civ VI strategic-view improvements; looks only, no effect). on: flat (grass, plains, desert, tundra), hills, water, or a feature id.</summary>
-public sealed record ImprovementDef(string Id, string On, string Sprite);
 
 /// <summary>Act 2 resources (Stellaris's). Research is one pool here.</summary>
 public sealed record ResourceDef(string Id, string NameLoc, string Name, string Art, int Start, string Desc);
@@ -200,8 +252,8 @@ public sealed record PlanetBuildingDef(string Id, string NameLoc, string Require
 /// <summary>Act 2 ships (Stellaris's hulls). Power is combat damage per month; hull is how much damage it takes; speed is hyperlane distance per month.</summary>
 public sealed record ShipDef(string Id, string NameLoc, string Role, int CostAlloys, int CostMinerals, int CostFood, int BuildMonths, int Power, int Hull, int Speed, int NavalCap, int UpkeepEnergy, string RequiresTech, string Art);
 
-/// <summary>Act 2 technologies (Stellaris's names and icons). Each gives a modifier or unlocks a ship or building.</summary>
-public sealed record Act2TechDef(string Id, string NameLoc, int Cost, string Requires, string Modifier, string Unlocks, string Art);
+/// <summary>Act 2 technologies in Stellaris's tiers (0 = what a civilization knows when it reaches space). A technology needs every one listed in requires; feature: an exotic site whose holder (from Act 1, or in Act 2) may research it. Costs rise with tier and with how strong the effect is.</summary>
+public sealed record Act2TechDef(string Id, string NameLoc, int Tier, string Area, int Cost, string[] Requires, string[] Modifiers, string Unlocks, string Feature, string Art);
 
 /// <summary>Act 2 galaxy size: star systems per empire (every empire gets one identical spiral arm of this many systems).</summary>
 public sealed record GalaxySizeDef(string Id, string Name, int SystemsPerEmpire, string Desc);
@@ -382,6 +434,7 @@ public static partial class Defs
 
     public static readonly UnitDef[] Units =
     {
+        new("UNIT_BUILDER", "civilian", 0, 0, 0, 2, 50, 0, "none", "none", "none", false),
         new("UNIT_SCOUT", "recon", 10, 0, 0, 3, 30, 0, "none", "none", "UNIT_RANGER", false),
         new("UNIT_RANGER", "recon", 45, 60, 1, 3, 380, 5, "TECH_RIFLING", "none", "none", false),
         new("UNIT_WARRIOR", "melee", 20, 0, 0, 2, 40, 0, "none", "none", "UNIT_SWORDSMAN", false),
@@ -412,6 +465,130 @@ public static partial class Defs
         new("UNIT_ROCKET_ARTILLERY", "siege", 70, 100, 3, 3, 680, 8, "TECH_GUIDANCE_SYSTEMS", "none", "none", true),
     };
     public static readonly System.Collections.Generic.Dictionary<string, UnitDef> Unit = System.Linq.Enumerable.ToDictionary(Units, d => d.Id);
+
+    public static readonly ImprovementDef[] Improvements =
+    {
+        new("IMPROVEMENT_FARM", "LOC_IMPROVEMENT_FARM_NAME", "ICON_IMPROVEMENT_FARM", "none", 1, 0, 0, 0, new[] { "TERRAIN_GRASS", "TERRAIN_PLAINS", "TERRAIN_GRASS_HILLS", "TERRAIN_PLAINS_HILLS" }, new[] { "FEATURE_FLOODPLAINS" }, new[] { "RESOURCE_WHEAT", "RESOURCE_RICE" }, "Improvements_Farm_Visible"),
+        new("IMPROVEMENT_MINE", "LOC_IMPROVEMENT_MINE_NAME", "ICON_IMPROVEMENT_MINE", "TECH_MINING", 0, 1, 0, 0, new[] { "TERRAIN_GRASS_HILLS", "TERRAIN_PLAINS_HILLS", "TERRAIN_DESERT_HILLS", "TERRAIN_TUNDRA_HILLS", "TERRAIN_SNOW_HILLS" }, System.Array.Empty<string>(), new[] { "RESOURCE_COPPER", "RESOURCE_DIAMONDS", "RESOURCE_JADE", "RESOURCE_MERCURY", "RESOURCE_SALT", "RESOURCE_SILVER", "RESOURCE_ALUMINUM", "RESOURCE_COAL", "RESOURCE_IRON", "RESOURCE_NITER", "RESOURCE_URANIUM" }, "Improvements_Mine_Visible"),
+        new("IMPROVEMENT_QUARRY", "LOC_IMPROVEMENT_QUARRY_NAME", "ICON_IMPROVEMENT_QUARRY", "TECH_MINING", 0, 1, 0, 0, System.Array.Empty<string>(), System.Array.Empty<string>(), new[] { "RESOURCE_STONE", "RESOURCE_MARBLE", "RESOURCE_GYPSUM" }, "Improvement_Quarry_Visible"),
+        new("IMPROVEMENT_PLANTATION", "LOC_IMPROVEMENT_PLANTATION_NAME", "ICON_IMPROVEMENT_PLANTATION", "TECH_IRRIGATION", 0, 0, 2, 0, System.Array.Empty<string>(), System.Array.Empty<string>(), new[] { "RESOURCE_BANANAS", "RESOURCE_CITRUS", "RESOURCE_COCOA", "RESOURCE_COFFEE", "RESOURCE_COTTON", "RESOURCE_DYES", "RESOURCE_INCENSE", "RESOURCE_SILK", "RESOURCE_SPICES", "RESOURCE_SUGAR", "RESOURCE_TEA", "RESOURCE_TOBACCO", "RESOURCE_WINE" }, "Improvement_Plantation_Visible"),
+        new("IMPROVEMENT_PASTURE", "LOC_IMPROVEMENT_PASTURE_NAME", "ICON_IMPROVEMENT_PASTURE", "TECH_ANIMAL_HUSBANDRY", 0, 1, 0, 0, System.Array.Empty<string>(), System.Array.Empty<string>(), new[] { "RESOURCE_CATTLE", "RESOURCE_SHEEP", "RESOURCE_HORSES" }, "Improvement_Pasture_Visible"),
+        new("IMPROVEMENT_CAMP", "LOC_IMPROVEMENT_CAMP_NAME", "ICON_IMPROVEMENT_CAMP", "TECH_ANIMAL_HUSBANDRY", 0, 0, 1, 0, System.Array.Empty<string>(), System.Array.Empty<string>(), new[] { "RESOURCE_DEER", "RESOURCE_FURS", "RESOURCE_IVORY", "RESOURCE_TRUFFLES" }, "Improvements_Camp_Visible"),
+        new("IMPROVEMENT_FISHING_BOATS", "LOC_IMPROVEMENT_FISHING_BOATS_NAME", "ICON_IMPROVEMENT_FISHING_BOATS", "TECH_SAILING", 1, 0, 0, 0, System.Array.Empty<string>(), System.Array.Empty<string>(), new[] { "RESOURCE_CRABS", "RESOURCE_FISH", "RESOURCE_PEARLS", "RESOURCE_WHALES" }, "Improvements_FishingBoats_Visible"),
+        new("IMPROVEMENT_LUMBER_MILL", "LOC_IMPROVEMENT_LUMBER_MILL_NAME", "ICON_IMPROVEMENT_LUMBER_MILL", "TECH_MACHINERY", 0, 2, 0, 0, System.Array.Empty<string>(), new[] { "FEATURE_FOREST" }, System.Array.Empty<string>(), "Improvement_Lumbermill_Visible"),
+        new("IMPROVEMENT_OIL_WELL", "LOC_IMPROVEMENT_OIL_WELL_NAME", "ICON_IMPROVEMENT_OIL_WELL", "TECH_STEEL", 0, 2, 0, 0, System.Array.Empty<string>(), System.Array.Empty<string>(), new[] { "RESOURCE_OIL" }, "Improvements_Mine_Visible"),
+    };
+    public static readonly System.Collections.Generic.Dictionary<string, ImprovementDef> Improvement = System.Linq.Enumerable.ToDictionary(Improvements, d => d.Id);
+
+    public static readonly CivTraitDef[] CivTraits =
+    {
+        new("scientific", "Scholars", 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, false, new[] { "sa_trait_research" }, "+10% science; in space +10% research."),
+        new("industrious", "Industrious", 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, false, new[] { "sa_trait_minerals" }, "+10% production; in space +10% minerals."),
+        new("militaristic", "Warlike", 0, 0, 0, 0, 0, 3, -15, 0, 0, -5, false, new[] { "sa_trait_damage" }, "Units +3 strength and 15% cheaper; in space +10% ship damage."),
+        new("expansionist", "Expansionist", 5, 0, 0, 0, 0, 0, 0, -25, 0, 0, false, new[] { "sa_trait_growth", "sa_trait_survey" }, "Settlers 25% cheaper, +5% food; in space +15% pop growth and +25% survey speed."),
+        new("mercantile", "Mercantile", 0, 0, 20, 0, 0, 0, 0, 0, 0, 5, false, new[] { "sa_trait_energy", "sa_trait_trade" }, "+20% gold; in space +10% energy and better trade deals."),
+        new("agrarian", "Agrarian", 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, new[] { "sa_trait_food" }, "+15% food; in space +15% food."),
+        new("seafaring", "Seafarers", 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, true, new[] { "sa_trait_speed", "sa_trait_naval" }, "Units embark from the start, +5% gold; in space +15% ship speed and +4 naval capacity."),
+        new("diplomatic", "Diplomats", 0, 0, 5, 0, 0, 0, 0, 0, 0, 20, false, new[] { "sa_trait_unity", "sa_trait_envoy" }, "Others like you more (+20 opinion), +5% gold; in space +10% unity and one more envoy."),
+        new("builders", "Master Builders", 0, 5, 0, 0, 15, 0, 0, 0, 1, 0, false, new[] { "sa_trait_build" }, "+15% toward wonders, +5% production, Builders get an extra charge; in space +15% build speed."),
+    };
+    public static readonly System.Collections.Generic.Dictionary<string, CivTraitDef> CivTrait = System.Linq.Enumerable.ToDictionary(CivTraits, d => d.Id);
+
+    public static readonly CivTraitMapDef[] CivTraitMap =
+    {
+        new("CIVILIZATION_AMERICA", "diplomatic"),
+        new("CIVILIZATION_ARABIA", "scientific"),
+        new("CIVILIZATION_AUSTRALIA", "agrarian"),
+        new("CIVILIZATION_AZTEC", "militaristic"),
+        new("CIVILIZATION_BABYLON_STK", "scientific"),
+        new("CIVILIZATION_BRAZIL", "agrarian"),
+        new("CIVILIZATION_BYZANTIUM", "militaristic"),
+        new("CIVILIZATION_CANADA", "diplomatic"),
+        new("CIVILIZATION_CHINA", "builders"),
+        new("CIVILIZATION_CREE", "expansionist"),
+        new("CIVILIZATION_EGYPT", "builders"),
+        new("CIVILIZATION_ENGLAND", "seafaring"),
+        new("CIVILIZATION_ETHIOPIA", "mercantile"),
+        new("CIVILIZATION_FRANCE", "diplomatic"),
+        new("CIVILIZATION_GAUL", "industrious"),
+        new("CIVILIZATION_GEORGIA", "militaristic"),
+        new("CIVILIZATION_GERMANY", "industrious"),
+        new("CIVILIZATION_GRAN_COLOMBIA", "militaristic"),
+        new("CIVILIZATION_GREECE", "diplomatic"),
+        new("CIVILIZATION_HUNGARY", "militaristic"),
+        new("CIVILIZATION_INCA", "agrarian"),
+        new("CIVILIZATION_INDIA", "expansionist"),
+        new("CIVILIZATION_INDONESIA", "seafaring"),
+        new("CIVILIZATION_JAPAN", "builders"),
+        new("CIVILIZATION_KHMER", "agrarian"),
+        new("CIVILIZATION_KONGO", "mercantile"),
+        new("CIVILIZATION_KOREA", "scientific"),
+        new("CIVILIZATION_MACEDON", "militaristic"),
+        new("CIVILIZATION_MALI", "mercantile"),
+        new("CIVILIZATION_MAORI", "seafaring"),
+        new("CIVILIZATION_MAPUCHE", "militaristic"),
+        new("CIVILIZATION_MAYA", "scientific"),
+        new("CIVILIZATION_MONGOLIA", "militaristic"),
+        new("CIVILIZATION_NETHERLANDS", "seafaring"),
+        new("CIVILIZATION_NORWAY", "seafaring"),
+        new("CIVILIZATION_NUBIA", "militaristic"),
+        new("CIVILIZATION_OTTOMAN", "militaristic"),
+        new("CIVILIZATION_PERSIA", "mercantile"),
+        new("CIVILIZATION_PHOENICIA", "seafaring"),
+        new("CIVILIZATION_POLAND", "diplomatic"),
+        new("CIVILIZATION_PORTUGAL", "mercantile"),
+        new("CIVILIZATION_ROME", "expansionist"),
+        new("CIVILIZATION_RUSSIA", "expansionist"),
+        new("CIVILIZATION_SCOTLAND", "scientific"),
+        new("CIVILIZATION_SCYTHIA", "militaristic"),
+        new("CIVILIZATION_SPAIN", "expansionist"),
+        new("CIVILIZATION_SUMERIA", "agrarian"),
+        new("CIVILIZATION_SWEDEN", "scientific"),
+        new("CIVILIZATION_VIETNAM", "agrarian"),
+        new("CIVILIZATION_ZULU", "militaristic"),
+        new("CIVILIZATION_CHOLA", "seafaring"),
+        new("CIVILIZATION_PALA", "scientific"),
+        new("CIVILIZATION_AL_ANDALUS", "scientific"),
+        new("CIVILIZATION_GHAZNAVID", "militaristic"),
+    };
+    public static readonly System.Collections.Generic.Dictionary<string, CivTraitMapDef> CivTraitMapById = System.Linq.Enumerable.ToDictionary(CivTraitMap, d => d.Id);
+
+    public static readonly ExoticSiteDef[] ExoticSites =
+    {
+        new("living_metal", "Living Metal Lake", "st_x_living_metal", "st_xi_living_metal", true, 0, 3, 0, 1, "production_pct", 10, "sa_x_living_metal", "tech_regenerative_hull_tissue", "A lake of liquid metal that heals its own scars. Its people learn from it: in space it opens Regenerative Hull Tissue, and later Living Metal."),
+        new("gas_swamp", "Exotic Gas Swamp", "st_x_gas_swamp", "st_xi_gas_swamp", true, 2, 0, 0, 1, "science_pct", 5, "sa_x_gas", "tech_exotic_gases", "Bubbling marsh gases with odd chemistry. In space it opens Exotic Gas Refining."),
+        new("crystal_caverns", "Crystalline Caverns", "st_x_crystal_caverns", "st_xi_crystal_caverns", true, 0, 1, 3, 0, "gold_pct", 10, "sa_x_crystal", "tech_crystal_armor_1", "Caves of singing crystal. In space it opens Crystal-Infused Plating."),
+        new("dark_matter", "Liquid Dark Matter Pool", "st_x_dark_matter", "st_xi_dark_matter", true, 0, 0, 0, 3, "science_pct", 5, "sa_x_dark_matter", "tech_dark_matter_power_core", "A pool that bends light. In space it opens Dark Matter Power, and with Zero Point Power, Dark Matter Deflectors."),
+        new("nanites", "Nanite Fields", "st_x_nanites", "st_xi_nanites", true, 0, 2, 0, 1, "production_pct", 5, "sa_x_nanite", "tech_nanite_transmutation", "Dust that rebuilds whatever falls into it. In space it opens Nanite Transmutation."),
+        new("ruins", "Precursor Ruins", "st_x_ruins", "st_xi_ruins", true, 0, 0, 1, 2, "science_pct", 5, "sa_x_ruins", "tech_archaeostudies", "The ruins of someone who came before. In space it opens Archaeostudies."),
+        new("zro", "Zro Spore Forest", "st_x_zro", "st_xi_zro", true, 2, 0, 0, 1, "food_pct", 5, "sa_x_zro", "tech_psionic_theory", "Glowing fungi whose spores bring strange dreams. In space it opens Psionic Theory."),
+        new("motes", "Volatile Mote Storm", "st_x_motes", "st_xi_motes", true, 0, 2, 0, 0, "unit_strength", 2, "sa_x_motes", "tech_mine_volatile_motes", "Unstable particles that burst on contact. Its armies learn to use them (+2 unit strength); in space it opens Mote Stabilization."),
+        new("storm_sea", "Electrified Oceans", "st_x_storm_sea", "st_xi_storm_sea", false, 1, 0, 0, 2, "gold_pct", 5, "sa_x_storm", "tech_power_plant_2", "A sea alive with lightning. In space it opens Field Modulation."),
+    };
+    public static readonly System.Collections.Generic.Dictionary<string, ExoticSiteDef> ExoticSite = System.Linq.Enumerable.ToDictionary(ExoticSites, d => d.Id);
+
+    public static readonly PreftlTechDef[] PreftlTechs =
+    {
+        new("tech_basic_science_lab_1", "physics", new[] { "TECH_COMPUTERS" }, 380, false),
+        new("tech_fission_power", "physics", new[] { "TECH_NUCLEAR_FISSION" }, 400, true),
+        new("tech_lasers_1", "physics", new[] { "TECH_LASERS" }, 420, false),
+        new("tech_shields_1", "physics", new[] { "TECH_LASERS", "tech_fission_power" }, 450, false),
+        new("tech_planetary_government", "society", new[] { "TECH_COMPUTERS" }, 380, true),
+        new("tech_eco_simulation", "society", new[] { "TECH_SYNTHETIC_MATERIALS" }, 400, false),
+        new("tech_space_exploration", "society", new[] { "TECH_ROCKETRY" }, 400, true),
+        new("tech_ground_defense_planning", "society", new[] { "TECH_COMBINED_ARMS" }, 380, false),
+        new("tech_basic_industry", "engineering", new[] { "TECH_ROBOTICS" }, 420, false),
+        new("tech_space_construction", "engineering", new[] { "TECH_SATELLITES" }, 420, true),
+        new("tech_mechanized_mining", "engineering", new[] { "TECH_ROBOTICS" }, 380, false),
+        new("tech_thrusters_1", "engineering", new[] { "TECH_ROCKETRY" }, 400, true),
+        new("tech_mass_drivers_1", "engineering", new[] { "TECH_GUIDANCE_SYSTEMS" }, 400, false),
+        new("tech_missiles_1", "engineering", new[] { "TECH_NUCLEAR_FISSION", "TECH_ROCKETRY" }, 420, false),
+        new("tech_flak_batteries_1", "engineering", new[] { "TECH_GUIDANCE_SYSTEMS" }, 380, false),
+        new("tech_ship_armor_1", "engineering", new[] { "TECH_COMPOSITES" }, 420, false),
+        new("tech_corvettes", "engineering", new[] { "tech_thrusters_1", "TECH_COMPOSITES" }, 450, true),
+        new("tech_starbase_1", "engineering", new[] { "tech_space_construction" }, 420, false),
+    };
+    public static readonly System.Collections.Generic.Dictionary<string, PreftlTechDef> PreftlTech = System.Linq.Enumerable.ToDictionary(PreftlTechs, d => d.Id);
 
     public static readonly TechLegacyDef[] TechLegacy =
     {
@@ -449,17 +626,6 @@ public static partial class Defs
         new("ERA_INFORMATION", 1960, "Cities_Information_{v}"),
     };
     public static readonly System.Collections.Generic.Dictionary<string, EraDef> Era = System.Linq.Enumerable.ToDictionary(Eras, d => d.Id);
-
-    public static readonly ImprovementDef[] Improvements =
-    {
-        new("farm", "flat", "Improvements_Farm_Visible"),
-        new("mine", "hills", "Improvements_Mine_Visible"),
-        new("lumbermill", "FEATURE_FOREST", "Improvements_LumberMill_Visible"),
-        new("plantation", "FEATURE_JUNGLE", "Improvements_Plantation_Visible"),
-        new("pasture", "FEATURE_MARSH", "Improvements_Pasture_Visible"),
-        new("fishing", "water", "Improvements_FishingBoats_Visible"),
-    };
-    public static readonly System.Collections.Generic.Dictionary<string, ImprovementDef> Improvement = System.Linq.Enumerable.ToDictionary(Improvements, d => d.Id);
 
     public static readonly ResourceDef[] Resources =
     {
@@ -530,10 +696,10 @@ public static partial class Defs
 
     public static readonly ShipDef[] Ships =
     {
-        new("science", "shipclass_science_ship", "science", 0, 100, 0, 3, 0, 60, 14, 0, 1, "none", "st_ship_science"),
-        new("construction", "constructor", "construction", 0, 100, 0, 3, 0, 60, 14, 0, 1, "none", "st_ship_construction"),
+        new("science", "shipclass_science_ship", "science", 0, 100, 0, 3, 0, 60, 14, 0, 1, "tech_space_exploration", "st_ship_science"),
+        new("construction", "constructor", "construction", 0, 100, 0, 3, 0, 60, 14, 0, 1, "tech_space_construction", "st_ship_construction"),
         new("colony", "colonizer", "colony", 100, 0, 150, 6, 0, 80, 10, 0, 1, "none", "st_ship_colony"),
-        new("corvette", "corvette", "military", 30, 0, 0, 2, 6, 120, 16, 1, 1, "none", "st_ship_corvette"),
+        new("corvette", "corvette", "military", 30, 0, 0, 2, 6, 120, 16, 1, 1, "tech_corvettes", "st_ship_corvette"),
         new("destroyer", "destroyer", "military", 60, 0, 0, 3, 14, 280, 14, 2, 2, "tech_destroyers", "st_ship_destroyer"),
         new("cruiser", "cruiser", "military", 120, 0, 0, 5, 30, 600, 12, 4, 3, "tech_cruisers", "st_ship_cruiser"),
         new("battleship", "battleship", "military", 240, 0, 0, 8, 64, 1300, 10, 8, 5, "tech_battleships", "st_ship_battleship"),
@@ -542,23 +708,73 @@ public static partial class Defs
 
     public static readonly Act2TechDef[] Act2Techs =
     {
-        new("tech_destroyers", "tech_destroyers", 650, "none", "none", "destroyer", "st_tech_destroyers"),
-        new("tech_cruisers", "tech_cruisers", 1450, "tech_destroyers", "none", "cruiser", "st_tech_cruisers"),
-        new("tech_battleships", "tech_battleships", 2900, "tech_cruisers", "none", "battleship", "st_tech_battleships"),
-        new("tech_lasers_2", "tech_lasers_2", 800, "none", "sa_t_damage_1", "none", "st_tech_lasers_2"),
-        new("tech_lasers_3", "tech_lasers_3", 1900, "tech_lasers_2", "sa_t_damage_2", "none", "st_tech_lasers_3"),
-        new("tech_ship_armor_1", "tech_ship_armor_1", 700, "none", "sa_t_hull_1", "none", "st_tech_ship_armor_1"),
-        new("tech_ship_armor_2", "tech_ship_armor_2", 1750, "tech_ship_armor_1", "sa_t_hull_2", "none", "st_tech_ship_armor_2"),
-        new("tech_shields_1", "tech_shields_1", 950, "none", "sa_t_hull_1", "none", "st_tech_shields_1"),
-        new("tech_power_plant_1", "tech_power_plant_1", 550, "none", "sa_t_energy", "none", "st_tech_power_plant_1"),
-        new("tech_space_mining_1", "tech_space_mining_1", 550, "none", "sa_t_minerals", "none", "st_tech_space_mining_1"),
-        new("tech_food_processing_1", "tech_food_processing_1", 500, "none", "sa_t_food", "building_hydroponics_farm", "st_tech_food_processing_1"),
-        new("tech_basic_science_lab_1", "tech_basic_science_lab_1", 650, "none", "sa_t_research", "none", "st_tech_basic_science_lab_1"),
-        new("tech_alloys_1", "tech_alloys_1", 800, "none", "sa_t_alloys", "building_factory_1", "st_tech_alloys_1"),
-        new("tech_genome_mapping", "tech_genome_mapping", 700, "none", "sa_t_growth", "none", "st_tech_genome_mapping"),
-        new("tech_hyper_drive_1", "tech_hyper_drive_1", 1100, "none", "sa_t_speed", "none", "st_tech_hyper_drive_1"),
-        new("tech_starbase_3", "tech_starbase_3", 950, "none", "sa_t_starbase", "none", "st_tech_starbase_3"),
-        new("tech_global_production_strategy", "tech_global_production_strategy", 1600, "tech_alloys_1", "sa_t_naval", "none", "st_tech_global_production_strategy"),
+        new("tech_basic_science_lab_1", "tech_basic_science_lab_1", 0, "physics", 600, System.Array.Empty<string>(), new[] { "sa_t0_research" }, "none", "none", "st_tech_basic_science_lab_1"),
+        new("tech_fission_power", "tech_fission_power", 0, "physics", 600, System.Array.Empty<string>(), new[] { "sa_t0_energy" }, "none", "none", "st_tech_fission_power"),
+        new("tech_lasers_1", "tech_lasers_1", 0, "physics", 600, System.Array.Empty<string>(), new[] { "sa_t0_damage" }, "none", "none", "st_tech_lasers_1"),
+        new("tech_shields_1", "tech_shields_1", 0, "physics", 600, new[] { "tech_fission_power" }, new[] { "sa_t0_hull" }, "none", "none", "st_tech_shields_1"),
+        new("tech_planetary_government", "tech_planetary_government", 0, "society", 600, System.Array.Empty<string>(), new[] { "sa_t0_influence" }, "none", "none", "st_tech_planetary_government"),
+        new("tech_eco_simulation", "tech_eco_simulation", 0, "society", 600, System.Array.Empty<string>(), new[] { "sa_t0_food" }, "none", "none", "st_tech_eco_simulation"),
+        new("tech_space_exploration", "tech_space_exploration", 0, "society", 600, System.Array.Empty<string>(), new[] { "sa_t0_survey" }, "science", "none", "st_tech_space_exploration"),
+        new("tech_ground_defense_planning", "tech_ground_defense_planning", 0, "society", 600, System.Array.Empty<string>(), new[] { "sa_t0_starbase" }, "none", "none", "st_tech_ground_defense_planning"),
+        new("tech_basic_industry", "tech_basic_industry", 0, "engineering", 600, System.Array.Empty<string>(), new[] { "sa_t0_alloys" }, "none", "none", "st_tech_basic_industry"),
+        new("tech_space_construction", "tech_space_construction", 0, "engineering", 600, System.Array.Empty<string>(), System.Array.Empty<string>(), "construction", "none", "st_tech_space_construction"),
+        new("tech_mechanized_mining", "tech_mechanized_mining", 0, "engineering", 600, System.Array.Empty<string>(), new[] { "sa_t0_minerals" }, "none", "none", "st_tech_mechanized_mining"),
+        new("tech_thrusters_1", "tech_thrusters_1", 0, "engineering", 600, System.Array.Empty<string>(), new[] { "sa_t0_speed" }, "none", "none", "st_tech_thrusters_1"),
+        new("tech_mass_drivers_1", "tech_mass_drivers_1", 0, "engineering", 600, System.Array.Empty<string>(), new[] { "sa_t0_damage" }, "none", "none", "st_tech_mass_drivers_1"),
+        new("tech_missiles_1", "tech_missiles_1", 0, "engineering", 600, System.Array.Empty<string>(), new[] { "sa_t0_damage" }, "none", "none", "st_tech_missiles_1"),
+        new("tech_flak_batteries_1", "tech_flak_batteries_1", 0, "engineering", 600, System.Array.Empty<string>(), new[] { "sa_t0_hull" }, "none", "none", "st_tech_flak_batteries_1"),
+        new("tech_ship_armor_1", "tech_ship_armor_1", 0, "engineering", 600, System.Array.Empty<string>(), new[] { "sa_t0_hull" }, "none", "none", "st_tech_ship_armor_1"),
+        new("tech_corvettes", "tech_corvettes", 0, "engineering", 600, new[] { "tech_thrusters_1" }, System.Array.Empty<string>(), "corvette", "none", "st_tech_corvettes"),
+        new("tech_starbase_1", "tech_starbase_1", 0, "engineering", 600, new[] { "tech_space_construction" }, new[] { "sa_t0_starbase" }, "none", "none", "st_tech_starbase_1"),
+        new("tech_lasers_2", "tech_lasers_2", 1, "physics", 1000, new[] { "tech_lasers_1" }, new[] { "sa_t_damage_1" }, "none", "none", "st_tech_lasers_2"),
+        new("tech_shields_2", "tech_shields_2", 1, "physics", 1100, new[] { "tech_shields_1" }, new[] { "sa_t_hull_1" }, "none", "none", "st_tech_shields_2"),
+        new("tech_power_plant_1", "tech_power_plant_1", 1, "physics", 900, new[] { "tech_fission_power" }, new[] { "sa_t_energy" }, "none", "none", "st_tech_power_plant_1"),
+        new("tech_xeno_linguistics", "tech_xeno_linguistics", 1, "society", 900, new[] { "tech_planetary_government" }, new[] { "sa_t_envoy" }, "none", "none", "st_tech_xeno_linguistics"),
+        new("tech_food_processing_1", "tech_food_processing_1", 1, "society", 800, new[] { "tech_eco_simulation" }, new[] { "sa_t_food" }, "building_hydroponics_farm", "none", "st_tech_food_processing_1"),
+        new("tech_genome_mapping", "tech_genome_mapping", 1, "society", 1000, new[] { "tech_eco_simulation" }, new[] { "sa_t_growth" }, "none", "none", "st_tech_genome_mapping"),
+        new("tech_destroyers", "tech_destroyers", 1, "engineering", 900, new[] { "tech_corvettes" }, System.Array.Empty<string>(), "destroyer", "none", "st_tech_destroyers"),
+        new("tech_ship_armor_2", "tech_ship_armor_2", 1, "engineering", 1000, new[] { "tech_ship_armor_1" }, new[] { "sa_t_hull_1" }, "none", "none", "st_tech_ship_armor_2"),
+        new("tech_space_mining_1", "tech_space_mining_1", 1, "engineering", 900, new[] { "tech_mechanized_mining" }, new[] { "sa_t_minerals" }, "none", "none", "st_tech_space_mining_1"),
+        new("tech_alloys_1", "tech_alloys_1", 1, "engineering", 1100, new[] { "tech_basic_industry" }, new[] { "sa_t_alloys" }, "building_factory_1", "none", "st_tech_alloys_1"),
+        new("tech_hyper_drive_1", "tech_hyper_drive_1", 1, "physics", 1100, new[] { "tech_thrusters_1" }, new[] { "sa_t_speed" }, "none", "none", "st_tech_hyper_drive_1"),
+        new("tech_starbase_2", "tech_starbase_2", 1, "engineering", 900, new[] { "tech_starbase_1" }, new[] { "sa_t_starbase" }, "none", "none", "st_tech_starbase_2"),
+        new("tech_lasers_3", "tech_lasers_3", 2, "physics", 2000, new[] { "tech_lasers_2" }, new[] { "sa_t_damage_2" }, "none", "none", "st_tech_lasers_3"),
+        new("tech_shields_3", "tech_shields_3", 2, "physics", 2300, new[] { "tech_shields_2" }, new[] { "sa_t_hull_2" }, "none", "none", "st_tech_shields_3"),
+        new("tech_fusion_power", "tech_fusion_power", 2, "physics", 2200, new[] { "tech_power_plant_1" }, new[] { "sa_t_energy_2" }, "none", "none", "st_tech_fusion_power"),
+        new("tech_galactic_administration", "tech_galactic_administration", 2, "society", 1800, new[] { "tech_xeno_linguistics" }, new[] { "sa_t_influence_2" }, "none", "none", "st_tech_galactic_administration"),
+        new("tech_gene_tailoring", "tech_gene_tailoring", 2, "society", 2000, new[] { "tech_genome_mapping" }, new[] { "sa_t_growth_2" }, "none", "none", "st_tech_gene_tailoring"),
+        new("tech_archaeostudies", "tech_archaeostudies", 2, "society", 2000, new[] { "tech_basic_science_lab_1" }, new[] { "sa_t_research", "sa_t_unity" }, "none", "ruins", "st_tech_archaeostudies"),
+        new("tech_cruisers", "tech_cruisers", 2, "engineering", 2000, new[] { "tech_destroyers", "tech_ship_armor_2" }, System.Array.Empty<string>(), "cruiser", "none", "st_tech_cruisers"),
+        new("tech_ship_armor_3", "tech_ship_armor_3", 2, "engineering", 2100, new[] { "tech_ship_armor_2" }, new[] { "sa_t_hull_2" }, "none", "none", "st_tech_ship_armor_3"),
+        new("tech_starbase_3", "tech_starbase_3", 2, "engineering", 1900, new[] { "tech_starbase_2" }, new[] { "sa_t_starbase" }, "none", "none", "st_tech_starbase_3"),
+        new("tech_global_production_strategy", "tech_global_production_strategy", 2, "engineering", 2000, new[] { "tech_alloys_1" }, new[] { "sa_t_naval" }, "none", "none", "st_tech_global_production_strategy"),
+        new("tech_alloys_2", "tech_alloys_2", 2, "engineering", 2400, new[] { "tech_alloys_1" }, new[] { "sa_t_alloys_2" }, "none", "none", "st_tech_alloys_2"),
+        new("tech_mineral_purification_1", "tech_mineral_purification_1", 2, "engineering", 2000, new[] { "tech_space_mining_1" }, new[] { "sa_t_minerals_2" }, "none", "none", "st_tech_mineral_purification_1"),
+        new("tech_exotic_gases", "tech_exotic_gases", 2, "physics", 2200, new[] { "tech_power_plant_1" }, new[] { "sa_t_energy", "sa_t0_speed" }, "none", "gas_swamp", "st_tech_exotic_gases"),
+        new("tech_crystal_armor_1", "tech_crystal_armor_1", 2, "engineering", 2200, new[] { "tech_ship_armor_2" }, new[] { "sa_t_hull_2" }, "none", "crystal_caverns", "st_tech_crystal_armor_1"),
+        new("tech_nanite_transmutation", "tech_nanite_transmutation", 2, "engineering", 2400, new[] { "tech_alloys_1" }, new[] { "sa_t_alloys_2" }, "none", "nanites", "st_tech_nanite_transmutation"),
+        new("tech_lasers_4", "tech_lasers_4", 3, "physics", 3600, new[] { "tech_lasers_3" }, new[] { "sa_t_damage_3" }, "none", "none", "st_tech_lasers_4"),
+        new("tech_cold_fusion_power", "tech_cold_fusion_power", 3, "physics", 3600, new[] { "tech_fusion_power" }, new[] { "sa_t_energy_2" }, "none", "none", "st_tech_cold_fusion_power"),
+        new("tech_hyper_drive_2", "tech_hyper_drive_2", 3, "physics", 3500, new[] { "tech_hyper_drive_1", "tech_fusion_power" }, new[] { "sa_t_speed_2" }, "none", "none", "st_tech_hyper_drive_2"),
+        new("tech_power_plant_2", "tech_power_plant_2", 3, "physics", 3400, new[] { "tech_fusion_power" }, new[] { "sa_t_energy_2" }, "none", "storm_sea", "st_tech_power_plant_2"),
+        new("tech_epigenetic_triggers", "tech_epigenetic_triggers", 3, "society", 3400, new[] { "tech_gene_tailoring" }, new[] { "sa_t_growth_2" }, "none", "none", "st_tech_epigenetic_triggers"),
+        new("tech_psionic_theory", "tech_psionic_theory", 3, "society", 4200, new[] { "tech_gene_tailoring" }, new[] { "sa_t_psionic" }, "none", "zro", "st_tech_psionic_theory"),
+        new("tech_battleships", "tech_battleships", 3, "engineering", 3800, new[] { "tech_cruisers", "tech_fusion_power" }, System.Array.Empty<string>(), "battleship", "none", "st_tech_battleships"),
+        new("tech_ship_armor_4", "tech_ship_armor_4", 3, "engineering", 3800, new[] { "tech_ship_armor_3" }, new[] { "sa_t_hull_3" }, "none", "none", "st_tech_ship_armor_4"),
+        new("tech_starbase_4", "tech_starbase_4", 3, "engineering", 3300, new[] { "tech_starbase_3" }, new[] { "sa_t_starbase" }, "none", "none", "st_tech_starbase_4"),
+        new("tech_regenerative_hull_tissue", "tech_regenerative_hull_tissue", 3, "engineering", 4000, new[] { "tech_ship_armor_3" }, new[] { "sa_t_repair", "sa_t_hull_1" }, "none", "living_metal", "st_tech_regenerative_hull_tissue"),
+        new("tech_mine_volatile_motes", "tech_mine_volatile_motes", 3, "physics", 3800, new[] { "tech_lasers_3" }, new[] { "sa_t_damage_2" }, "none", "motes", "st_tech_mine_volatile_motes"),
+        new("tech_lasers_5", "tech_lasers_5", 4, "physics", 6000, new[] { "tech_lasers_4" }, new[] { "sa_t_damage_4" }, "none", "none", "st_tech_lasers_5"),
+        new("tech_antimatter_power", "tech_antimatter_power", 4, "physics", 6000, new[] { "tech_cold_fusion_power" }, new[] { "sa_t_energy_3" }, "none", "none", "st_tech_antimatter_power"),
+        new("tech_hyper_drive_3", "tech_hyper_drive_3", 4, "physics", 5800, new[] { "tech_hyper_drive_2" }, new[] { "sa_t_speed_2" }, "none", "none", "st_tech_hyper_drive_3"),
+        new("tech_dark_matter_power_core", "tech_dark_matter_power_core", 4, "physics", 7000, new[] { "tech_cold_fusion_power" }, new[] { "sa_t_dm_power" }, "none", "dark_matter", "st_tech_dark_matter_power_core"),
+        new("tech_ship_armor_5", "tech_ship_armor_5", 4, "engineering", 6500, new[] { "tech_ship_armor_4" }, new[] { "sa_t_hull_4" }, "none", "none", "st_tech_ship_armor_5"),
+        new("tech_starbase_5", "tech_starbase_5", 4, "engineering", 5500, new[] { "tech_starbase_4" }, new[] { "sa_t_starbase_2" }, "none", "none", "st_tech_starbase_5"),
+        new("tech_mega_shipyard", "tech_mega_shipyard", 4, "engineering", 6500, new[] { "tech_battleships", "tech_starbase_4" }, new[] { "sa_t_shipyard", "sa_t_naval" }, "none", "none", "st_tech_mega_shipyard"),
+        new("tech_mine_living_metal", "tech_mine_living_metal", 4, "engineering", 6800, new[] { "tech_regenerative_hull_tissue" }, new[] { "sa_t_living_metal" }, "none", "living_metal", "st_tech_mine_living_metal"),
+        new("tech_zero_point_power", "tech_zero_point_power", 5, "physics", 9500, new[] { "tech_antimatter_power" }, new[] { "sa_t_zero_point", "sa_t_zero_point_r" }, "none", "none", "st_tech_zero_point_power"),
+        new("tech_mega_engineering", "tech_mega_engineering", 5, "engineering", 12000, new[] { "tech_zero_point_power", "tech_mega_shipyard" }, new[] { "sa_t_mega_alloys", "sa_t_mega_minerals", "sa_t_naval_2" }, "none", "none", "st_tech_mega_engineering"),
+        new("tech_dark_matter_deflector", "tech_dark_matter_deflector", 5, "physics", 11000, new[] { "tech_shields_3", "tech_zero_point_power" }, new[] { "sa_t_dm_deflector" }, "none", "dark_matter", "st_tech_dark_matter_deflector"),
     };
     public static readonly System.Collections.Generic.Dictionary<string, Act2TechDef> Act2Tech = System.Linq.Enumerable.ToDictionary(Act2Techs, d => d.Id);
 
@@ -631,6 +847,64 @@ public static partial class Defs
         new("sa_t_speed", "ship_speed_mult", 0.25, "Hyper Drive", "+25% Ship Speed"),
         new("sa_t_starbase", "starbase_power_mult", 0.5, "Starbase Defenses", "+50% Starbase Power"),
         new("sa_t_naval", "naval_cap_add", 10.0, "Production Strategy", "+10 Naval Capacity"),
+        new("sa_trait_research", "research_mult", 0.1, "Scholars", "+10% Research"),
+        new("sa_trait_minerals", "minerals_mult", 0.1, "Industrious", "+10% Minerals"),
+        new("sa_trait_damage", "ship_damage_mult", 0.1, "Warlike", "+10% Ship Damage"),
+        new("sa_trait_growth", "pop_growth_mult", 0.15, "Expansionist", "+15% Pop Growth"),
+        new("sa_trait_survey", "survey_speed_mult", 0.25, "Expansionist", "+25% Survey Speed"),
+        new("sa_trait_energy", "energy_mult", 0.1, "Mercantile", "+10% Energy"),
+        new("sa_trait_trade", "trade_mult", 0.25, "Mercantile", "+25% from trade deals"),
+        new("sa_trait_food", "food_mult", 0.15, "Agrarian", "+15% Food"),
+        new("sa_trait_speed", "ship_speed_mult", 0.15, "Seafarers", "+15% Ship Speed"),
+        new("sa_trait_naval", "naval_cap_add", 4.0, "Seafarers", "+4 Naval Capacity"),
+        new("sa_trait_unity", "unity_mult", 0.1, "Diplomats", "+10% Unity"),
+        new("sa_trait_envoy", "envoys_add", 1.0, "Diplomats", "+1 Envoy"),
+        new("sa_trait_build", "build_speed_mult", 0.15, "Master Builders", "+15% Build Speed"),
+        new("sa_t0_damage", "ship_damage_mult", 0.05, "Early Weapons", "+5% Ship Damage"),
+        new("sa_t0_hull", "ship_hull_mult", 0.05, "Early Armor", "+5% Ship Hull"),
+        new("sa_t0_energy", "energy_mult", 0.05, "Fission Reactors", "+5% Energy"),
+        new("sa_t0_research", "research_mult", 0.05, "Research Labs", "+5% Research"),
+        new("sa_t0_influence", "influence_add", 1.0, "Unified Government", "+1 Influence a month"),
+        new("sa_t0_food", "food_mult", 0.05, "Hydroponics", "+5% Food"),
+        new("sa_t0_survey", "survey_speed_mult", 0.1, "Space Exploration", "+10% Survey Speed"),
+        new("sa_t0_starbase", "starbase_power_mult", 0.1, "Starbase Defences", "+10% Starbase Power"),
+        new("sa_t0_alloys", "alloys_mult", 0.05, "Industrial Base", "+5% Alloys"),
+        new("sa_t0_minerals", "minerals_mult", 0.05, "Mechanized Mining", "+5% Minerals"),
+        new("sa_t0_speed", "ship_speed_mult", 0.1, "Chemical Thrusters", "+10% Ship Speed"),
+        new("sa_t_damage_3", "ship_damage_mult", 0.15, "X-Ray Lasers", "+15% Ship Damage"),
+        new("sa_t_damage_4", "ship_damage_mult", 0.2, "Gamma Lasers", "+20% Ship Damage"),
+        new("sa_t_hull_3", "ship_hull_mult", 0.15, "Durasteel", "+15% Ship Hull"),
+        new("sa_t_hull_4", "ship_hull_mult", 0.2, "Neutronium", "+20% Ship Hull"),
+        new("sa_t_energy_2", "energy_mult", 0.15, "Fusion Power", "+15% Energy"),
+        new("sa_t_energy_3", "energy_mult", 0.2, "Antimatter Power", "+20% Energy"),
+        new("sa_t_zero_point", "energy_mult", 0.25, "Zero Point Power", "+25% Energy"),
+        new("sa_t_zero_point_r", "research_mult", 0.1, "Zero Point Power", "+10% Research"),
+        new("sa_t_minerals_2", "minerals_mult", 0.15, "Mineral Purification", "+15% Minerals"),
+        new("sa_t_alloys_2", "alloys_mult", 0.15, "Nano-Separators", "+15% Alloys"),
+        new("sa_t_growth_2", "pop_growth_mult", 0.25, "Gene Tailoring", "+25% Pop Growth"),
+        new("sa_t_starbase_2", "starbase_power_mult", 1.0, "Citadel", "+100% Starbase Power"),
+        new("sa_t_speed_2", "ship_speed_mult", 0.25, "Hyperspace", "+25% Ship Speed"),
+        new("sa_t_influence_2", "influence_add", 2.0, "Galactic Administration", "+2 Influence a month"),
+        new("sa_t_envoy", "envoys_add", 1.0, "Xeno-Linguistics", "+1 Envoy"),
+        new("sa_t_shipyard", "ship_build_speed_mult", 0.4, "Mega Shipyard", "+40% Ship Build Speed"),
+        new("sa_t_naval_2", "naval_cap_add", 15.0, "Mega-Engineering", "+15 Naval Capacity"),
+        new("sa_t_mega_alloys", "alloys_mult", 0.2, "Mega-Engineering", "+20% Alloys"),
+        new("sa_t_mega_minerals", "minerals_mult", 0.2, "Mega-Engineering", "+20% Minerals"),
+        new("sa_t_unity", "unity_mult", 0.1, "Archaeostudies", "+10% Unity"),
+        new("sa_t_repair", "ship_repair_add", 40.0, "Regenerative Hull Tissue", "Ships mend 40 hull a month, even in battle"),
+        new("sa_t_living_metal", "ship_hull_mult", 0.25, "Living Metal", "+25% Ship Hull"),
+        new("sa_t_dm_deflector", "ship_hull_mult", 0.3, "Dark Matter Deflectors", "+30% Ship Hull"),
+        new("sa_t_dm_power", "energy_mult", 0.25, "Dark Matter Power", "+25% Energy"),
+        new("sa_t_psionic", "research_mult", 0.15, "Psionic Theory", "+15% Research"),
+        new("sa_x_living_metal", "alloys_mult", 0.1, "Living Metal Lake", "+10% Alloys while you hold it"),
+        new("sa_x_gas", "energy_mult", 0.1, "Exotic Gas Swamp", "+10% Energy while you hold it"),
+        new("sa_x_crystal", "minerals_mult", 0.1, "Crystalline Caverns", "+10% Minerals while you hold it"),
+        new("sa_x_dark_matter", "research_mult", 0.1, "Liquid Dark Matter", "+10% Research while you hold it"),
+        new("sa_x_nanite", "alloys_mult", 0.1, "Nanite Fields", "+10% Alloys while you hold it"),
+        new("sa_x_ruins", "unity_mult", 0.15, "Precursor Ruins", "+15% Unity while you hold it"),
+        new("sa_x_zro", "research_mult", 0.1, "Zro Spore Forest", "+10% Research while you hold it"),
+        new("sa_x_motes", "ship_damage_mult", 0.1, "Volatile Mote Storm", "+10% Ship Damage while you hold it"),
+        new("sa_x_storm", "energy_mult", 0.1, "Electrified Oceans", "+10% Energy while you hold it"),
     };
     public static readonly System.Collections.Generic.Dictionary<string, ModifierDef> Modifier = System.Linq.Enumerable.ToDictionary(Modifiers, d => d.Id);
 
@@ -713,6 +987,86 @@ public static partial class Defs
         new("st_nav_planets_hi", "stellaris", "image", new[] { "file:gfx/interface/icons/navbar_icons_planets_and_sectors.dds@0.6667,0,0.3333,1" }, "Act 2 menu rail", false, "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."),
         new("st_nav_designer", "stellaris", "image", new[] { "file:gfx/interface/icons/navbar_icons_ship_designer.dds@0,0,0.3333,1" }, "Act 2 menu rail", false, "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."),
         new("st_nav_designer_hi", "stellaris", "image", new[] { "file:gfx/interface/icons/navbar_icons_ship_designer.dds@0.6667,0,0.3333,1" }, "Act 2 menu rail", false, "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."),
+        new("st_x_living_metal", "stellaris", "image", new[] { "file:gfx/interface/icons/deposits/d_blue_lava.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris deposit picture."),
+        new("st_xi_living_metal", "stellaris", "image", new[] { "file:gfx/interface/icons/resources/sr_living_metal_large.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris resource icon."),
+        new("st_x_gas_swamp", "stellaris", "image", new[] { "file:gfx/interface/icons/deposits/d_bubbling_swamp.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris deposit picture."),
+        new("st_xi_gas_swamp", "stellaris", "image", new[] { "file:gfx/interface/icons/resources/exotic_gases_large.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris resource icon."),
+        new("st_x_crystal_caverns", "stellaris", "image", new[] { "file:gfx/interface/icons/deposits/d_crystalline_caverns.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris deposit picture."),
+        new("st_xi_crystal_caverns", "stellaris", "image", new[] { "file:gfx/interface/icons/resources/rare_crystals_large.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris resource icon."),
+        new("st_x_dark_matter", "stellaris", "image", new[] { "file:gfx/interface/icons/deposits/d_liquid_dark_matter.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris deposit picture."),
+        new("st_xi_dark_matter", "stellaris", "image", new[] { "file:gfx/interface/icons/resources/sr_dark_matter.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris resource icon."),
+        new("st_x_nanites", "stellaris", "image", new[] { "file:gfx/interface/icons/deposits/d_nanite_corpses.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris deposit picture."),
+        new("st_xi_nanites", "stellaris", "image", new[] { "file:gfx/interface/icons/resources/nanites_large.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris resource icon."),
+        new("st_x_ruins", "stellaris", "image", new[] { "file:gfx/interface/icons/deposits/d_ruins_large.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris deposit picture."),
+        new("st_xi_ruins", "stellaris", "image", new[] { "file:gfx/interface/icons/resources/sr_betharian.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris resource icon."),
+        new("st_x_zro", "stellaris", "image", new[] { "file:gfx/interface/icons/deposits/d_fungal_forest.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris deposit picture."),
+        new("st_xi_zro", "stellaris", "image", new[] { "file:gfx/interface/icons/resources/sr_zro_large.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris resource icon."),
+        new("st_x_motes", "stellaris", "image", new[] { "file:gfx/interface/icons/deposits/d_gaseous_eruption.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris deposit picture."),
+        new("st_xi_motes", "stellaris", "image", new[] { "file:gfx/interface/icons/resources/volatile_motes_large.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris resource icon."),
+        new("st_x_storm_sea", "stellaris", "image", new[] { "file:gfx/interface/icons/deposits/d_electrified_oceans.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris deposit picture."),
+        new("st_xi_storm_sea", "stellaris", "image", new[] { "file:gfx/interface/icons/resources/sr_living_metal_grey.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris resource icon."),
+        new("st_tech_fission_power", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_fission_power.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_lasers_1", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_lasers_1.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_planetary_government", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_planetary_government.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_eco_simulation", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_eco_simulation.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_space_exploration", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_space_exploration.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_ground_defense_planning", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_ground_defense_planning.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_basic_industry", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_basic_industry.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_space_construction", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_space_construction.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_mechanized_mining", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_mechanized_mining.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_thrusters_1", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_thrusters_1.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_mass_drivers_1", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_mass_drivers_1.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_missiles_1", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_missiles_1.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_flak_batteries_1", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_flak_batteries_1.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_corvettes", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_corvettes.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_starbase_1", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_starbase_1.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_shields_2", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_shields_2.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_xeno_linguistics", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_xeno_linguistics.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_starbase_2", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_starbase_2.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_shields_3", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_shields_3.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_fusion_power", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_fusion_power.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_galactic_administration", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_galactic_administration.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_gene_tailoring", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_gene_tailoring.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_archaeostudies", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_archaeostudies.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_ship_armor_3", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_ship_armor_3.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_alloys_2", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_alloys_2.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_mineral_purification_1", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_mineral_purification_1.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_exotic_gases", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_exotic_gases.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_crystal_armor_1", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_crystal_armor_1.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_nanite_transmutation", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_nanite_transmutation.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_lasers_4", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_lasers_4.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_cold_fusion_power", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_cold_fusion_power.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_hyper_drive_2", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_hyper_drive_2.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_power_plant_2", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_power_plant_2.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_epigenetic_triggers", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_epigenetic_triggers.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_psionic_theory", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_psionic_theory.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_ship_armor_4", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_ship_armor_4.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_starbase_4", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_starbase_4.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_regenerative_hull_tissue", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_regenerative_hull_tissue.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_mine_volatile_motes", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_mine_volatile_motes.dds", "file:gfx/interface/icons/resources/volatile_motes_large.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_lasers_5", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_lasers_5.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_antimatter_power", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_antimatter_power.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_hyper_drive_3", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_hyper_drive_3.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_dark_matter_power_core", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_dark_matter_power_core.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_ship_armor_5", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_ship_armor_5.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_starbase_5", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_starbase_5.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_mega_shipyard", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_mega_shipyard.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_mine_living_metal", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_mine_living_metal.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_zero_point_power", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_zero_point_power.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_mega_engineering", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_mega_engineering.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_tech_dark_matter_deflector", "stellaris", "image", new[] { "file:gfx/interface/icons/technologies/tech_dark_matter_deflector.dds" }, "exotic sites, tech tree, galaxy", false, "Stellaris technology icon."),
+        new("st_fleet_own", "stellaris", "image", new[] { "file:gfx/interface/icons/ship_icons_type.dds@0.00000,0,0.0625,1" }, "Act 2 fleets on the map", false, "Stellaris's fleet marker (relation colour)."),
+        new("st_fleet_neutral", "stellaris", "image", new[] { "file:gfx/interface/icons/ship_icons_type.dds@0.06250,0,0.0625,1" }, "Act 2 fleets on the map", false, "Stellaris's fleet marker (relation colour)."),
+        new("st_fleet_ally", "stellaris", "image", new[] { "file:gfx/interface/icons/ship_icons_type.dds@0.12500,0,0.0625,1" }, "Act 2 fleets on the map", false, "Stellaris's fleet marker (relation colour)."),
+        new("st_fleet_hostile", "stellaris", "image", new[] { "file:gfx/interface/icons/ship_icons_type.dds@0.18750,0,0.0625,1" }, "Act 2 fleets on the map", false, "Stellaris's fleet marker (relation colour)."),
+        new("st_class_science", "stellaris", "image", new[] { "file:gfx/interface/icons/ship_classes.dds@0.000000,0,0.014493,1" }, "Act 2 fleets on the map", false, "Stellaris's ship class icon."),
+        new("st_class_construction", "stellaris", "image", new[] { "file:gfx/interface/icons/ship_classes.dds@0.014493,0,0.014493,1" }, "Act 2 fleets on the map", false, "Stellaris's ship class icon."),
+        new("st_class_colony", "stellaris", "image", new[] { "file:gfx/interface/icons/ship_classes.dds@0.043478,0,0.014493,1" }, "Act 2 fleets on the map", false, "Stellaris's ship class icon."),
+        new("st_class_corvette", "stellaris", "image", new[] { "file:gfx/interface/icons/ship_classes.dds@0.028986,0,0.014493,1" }, "Act 2 fleets on the map", false, "Stellaris's ship class icon."),
+        new("st_class_destroyer", "stellaris", "image", new[] { "file:gfx/interface/icons/ship_classes.dds@0.130435,0,0.014493,1" }, "Act 2 fleets on the map", false, "Stellaris's ship class icon."),
+        new("st_class_cruiser", "stellaris", "image", new[] { "file:gfx/interface/icons/ship_classes.dds@0.362319,0,0.014493,1" }, "Act 2 fleets on the map", false, "Stellaris's ship class icon."),
+        new("st_class_battleship", "stellaris", "image", new[] { "file:gfx/interface/icons/ship_classes.dds@0.898551,0,0.014493,1" }, "Act 2 fleets on the map", false, "Stellaris's ship class icon."),
+        new("st_starbase_icon", "stellaris", "image", new[] { "file:gfx/interface/icons/ship_classes.dds@0.289855,0,0.014493,1" }, "Act 2 fleets on the map", false, "Stellaris's starbase icon."),
     };
     public static readonly System.Collections.Generic.Dictionary<string, AssetRefDef> AssetRef = System.Linq.Enumerable.ToDictionary(AssetRefs, d => d.Id);
 
