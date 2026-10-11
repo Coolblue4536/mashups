@@ -1,0 +1,506 @@
+{
+  "about": "Stellar Ascension's whole design in one file: a standalone two-act game made from Civilization VI and Stellaris. Each section is a table: one row per thing, one column per property. Edit here, then run tools/preflight.py and tools/gen.py. Not-applicable cells hold 0, false, [] or \"none\" on purpose.",
+  "sections": {
+    "rules": {
+      "about": "Global numbers for both acts. Change here, never in code.",
+      "columns": ["id", "value", "desc"],
+      "rows": [
+        {"id": "act1_start_year", "value": -4000, "desc": "Act 1 calendar starts in 4000 BC."},
+        {"id": "act1_tech_cost_mult", "value": 0.33, "desc": "Civ VI tech cost (from the player's install) is multiplied by this."},
+        {"id": "act1_build_cost_mult", "value": 0.5, "desc": "Civ VI building, wonder and project cost is multiplied by this."},
+        {"id": "act1_space_cost_mult", "value": 0.5, "desc": "The Spaceport and the space projects cost this much more on top (they are one city's work, so Civ VI's costs would drag)."},
+        {"id": "act1_max_turns", "value": 400, "desc": "Act 1 can't run longer than this; at the limit the civ with the most techs is first to space."},
+        {"id": "city_min_distance", "value": 4, "desc": "A city can't be founded within this many tiles of another city (Civ VI's rule)."},
+        {"id": "city_radius", "value": 2, "desc": "Tiles a city can work and own around itself."},
+        {"id": "food_per_pop", "value": 2, "desc": "Each citizen eats this much food a turn."},
+        {"id": "science_per_pop", "value": 0.8, "desc": "Science from each citizen, before buildings."},
+        {"id": "gold_per_pop", "value": 0.25, "desc": "Gold from each citizen, before buildings."},
+        {"id": "city_center_min_food", "value": 2, "desc": "The city's own tile yields at least this much food."},
+        {"id": "city_center_min_production", "value": 2, "desc": "The city's own tile yields at least this much production."},
+        {"id": "city_center_science", "value": 1, "desc": "Science from every city's palace or town hall."},
+        {"id": "capital_bonus_gold", "value": 3, "desc": "Extra gold from the capital."},
+        {"id": "capital_bonus_science", "value": 2, "desc": "Extra science from the capital."},
+        {"id": "growth_base", "value": 15, "desc": "Food to grow from size 1 to 2; Civ VI: 15 + 8(n-1) + (n-1)^1.5."},
+        {"id": "growth_step", "value": 8, "desc": "Extra food per size for the next citizen."},
+        {"id": "growth_exponent", "value": 1.5, "desc": "Exponent in the growth formula."},
+        {"id": "settler_cost", "value": 80, "desc": "Civ VI's Settler cost, before act1_build_cost_mult."},
+        {"id": "settler_cost_step", "value": 30, "desc": "Each Settler costs this much more than the last."},
+        {"id": "settler_min_pop", "value": 2, "desc": "A city needs this many citizens to train a Settler; training one costs a citizen."},
+        {"id": "buy_gold_per_production", "value": 3, "desc": "Gold per point of production when buying the current build."},
+        {"id": "wonder_lost_refund", "value": 0.5, "desc": "When a rival finishes a wonder first, this share of your progress carries over to your next build."},
+        {"id": "ai_max_cities_small", "value": 6, "desc": "Rivals stop settling at about this many cities on a small map (scaled by map size)."},
+        {"id": "act2_start_year", "value": 2200, "desc": "Act 2 calendar starts in 2200."},
+        {"id": "act2_seconds_per_month", "value": 1.2, "desc": "Real seconds per month at normal speed (speeds 1x, 2x, 4x)."},
+        {"id": "act2_pop_growth_months", "value": 30, "desc": "Months for a planet to grow one pop (before modifiers)."},
+        {"id": "act2_food_per_pop", "value": 1, "desc": "Food each pop eats a month."},
+        {"id": "act2_district_jobs", "value": 2, "desc": "Jobs per district."},
+        {"id": "act2_building_slots_per_pops", "value": 5, "desc": "One building slot per this many pops (plus one)."},
+        {"id": "act2_outpost_alloys", "value": 60, "desc": "Alloys to build an outpost."},
+        {"id": "act2_outpost_influence", "value": 1, "desc": "Influence to build an outpost."},
+        {"id": "act2_outpost_build_months", "value": 4, "desc": "Months a construction ship takes to build an outpost."},
+        {"id": "act2_survey_months", "value": 3, "desc": "Months a science ship takes to survey a system."},
+        {"id": "act2_colonize_months", "value": 8, "desc": "Months from a colony ship landing until the colony is founded."},
+        {"id": "act2_base_influence", "value": 3, "desc": "Influence per month from the capital."},
+        {"id": "act2_base_naval_cap", "value": 20, "desc": "Naval capacity before modifiers."},
+        {"id": "act2_capture_months", "value": 6, "desc": "Months a fleet must hold an enemy system (with no enemy fleet or starbase left) to take it."},
+        {"id": "act2_ai_war_power_ratio", "value": 1.4, "desc": "AI empires only declare war on someone their fleet is this much stronger than."},
+        {"id": "act2_war_exhaustion_months", "value": 60, "desc": "After this many months at war, either side accepts peace."},
+        {"id": "act2_starbase_power", "value": 60, "desc": "Combat power of a starbase in an owned system."},
+        {"id": "act2_home_pops", "value": 14, "desc": "Pops on a homeworld at the start of Act 2."},
+        {"id": "act2_score_per_pop", "value": 1, "desc": "Score per pop."},
+        {"id": "act2_score_per_system", "value": 4, "desc": "Score per owned system."},
+        {"id": "act2_score_per_tech", "value": 6, "desc": "Score per Act 2 technology."},
+        {"id": "act2_score_per_power", "value": 0.05, "desc": "Score per point of fleet power."},
+        {"id": "act2_conquest_share", "value": 0.6, "desc": "Owning this share of all colonized and outposted systems wins outright."}
+      ]
+    },
+    "space_race": {
+      "about": "How hard losing the race to space hits you. Chosen on the setup screen.",
+      "columns": ["id", "name", "desc", "defeat_if_beaten", "rival_lead_modifiers", "player_first_modifiers"],
+      "rows": [
+        {"id": "relaxed", "name": "Relaxed", "desc": "If a rival reaches space first, they start Act 2 owning the rare star systems made from this map's natural wonders. Nothing else changes.", "defeat_if_beaten": false, "rival_lead_modifiers": [], "player_first_modifiers": ["sa_space_race_victor"]},
+        {"id": "standard", "name": "Standard", "desc": "Rivals who reach space before you also start Act 2 with +15% alloys and +10 naval capacity. Whoever is first owns the rare star systems.", "defeat_if_beaten": false, "rival_lead_modifiers": ["sa_space_race_leader", "sa_space_race_leader_fleet"], "player_first_modifiers": ["sa_space_race_victor"]},
+        {"id": "ruthless", "name": "Ruthless", "desc": "If a rival reaches space first, you lose and there is no Act 2. Only the winner of the space race goes to the stars.", "defeat_if_beaten": true, "rival_lead_modifiers": ["sa_space_race_leader", "sa_space_race_leader_fleet"], "player_first_modifiers": ["sa_space_race_victor"]}
+      ]
+    },
+    "difficulties": {
+      "about": "Civ VI's difficulty levels. Rivals' yields (Act 1) and output (Act 2) are multiplied.",
+      "columns": ["id", "name_loc", "name", "ai_yield_mult", "ai_act2_mult", "desc"],
+      "rows": [
+        {"id": "DIFFICULTY_SETTLER", "name_loc": "LOC_DIFFICULTY_SETTLER_NAME", "name": "Settler", "ai_yield_mult": 0.6, "ai_act2_mult": 0.7, "desc": "Rivals are slow. Learn the game."},
+        {"id": "DIFFICULTY_CHIEFTAIN", "name_loc": "LOC_DIFFICULTY_CHIEFTAIN_NAME", "name": "Chieftain", "ai_yield_mult": 0.75, "ai_act2_mult": 0.8, "desc": "Rivals are slower than you."},
+        {"id": "DIFFICULTY_WARLORD", "name_loc": "LOC_DIFFICULTY_WARLORD_NAME", "name": "Warlord", "ai_yield_mult": 0.9, "ai_act2_mult": 0.9, "desc": "Rivals are a little slower than you."},
+        {"id": "DIFFICULTY_PRINCE", "name_loc": "LOC_DIFFICULTY_PRINCE_NAME", "name": "Prince", "ai_yield_mult": 1.0, "ai_act2_mult": 1.0, "desc": "Everyone plays by the same numbers."},
+        {"id": "DIFFICULTY_KING", "name_loc": "LOC_DIFFICULTY_KING_NAME", "name": "King", "ai_yield_mult": 1.15, "ai_act2_mult": 1.1, "desc": "Rivals get +15% yields."},
+        {"id": "DIFFICULTY_EMPEROR", "name_loc": "LOC_DIFFICULTY_EMPEROR_NAME", "name": "Emperor", "ai_yield_mult": 1.3, "ai_act2_mult": 1.2, "desc": "Rivals get +30% yields."},
+        {"id": "DIFFICULTY_IMMORTAL", "name_loc": "LOC_DIFFICULTY_IMMORTAL_NAME", "name": "Immortal", "ai_yield_mult": 1.5, "ai_act2_mult": 1.35, "desc": "Rivals get +50% yields."},
+        {"id": "DIFFICULTY_DEITY", "name_loc": "LOC_DIFFICULTY_DEITY_NAME", "name": "Deity", "ai_yield_mult": 1.75, "ai_act2_mult": 1.5, "desc": "Rivals get +75% yields."}
+      ]
+    },
+    "map_sizes": {
+      "about": "Act 1 map and Act 2 galaxy sizes.",
+      "columns": ["id", "name", "width", "height", "default_rivals", "max_rivals", "natural_wonders", "aliens", "act2_systems", "desc"],
+      "rows": [
+        {"id": "small", "name": "Small", "width": 36, "height": 22, "default_rivals": 3, "max_rivals": 5, "natural_wonders": 4, "aliens": 2, "act2_systems": 48, "desc": "A short game: 36 x 22 tiles."},
+        {"id": "standard", "name": "Standard", "width": 46, "height": 28, "default_rivals": 5, "max_rivals": 7, "natural_wonders": 6, "aliens": 3, "act2_systems": 72, "desc": "The usual game: 46 x 28 tiles."},
+        {"id": "large", "name": "Large", "width": 58, "height": 34, "default_rivals": 7, "max_rivals": 10, "natural_wonders": 8, "aliens": 4, "act2_systems": 100, "desc": "A long game with many rivals: 58 x 34 tiles."}
+      ]
+    },
+    "game_lengths": {
+      "about": "How long Act 2 runs before the highest score wins.",
+      "columns": ["id", "name", "end_year", "desc"],
+      "rows": [
+        {"id": "short", "name": "Short", "end_year": 2260, "desc": "Act 2 ends in 2260."},
+        {"id": "standard", "name": "Standard", "end_year": 2300, "desc": "Act 2 ends in 2300."},
+        {"id": "long", "name": "Long", "end_year": 2350, "desc": "Act 2 ends in 2350."}
+      ]
+    },
+    "yields": {
+      "about": "Act 1 yields. Civ VI's culture and faith are folded in: culture counts as science, faith as gold.",
+      "columns": ["id", "name_loc", "name", "icon", "color", "desc"],
+      "rows": [
+        {"id": "food", "name_loc": "LOC_YIELD_FOOD_NAME", "name": "Food", "icon": "ICON_YIELD_FOOD_5", "color": "#8BC34A", "desc": "Grows cities."},
+        {"id": "production", "name_loc": "LOC_YIELD_PRODUCTION_NAME", "name": "Production", "icon": "ICON_YIELD_PRODUCTION_5", "color": "#C88A3A", "desc": "Builds Settlers, buildings, wonders and projects."},
+        {"id": "gold", "name_loc": "LOC_YIELD_GOLD_NAME", "name": "Gold", "icon": "ICON_YIELD_GOLD_5", "color": "#F2C14E", "desc": "Buys the current build."},
+        {"id": "science", "name_loc": "LOC_YIELD_SCIENCE_NAME", "name": "Science", "icon": "ICON_YIELD_SCIENCE_5", "color": "#4FA8E0", "desc": "Researches technologies."}
+      ]
+    },
+    "terrains": {
+      "about": "Act 1 terrain. Yields are Civ VI's (Terrain_YieldChanges); mountains can't be worked or settled.",
+      "columns": ["id", "name_loc", "food", "production", "gold", "science", "land", "passable", "icon", "color"],
+      "rows": [
+        {"id": "TERRAIN_GRASS", "name_loc": "LOC_TERRAIN_GRASS_NAME", "food": 2, "production": 0, "gold": 0, "science": 0, "land": true, "passable": true, "icon": "ICON_TERRAIN_GRASS", "color": "#6E9B3A"},
+        {"id": "TERRAIN_GRASS_HILLS", "name_loc": "LOC_TERRAIN_GRASS_HILLS_NAME", "food": 2, "production": 1, "gold": 0, "science": 0, "land": true, "passable": true, "icon": "ICON_TERRAIN_GRASS_HILLS", "color": "#5E8A33"},
+        {"id": "TERRAIN_GRASS_MOUNTAIN", "name_loc": "LOC_TERRAIN_GRASS_MOUNTAIN_NAME", "food": 0, "production": 0, "gold": 0, "science": 0, "land": true, "passable": false, "icon": "ICON_TERRAIN_GRASS_MOUNTAIN", "color": "#7A7A6E"},
+        {"id": "TERRAIN_PLAINS", "name_loc": "LOC_TERRAIN_PLAINS_NAME", "food": 1, "production": 1, "gold": 0, "science": 0, "land": true, "passable": true, "icon": "ICON_TERRAIN_PLAINS", "color": "#A9A048"},
+        {"id": "TERRAIN_PLAINS_HILLS", "name_loc": "LOC_TERRAIN_PLAINS_HILLS_NAME", "food": 1, "production": 2, "gold": 0, "science": 0, "land": true, "passable": true, "icon": "ICON_TERRAIN_PLAINS_HILLS", "color": "#978E3F"},
+        {"id": "TERRAIN_PLAINS_MOUNTAIN", "name_loc": "LOC_TERRAIN_PLAINS_MOUNTAIN_NAME", "food": 0, "production": 0, "gold": 0, "science": 0, "land": true, "passable": false, "icon": "ICON_TERRAIN_PLAINS_MOUNTAIN", "color": "#7D786A"},
+        {"id": "TERRAIN_DESERT", "name_loc": "LOC_TERRAIN_DESERT_NAME", "food": 0, "production": 0, "gold": 0, "science": 0, "land": true, "passable": true, "icon": "ICON_TERRAIN_DESERT", "color": "#D8C17E"},
+        {"id": "TERRAIN_DESERT_HILLS", "name_loc": "LOC_TERRAIN_DESERT_HILLS_NAME", "food": 0, "production": 1, "gold": 0, "science": 0, "land": true, "passable": true, "icon": "ICON_TERRAIN_DESERT_HILLS", "color": "#C7AE6B"},
+        {"id": "TERRAIN_DESERT_MOUNTAIN", "name_loc": "LOC_TERRAIN_DESERT_MOUNTAIN_NAME", "food": 0, "production": 0, "gold": 0, "science": 0, "land": true, "passable": false, "icon": "ICON_TERRAIN_DESERT_MOUNTAIN", "color": "#8F8470"},
+        {"id": "TERRAIN_TUNDRA", "name_loc": "LOC_TERRAIN_TUNDRA_NAME", "food": 1, "production": 0, "gold": 0, "science": 0, "land": true, "passable": true, "icon": "ICON_TERRAIN_TUNDRA", "color": "#8E9A86"},
+        {"id": "TERRAIN_TUNDRA_HILLS", "name_loc": "LOC_TERRAIN_TUNDRA_HILLS_NAME", "food": 1, "production": 1, "gold": 0, "science": 0, "land": true, "passable": true, "icon": "ICON_TERRAIN_TUNDRA_HILLS", "color": "#7F8B78"},
+        {"id": "TERRAIN_TUNDRA_MOUNTAIN", "name_loc": "LOC_TERRAIN_TUNDRA_MOUNTAIN_NAME", "food": 0, "production": 0, "gold": 0, "science": 0, "land": true, "passable": false, "icon": "ICON_TERRAIN_TUNDRA_MOUNTAIN", "color": "#7C7F7A"},
+        {"id": "TERRAIN_SNOW", "name_loc": "LOC_TERRAIN_SNOW_NAME", "food": 0, "production": 0, "gold": 0, "science": 0, "land": true, "passable": true, "icon": "ICON_TERRAIN_SNOW", "color": "#E6EEF2"},
+        {"id": "TERRAIN_SNOW_HILLS", "name_loc": "LOC_TERRAIN_SNOW_HILLS_NAME", "food": 0, "production": 1, "gold": 0, "science": 0, "land": true, "passable": true, "icon": "ICON_TERRAIN_SNOW_HILLS", "color": "#D6DEE3"},
+        {"id": "TERRAIN_SNOW_MOUNTAIN", "name_loc": "LOC_TERRAIN_SNOW_MOUNTAIN_NAME", "food": 0, "production": 0, "gold": 0, "science": 0, "land": true, "passable": false, "icon": "ICON_TERRAIN_SNOW_MOUNTAIN", "color": "#B9C1C6"},
+        {"id": "TERRAIN_COAST", "name_loc": "LOC_TERRAIN_COAST_NAME", "food": 1, "production": 0, "gold": 1, "science": 0, "land": false, "passable": false, "icon": "ICON_TERRAIN_COAST", "color": "#3E8FB5"},
+        {"id": "TERRAIN_OCEAN", "name_loc": "LOC_TERRAIN_OCEAN_NAME", "food": 1, "production": 0, "gold": 0, "science": 0, "land": false, "passable": false, "icon": "ICON_TERRAIN_OCEAN", "color": "#22597F"}
+      ]
+    },
+    "features": {
+      "about": "Act 1 features on land tiles. Yields add to the terrain's (Civ VI's Feature_YieldChanges).",
+      "columns": ["id", "name_loc", "terrains", "food", "production", "gold", "science", "density", "icon"],
+      "rows": [
+        {"id": "FEATURE_FOREST", "name_loc": "LOC_FEATURE_FOREST_NAME", "terrains": ["TERRAIN_GRASS", "TERRAIN_PLAINS", "TERRAIN_TUNDRA", "TERRAIN_GRASS_HILLS", "TERRAIN_PLAINS_HILLS", "TERRAIN_TUNDRA_HILLS"], "food": 0, "production": 1, "gold": 0, "science": 0, "density": 0.22, "icon": "ICON_FEATURE_FOREST"},
+        {"id": "FEATURE_JUNGLE", "name_loc": "LOC_FEATURE_JUNGLE_NAME", "terrains": ["TERRAIN_GRASS", "TERRAIN_PLAINS", "TERRAIN_GRASS_HILLS", "TERRAIN_PLAINS_HILLS"], "food": 1, "production": 0, "gold": 0, "science": 0, "density": 0.12, "icon": "ICON_FEATURE_JUNGLE"},
+        {"id": "FEATURE_MARSH", "name_loc": "LOC_FEATURE_MARSH_NAME", "terrains": ["TERRAIN_GRASS"], "food": 1, "production": 0, "gold": 0, "science": 0, "density": 0.04, "icon": "ICON_FEATURE_MARSH"},
+        {"id": "FEATURE_FLOODPLAINS", "name_loc": "LOC_FEATURE_FLOODPLAINS_NAME", "terrains": ["TERRAIN_DESERT"], "food": 3, "production": 0, "gold": 0, "science": 0, "density": 0.08, "icon": "ICON_FEATURE_FLOODPLAINS"},
+        {"id": "FEATURE_OASIS", "name_loc": "LOC_FEATURE_OASIS_NAME", "terrains": ["TERRAIN_DESERT"], "food": 3, "production": 0, "gold": 1, "science": 0, "density": 0.03, "icon": "ICON_FEATURE_OASIS"}
+      ]
+    },
+    "natural_wonders": {
+      "about": "Natural wonders on the Act 1 map. Their tile yields come from Civ VI (culture as science, faith as gold). In Act 2 each becomes a rare star system: whoever reached space first starts owning it, and whoever holds it gets the modifier. DEFAULT covers natural wonders not listed.",
+      "columns": ["id", "land", "food", "production", "gold", "science", "modifier", "desc"],
+      "rows": [
+        {"id": "FEATURE_CRATER_LAKE", "land": true, "food": 0, "production": 0, "gold": 5, "science": 1, "modifier": "sa_natural_research", "desc": "Crater Lake"},
+        {"id": "FEATURE_DEAD_SEA", "land": true, "food": 0, "production": 0, "gold": 2, "science": 2, "modifier": "sa_natural_unity", "desc": "Dead Sea"},
+        {"id": "FEATURE_EVEREST", "land": true, "food": 0, "production": 2, "gold": 0, "science": 1, "modifier": "sa_natural_minerals", "desc": "Mount Everest (Civ VI gives units bonuses; here it yields production)"},
+        {"id": "FEATURE_GALAPAGOS", "land": false, "food": 1, "production": 0, "gold": 0, "science": 2, "modifier": "sa_natural_research", "desc": "Galápagos Islands"},
+        {"id": "FEATURE_KILIMANJARO", "land": true, "food": 2, "production": 0, "gold": 0, "science": 0, "modifier": "sa_natural_food", "desc": "Mount Kilimanjaro"},
+        {"id": "FEATURE_PANTANAL", "land": true, "food": 2, "production": 0, "gold": 0, "science": 2, "modifier": "sa_natural_food", "desc": "Pantanal"},
+        {"id": "FEATURE_PIOPIOTAHI", "land": true, "food": 0, "production": 0, "gold": 0, "science": 2, "modifier": "sa_natural_unity", "desc": "Piopiotahi"},
+        {"id": "FEATURE_TORRES_DEL_PAINE", "land": true, "food": 0, "production": 2, "gold": 0, "science": 1, "modifier": "sa_natural_minerals", "desc": "Torres del Paine"},
+        {"id": "FEATURE_TSINGY", "land": true, "food": 0, "production": 2, "gold": 0, "science": 1, "modifier": "sa_natural_minerals", "desc": "Tsingy de Bemaraha"},
+        {"id": "FEATURE_YOSEMITE", "land": true, "food": 0, "production": 0, "gold": 1, "science": 1, "modifier": "sa_natural_energy", "desc": "Yosemite"},
+        {"id": "FEATURE_CLIFFS_DOVER", "land": false, "food": 2, "production": 0, "gold": 3, "science": 3, "modifier": "sa_natural_unity", "desc": "Cliffs of Dover"},
+        {"id": "FEATURE_BARRIER_REEF", "land": false, "food": 3, "production": 0, "gold": 0, "science": 2, "modifier": "sa_natural_food", "desc": "Great Barrier Reef"},
+        {"id": "DEFAULT", "land": true, "food": 1, "production": 1, "gold": 1, "science": 1, "modifier": "sa_natural_energy", "desc": "Any other natural wonder the player's Civ VI has"}
+      ]
+    },
+    "buildings": {
+      "about": "Act 1 city buildings: real Civ VI buildings (name, icon and cost from the install), with simplified effects. Cost here is Civ VI's, before act1_build_cost_mult.",
+      "columns": ["id", "requires_tech", "requires_building", "coastal", "cost", "food", "production", "gold", "science", "food_pct", "production_pct", "gold_pct", "science_pct", "desc"],
+      "rows": [
+        {"id": "BUILDING_MONUMENT", "requires_tech": "none", "requires_building": "none", "coastal": false, "cost": 60, "food": 0, "production": 0, "gold": 1, "science": 1, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "desc": "+1 Science, +1 Gold."},
+        {"id": "BUILDING_GRANARY", "requires_tech": "TECH_POTTERY", "requires_building": "none", "coastal": false, "cost": 65, "food": 2, "production": 0, "gold": 0, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "desc": "+2 Food."},
+        {"id": "BUILDING_WATER_MILL", "requires_tech": "TECH_THE_WHEEL", "requires_building": "none", "coastal": false, "cost": 80, "food": 1, "production": 1, "gold": 0, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "desc": "+1 Food, +1 Production."},
+        {"id": "BUILDING_LIBRARY", "requires_tech": "TECH_WRITING", "requires_building": "none", "coastal": false, "cost": 90, "food": 0, "production": 0, "gold": 0, "science": 2, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "desc": "+2 Science."},
+        {"id": "BUILDING_MARKET", "requires_tech": "TECH_CURRENCY", "requires_building": "none", "coastal": false, "cost": 120, "food": 0, "production": 0, "gold": 3, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "desc": "+3 Gold."},
+        {"id": "BUILDING_LIGHTHOUSE", "requires_tech": "TECH_CELESTIAL_NAVIGATION", "requires_building": "none", "coastal": true, "cost": 120, "food": 1, "production": 0, "gold": 1, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "desc": "+1 Food, +1 Gold. Coastal cities only."},
+        {"id": "BUILDING_WORKSHOP", "requires_tech": "TECH_APPRENTICESHIP", "requires_building": "none", "coastal": false, "cost": 195, "food": 0, "production": 2, "gold": 0, "science": 0, "food_pct": 0, "production_pct": 10, "gold_pct": 0, "science_pct": 0, "desc": "+2 Production, +10% Production."},
+        {"id": "BUILDING_UNIVERSITY", "requires_tech": "TECH_EDUCATION", "requires_building": "BUILDING_LIBRARY", "coastal": false, "cost": 250, "food": 0, "production": 0, "gold": 0, "science": 3, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 10, "desc": "+3 Science, +10% Science."},
+        {"id": "BUILDING_BANK", "requires_tech": "TECH_BANKING", "requires_building": "BUILDING_MARKET", "coastal": false, "cost": 290, "food": 0, "production": 0, "gold": 4, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 15, "science_pct": 0, "desc": "+4 Gold, +15% Gold."},
+        {"id": "BUILDING_SEWER", "requires_tech": "TECH_SANITATION", "requires_building": "BUILDING_GRANARY", "coastal": false, "cost": 200, "food": 3, "production": 0, "gold": 0, "science": 0, "food_pct": 10, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "desc": "+3 Food, +10% Food."},
+        {"id": "BUILDING_FACTORY", "requires_tech": "TECH_INDUSTRIALIZATION", "requires_building": "BUILDING_WORKSHOP", "coastal": false, "cost": 390, "food": 0, "production": 3, "gold": 0, "science": 0, "food_pct": 0, "production_pct": 15, "gold_pct": 0, "science_pct": 0, "desc": "+3 Production, +15% Production."},
+        {"id": "BUILDING_STOCK_EXCHANGE", "requires_tech": "TECH_ECONOMICS", "requires_building": "BUILDING_BANK", "coastal": false, "cost": 390, "food": 0, "production": 0, "gold": 5, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 15, "science_pct": 0, "desc": "+5 Gold, +15% Gold."},
+        {"id": "BUILDING_RESEARCH_LAB", "requires_tech": "TECH_CHEMISTRY", "requires_building": "BUILDING_UNIVERSITY", "coastal": false, "cost": 580, "food": 0, "production": 0, "gold": 0, "science": 5, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 20, "desc": "+5 Science, +20% Science."},
+        {"id": "BUILDING_POWER_PLANT", "requires_tech": "TECH_ELECTRICITY", "requires_building": "BUILDING_FACTORY", "coastal": false, "cost": 580, "food": 0, "production": 4, "gold": 0, "science": 0, "food_pct": 0, "production_pct": 20, "gold_pct": 0, "science_pct": 0, "desc": "+4 Production, +20% Production."},
+        {"id": "DISTRICT_SPACEPORT", "requires_tech": "TECH_ROCKETRY", "requires_building": "none", "coastal": false, "cost": 1800, "food": 0, "production": 0, "gold": 0, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "desc": "Lets this city launch the Earth Satellite and the Moon Landing."}
+      ]
+    },
+    "wonders": {
+      "about": "Act 1 world wonders: only one civilization can build each. Name, icon and cost come from Civ VI; wonders Civ VI unlocks with a civic are unlocked by the tech listed here. In Act 2 each wonder you built becomes a feature on your homeworld with its modifier.",
+      "columns": ["id", "requires_tech", "cost", "scope", "food", "production", "gold", "science", "food_pct", "production_pct", "gold_pct", "science_pct", "modifier", "desc"],
+      "rows": [
+        {"id": "BUILDING_STONEHENGE", "requires_tech": "TECH_ASTROLOGY", "cost": 180, "scope": "city", "food": 0, "production": 0, "gold": 2, "science": 2, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_faith", "desc": "+2 Science, +2 Gold."},
+        {"id": "BUILDING_HANGING_GARDENS", "requires_tech": "TECH_IRRIGATION", "cost": 180, "scope": "empire", "food": 0, "production": 0, "gold": 0, "science": 0, "food_pct": 15, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_growth", "desc": "+15% Food in every city."},
+        {"id": "BUILDING_PYRAMIDS", "requires_tech": "TECH_MASONRY", "cost": 220, "scope": "city", "food": 0, "production": 0, "gold": 0, "science": 0, "food_pct": 0, "production_pct": 25, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_industry", "desc": "+25% Production in this city."},
+        {"id": "BUILDING_ORACLE", "requires_tech": "TECH_ASTROLOGY", "cost": 290, "scope": "city", "food": 0, "production": 0, "gold": 3, "science": 2, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_faith", "desc": "+2 Science, +3 Gold."},
+        {"id": "BUILDING_GREAT_LIGHTHOUSE", "requires_tech": "TECH_CELESTIAL_NAVIGATION", "cost": 290, "scope": "city", "food": 1, "production": 0, "gold": 4, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_industry", "desc": "+1 Food, +4 Gold."},
+        {"id": "BUILDING_COLOSSUS", "requires_tech": "TECH_SHIPBUILDING", "cost": 400, "scope": "city", "food": 0, "production": 1, "gold": 4, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_industry", "desc": "+1 Production, +4 Gold."},
+        {"id": "BUILDING_PETRA", "requires_tech": "TECH_MATHEMATICS", "cost": 400, "scope": "city", "food": 2, "production": 2, "gold": 1, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_growth", "desc": "+2 Food, +2 Production, +1 Gold."},
+        {"id": "BUILDING_COLOSSEUM", "requires_tech": "TECH_CONSTRUCTION", "cost": 400, "scope": "empire", "food": 1, "production": 0, "gold": 0, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_culture", "desc": "+1 Food in every city."},
+        {"id": "BUILDING_GREAT_LIBRARY", "requires_tech": "TECH_WRITING", "cost": 400, "scope": "city", "food": 0, "production": 0, "gold": 0, "science": 5, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_science", "desc": "+5 Science."},
+        {"id": "BUILDING_MAHABODHI_TEMPLE", "requires_tech": "TECH_CURRENCY", "cost": 400, "scope": "city", "food": 0, "production": 0, "gold": 4, "science": 2, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_faith", "desc": "+2 Science, +4 Gold."},
+        {"id": "BUILDING_TERRACOTTA_ARMY", "requires_tech": "TECH_CONSTRUCTION", "cost": 400, "scope": "city", "food": 0, "production": 4, "gold": 0, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_military", "desc": "+4 Production."},
+        {"id": "BUILDING_HAGIA_SOPHIA", "requires_tech": "TECH_EDUCATION", "cost": 710, "scope": "city", "food": 0, "production": 0, "gold": 2, "science": 4, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_faith", "desc": "+4 Science, +2 Gold."},
+        {"id": "BUILDING_ALHAMBRA", "requires_tech": "TECH_CASTLES", "cost": 710, "scope": "city", "food": 0, "production": 5, "gold": 0, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_military", "desc": "+5 Production."},
+        {"id": "BUILDING_CHICHEN_ITZA", "requires_tech": "TECH_APPRENTICESHIP", "cost": 710, "scope": "empire", "food": 0, "production": 1, "gold": 0, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_industry", "desc": "+1 Production in every city."},
+        {"id": "BUILDING_MONT_ST_MICHEL", "requires_tech": "TECH_MILITARY_ENGINEERING", "cost": 710, "scope": "city", "food": 0, "production": 0, "gold": 5, "science": 2, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_faith", "desc": "+2 Science, +5 Gold."},
+        {"id": "BUILDING_VENETIAN_ARSENAL", "requires_tech": "TECH_MASS_PRODUCTION", "cost": 920, "scope": "city", "food": 0, "production": 0, "gold": 0, "science": 0, "food_pct": 0, "production_pct": 30, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_military", "desc": "+30% Production in this city."},
+        {"id": "BUILDING_GREAT_ZIMBABWE", "requires_tech": "TECH_BANKING", "cost": 920, "scope": "city", "food": 0, "production": 0, "gold": 8, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_industry", "desc": "+8 Gold."},
+        {"id": "BUILDING_FORBIDDEN_CITY", "requires_tech": "TECH_PRINTING", "cost": 920, "scope": "empire", "food": 0, "production": 0, "gold": 0, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 10, "science_pct": 0, "modifier": "sa_wonder_culture", "desc": "+10% Gold in every city."},
+        {"id": "BUILDING_POTALA_PALACE", "requires_tech": "TECH_ASTRONOMY", "cost": 1060, "scope": "city", "food": 0, "production": 0, "gold": 0, "science": 6, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_faith", "desc": "+6 Science."},
+        {"id": "BUILDING_RUHR_VALLEY", "requires_tech": "TECH_INDUSTRIALIZATION", "cost": 1240, "scope": "city", "food": 0, "production": 0, "gold": 0, "science": 0, "food_pct": 0, "production_pct": 30, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_industry", "desc": "+30% Production in this city."},
+        {"id": "BUILDING_BOLSHOI_THEATRE", "requires_tech": "TECH_SANITATION", "cost": 1240, "scope": "city", "food": 0, "production": 0, "gold": 0, "science": 7, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_culture", "desc": "+7 Science."},
+        {"id": "BUILDING_OXFORD_UNIVERSITY", "requires_tech": "TECH_SCIENTIFIC_THEORY", "cost": 1240, "scope": "city", "food": 0, "production": 0, "gold": 0, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 25, "modifier": "sa_wonder_science", "desc": "+25% Science in this city."},
+        {"id": "BUILDING_BIG_BEN", "requires_tech": "TECH_ECONOMICS", "cost": 1450, "scope": "city", "food": 0, "production": 0, "gold": 12, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_culture", "desc": "+12 Gold."},
+        {"id": "BUILDING_HERMITAGE", "requires_tech": "TECH_STEAM_POWER", "cost": 1450, "scope": "city", "food": 0, "production": 0, "gold": 0, "science": 8, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_culture", "desc": "+8 Science."},
+        {"id": "BUILDING_EIFFEL_TOWER", "requires_tech": "TECH_STEEL", "cost": 1620, "scope": "empire", "food": 0, "production": 0, "gold": 2, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_culture", "desc": "+2 Gold in every city."},
+        {"id": "BUILDING_BROADWAY", "requires_tech": "TECH_RADIO", "cost": 1620, "scope": "city", "food": 0, "production": 0, "gold": 6, "science": 6, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_culture", "desc": "+6 Science, +6 Gold."},
+        {"id": "BUILDING_CRISTO_REDENTOR", "requires_tech": "TECH_ELECTRICITY", "cost": 1620, "scope": "empire", "food": 0, "production": 0, "gold": 0, "science": 1, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_faith", "desc": "+1 Science in every city."},
+        {"id": "BUILDING_ESTADIO_DO_MARACANA", "requires_tech": "TECH_ADVANCED_FLIGHT", "cost": 1740, "scope": "empire", "food": 1, "production": 0, "gold": 1, "science": 0, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_culture", "desc": "+1 Food and +1 Gold in every city."},
+        {"id": "BUILDING_SYDNEY_OPERA_HOUSE", "requires_tech": "TECH_COMPUTERS", "cost": 1850, "scope": "city", "food": 0, "production": 0, "gold": 0, "science": 10, "food_pct": 0, "production_pct": 0, "gold_pct": 0, "science_pct": 0, "modifier": "sa_wonder_culture", "desc": "+10 Science."}
+      ]
+    },
+    "projects": {
+      "about": "Act 1 space projects (Civ VI's), built in a city with a Spaceport. Cost is Civ VI's, before act1_build_cost_mult.",
+      "columns": ["id", "requires_tech", "requires_building", "cost", "kind", "desc"],
+      "rows": [
+        {"id": "PROJECT_LAUNCH_EARTH_SATELLITE", "requires_tech": "TECH_ROCKETRY", "requires_building": "DISTRICT_SPACEPORT", "cost": 900, "kind": "satellite", "desc": "Your first satellite. Needed before the Moon Landing."},
+        {"id": "PROJECT_LAUNCH_MOON_LANDING", "requires_tech": "TECH_SATELLITES", "requires_building": "DISTRICT_SPACEPORT", "cost": 1500, "kind": "moon", "desc": "Completing this ends Act 1: your civilization reaches space."}
+      ]
+    },
+    "tech_legacy": {
+      "about": "Civ VI techs that carry a Space Age legacy: each one you research gives its modifier at the start of Act 2. The tech's tooltip names it.",
+      "columns": ["civ_tech", "title", "modifier"],
+      "rows": [
+        {"civ_tech": "TECH_ASTROLOGY", "title": "Stargazers' Legacy", "modifier": "sa_legacy_astrology"},
+        {"civ_tech": "TECH_WRITING", "title": "Written Record", "modifier": "sa_legacy_writing"},
+        {"civ_tech": "TECH_SHIPBUILDING", "title": "Shipwright Tradition", "modifier": "sa_legacy_shipbuilding"},
+        {"civ_tech": "TECH_MATHEMATICS", "title": "Mathematical Heritage", "modifier": "sa_legacy_mathematics"},
+        {"civ_tech": "TECH_CELESTIAL_NAVIGATION", "title": "Navigators' Stars", "modifier": "sa_legacy_celestial_navigation"},
+        {"civ_tech": "TECH_ENGINEERING", "title": "Builders' Legacy", "modifier": "sa_legacy_engineering"},
+        {"civ_tech": "TECH_ASTRONOMY", "title": "Observatory Charts", "modifier": "sa_legacy_astronomy"},
+        {"civ_tech": "TECH_SCIENTIFIC_THEORY", "title": "Scientific Method", "modifier": "sa_legacy_scientific_theory"},
+        {"civ_tech": "TECH_INDUSTRIALIZATION", "title": "Industrial Base", "modifier": "sa_legacy_industrialization"},
+        {"civ_tech": "TECH_STEEL", "title": "Steel Foundries", "modifier": "sa_legacy_steel"},
+        {"civ_tech": "TECH_ELECTRICITY", "title": "Electric Grid", "modifier": "sa_legacy_electricity"},
+        {"civ_tech": "TECH_FLIGHT", "title": "Age of Flight", "modifier": "sa_legacy_flight"},
+        {"civ_tech": "TECH_ROCKETRY", "title": "Rocket Yards", "modifier": "sa_legacy_rocketry"},
+        {"civ_tech": "TECH_COMPUTERS", "title": "Computing Revolution", "modifier": "sa_legacy_computers"},
+        {"civ_tech": "TECH_SATELLITES", "title": "Orbital Network", "modifier": "sa_legacy_satellites"},
+        {"civ_tech": "TECH_LASERS", "title": "Directed Energy", "modifier": "sa_legacy_lasers"},
+        {"civ_tech": "TECH_ROBOTICS", "title": "Automated Industry", "modifier": "sa_legacy_robotics"},
+        {"civ_tech": "TECH_NANOTECHNOLOGY", "title": "Nanofabrication", "modifier": "sa_legacy_nanotechnology"},
+        {"civ_tech": "TECH_NUCLEAR_FUSION", "title": "Fusion Power", "modifier": "sa_legacy_nuclear_fusion"}
+      ]
+    },
+    "eras": {
+      "about": "Act 1 calendar: the year follows the most advanced civilization's progress through Civ VI's eras, so the space age arrives in the 20th century however fast the game goes.",
+      "columns": ["id", "start_year"],
+      "rows": [
+        {"id": "ERA_ANCIENT", "start_year": -4000},
+        {"id": "ERA_CLASSICAL", "start_year": -1000},
+        {"id": "ERA_MEDIEVAL", "start_year": 500},
+        {"id": "ERA_RENAISSANCE", "start_year": 1400},
+        {"id": "ERA_INDUSTRIAL", "start_year": 1750},
+        {"id": "ERA_MODERN", "start_year": 1880},
+        {"id": "ERA_ATOMIC", "start_year": 1935},
+        {"id": "ERA_INFORMATION", "start_year": 1960}
+      ]
+    },
+    "resources": {
+      "about": "Act 2 resources (Stellaris's). Research is one pool here.",
+      "columns": ["id", "name_loc", "name", "art", "start", "desc"],
+      "rows": [
+        {"id": "energy", "name_loc": "energy", "name": "Energy", "art": "st_res_energy", "start": 150, "desc": "Upkeep for ships and buildings."},
+        {"id": "minerals", "name_loc": "minerals", "name": "Minerals", "art": "st_res_minerals", "start": 250, "desc": "Builds districts, buildings and ships' hulls."},
+        {"id": "food", "name_loc": "food", "name": "Food", "art": "st_res_food", "start": 200, "desc": "Pops eat it; colony ships carry it."},
+        {"id": "alloys", "name_loc": "alloys", "name": "Alloys", "art": "st_res_alloys", "start": 150, "desc": "Builds warships and outposts."},
+        {"id": "research", "name_loc": "physics_research", "name": "Research", "art": "st_res_research", "start": 0, "desc": "Researches Act 2 technologies."},
+        {"id": "unity", "name_loc": "unity", "name": "Unity", "art": "st_res_unity", "start": 0, "desc": "Adds to your score."},
+        {"id": "influence", "name_loc": "influence", "name": "Influence", "art": "st_res_influence", "start": 5, "desc": "Claims new systems with outposts."}
+      ]
+    },
+    "star_classes": {
+      "about": "Act 2 star classes (Stellaris's).",
+      "columns": ["id", "name_loc", "weight", "art", "color"],
+      "rows": [
+        {"id": "sc_g", "name_loc": "sc_g", "weight": 30, "art": "st_star_yellow", "color": "#FFE59A"},
+        {"id": "sc_k", "name_loc": "sc_k", "weight": 25, "art": "st_star_yellow", "color": "#FFC07A"},
+        {"id": "sc_m", "name_loc": "sc_m", "weight": 30, "art": "st_star_red", "color": "#FF8A6A"},
+        {"id": "sc_b", "name_loc": "sc_b", "weight": 8, "art": "st_star_blue", "color": "#9CC8FF"},
+        {"id": "sc_black_hole", "name_loc": "sc_black_hole", "weight": 3, "art": "st_star_black_hole", "color": "#7A5CFF"},
+        {"id": "sc_neutron_star", "name_loc": "sc_neutron_star", "weight": 2, "art": "st_star_neutron", "color": "#C9F1FF"},
+        {"id": "sc_pulsar", "name_loc": "sc_pulsar", "weight": 2, "art": "st_star_pulsar", "color": "#E0F7FF"}
+      ]
+    },
+    "planet_classes": {
+      "about": "Act 2 planet classes (Stellaris's; icon and name from the install). Habitable planets can be colonized; the rest only count for the system.",
+      "columns": ["id", "habitable", "weight", "size_min", "size_max"],
+      "rows": [
+        {"id": "pc_continental", "habitable": true, "weight": 6, "size_min": 12, "size_max": 22},
+        {"id": "pc_ocean", "habitable": true, "weight": 6, "size_min": 12, "size_max": 22},
+        {"id": "pc_tropical", "habitable": true, "weight": 6, "size_min": 12, "size_max": 22},
+        {"id": "pc_arid", "habitable": true, "weight": 6, "size_min": 10, "size_max": 20},
+        {"id": "pc_desert", "habitable": true, "weight": 6, "size_min": 10, "size_max": 20},
+        {"id": "pc_savannah", "habitable": true, "weight": 6, "size_min": 10, "size_max": 20},
+        {"id": "pc_tundra", "habitable": true, "weight": 5, "size_min": 10, "size_max": 18},
+        {"id": "pc_arctic", "habitable": true, "weight": 5, "size_min": 10, "size_max": 18},
+        {"id": "pc_alpine", "habitable": true, "weight": 5, "size_min": 10, "size_max": 18},
+        {"id": "pc_gaia", "habitable": true, "weight": 1, "size_min": 16, "size_max": 25},
+        {"id": "pc_barren", "habitable": false, "weight": 16, "size_min": 6, "size_max": 14},
+        {"id": "pc_barren_cold", "habitable": false, "weight": 12, "size_min": 6, "size_max": 14},
+        {"id": "pc_molten", "habitable": false, "weight": 10, "size_min": 6, "size_max": 14},
+        {"id": "pc_toxic", "habitable": false, "weight": 10, "size_min": 8, "size_max": 18},
+        {"id": "pc_frozen", "habitable": false, "weight": 10, "size_min": 8, "size_max": 18},
+        {"id": "pc_gas_giant", "habitable": false, "weight": 14, "size_min": 20, "size_max": 30},
+        {"id": "pc_asteroid", "habitable": false, "weight": 12, "size_min": 1, "size_max": 4}
+      ]
+    },
+    "districts": {
+      "about": "Act 2 planet districts (Stellaris's). Each gives act2_district_jobs jobs; a planet has room for one district per 3 sizes.",
+      "columns": ["id", "name_loc", "resource", "per_job", "cost_minerals", "art", "desc"],
+      "rows": [
+        {"id": "district_city", "name_loc": "district_city", "resource": "unity", "per_job": 2, "cost_minerals": 200, "art": "st_district_city", "desc": "Housing and admin: unity, and room for more pops."},
+        {"id": "district_generator", "name_loc": "district_generator", "resource": "energy", "per_job": 6, "cost_minerals": 150, "art": "st_district_generator", "desc": "Technicians make energy."},
+        {"id": "district_mining", "name_loc": "district_mining", "resource": "minerals", "per_job": 5, "cost_minerals": 150, "art": "st_district_mining", "desc": "Miners dig minerals."},
+        {"id": "district_farming", "name_loc": "district_farming", "resource": "food", "per_job": 6, "cost_minerals": 150, "art": "st_district_farming", "desc": "Farmers grow food."},
+        {"id": "district_industrial", "name_loc": "district_industrial", "resource": "alloys", "per_job": 2, "cost_minerals": 200, "art": "st_district_industrial", "desc": "Metallurgists make alloys (each uses 3 minerals a month)."}
+      ]
+    },
+    "planet_buildings": {
+      "about": "Act 2 planet buildings (Stellaris's). One slot per act2_building_slots_per_pops pops, plus one.",
+      "columns": ["id", "name_loc", "requires_tech", "resource", "jobs", "per_job", "cost_minerals", "upkeep_energy", "art", "desc"],
+      "rows": [
+        {"id": "building_research_lab_1", "name_loc": "building_research_lab_1", "requires_tech": "none", "resource": "research", "jobs": 2, "per_job": 4, "cost_minerals": 200, "upkeep_energy": 1, "art": "st_bld_research_lab", "desc": "Researchers make research."},
+        {"id": "building_foundry_1", "name_loc": "building_foundry_1", "requires_tech": "none", "resource": "alloys", "jobs": 2, "per_job": 3, "cost_minerals": 250, "upkeep_energy": 1, "art": "st_bld_foundry", "desc": "Metallurgists make alloys."},
+        {"id": "building_bureaucratic_1", "name_loc": "building_bureaucratic_1", "requires_tech": "none", "resource": "influence", "jobs": 1, "per_job": 1, "cost_minerals": 250, "upkeep_energy": 1, "art": "st_bld_admin", "desc": "Bureaucrats make influence."},
+        {"id": "building_hydroponics_farm", "name_loc": "building_hydroponics_farm", "requires_tech": "tech_food_processing_1", "resource": "food", "jobs": 2, "per_job": 4, "cost_minerals": 150, "upkeep_energy": 1, "art": "st_bld_hydroponics", "desc": "Farmers grow food indoors."},
+        {"id": "building_factory_1", "name_loc": "building_factory_1", "requires_tech": "tech_alloys_1", "resource": "alloys", "jobs": 2, "per_job": 4, "cost_minerals": 350, "upkeep_energy": 2, "art": "st_bld_factory", "desc": "Better alloy works."},
+        {"id": "building_holo_theatres", "name_loc": "building_holo_theatres", "requires_tech": "none", "resource": "unity", "jobs": 2, "per_job": 3, "cost_minerals": 200, "upkeep_energy": 1, "art": "st_bld_holo", "desc": "Entertainers make unity."}
+      ]
+    },
+    "ships": {
+      "about": "Act 2 ships (Stellaris's hulls). Power is combat damage per month; hull is how much damage it takes; speed is hyperlane distance per month.",
+      "columns": ["id", "name_loc", "role", "cost_alloys", "cost_minerals", "cost_food", "build_months", "power", "hull", "speed", "naval_cap", "upkeep_energy", "requires_tech", "art"],
+      "rows": [
+        {"id": "science", "name_loc": "shipclass_science_ship", "role": "science", "cost_alloys": 0, "cost_minerals": 100, "cost_food": 0, "build_months": 3, "power": 0, "hull": 60, "speed": 14, "naval_cap": 0, "upkeep_energy": 1, "requires_tech": "none", "art": "st_ship_science"},
+        {"id": "construction", "name_loc": "constructor", "role": "construction", "cost_alloys": 0, "cost_minerals": 100, "cost_food": 0, "build_months": 3, "power": 0, "hull": 60, "speed": 14, "naval_cap": 0, "upkeep_energy": 1, "requires_tech": "none", "art": "st_ship_construction"},
+        {"id": "colony", "name_loc": "colonizer", "role": "colony", "cost_alloys": 100, "cost_minerals": 0, "cost_food": 150, "build_months": 6, "power": 0, "hull": 80, "speed": 10, "naval_cap": 0, "upkeep_energy": 1, "requires_tech": "none", "art": "st_ship_colony"},
+        {"id": "corvette", "name_loc": "corvette", "role": "military", "cost_alloys": 30, "cost_minerals": 0, "cost_food": 0, "build_months": 2, "power": 6, "hull": 120, "speed": 16, "naval_cap": 1, "upkeep_energy": 1, "requires_tech": "none", "art": "st_ship_corvette"},
+        {"id": "destroyer", "name_loc": "destroyer", "role": "military", "cost_alloys": 60, "cost_minerals": 0, "cost_food": 0, "build_months": 3, "power": 14, "hull": 280, "speed": 14, "naval_cap": 2, "upkeep_energy": 2, "requires_tech": "tech_destroyers", "art": "st_ship_destroyer"},
+        {"id": "cruiser", "name_loc": "cruiser", "role": "military", "cost_alloys": 120, "cost_minerals": 0, "cost_food": 0, "build_months": 5, "power": 30, "hull": 600, "speed": 12, "naval_cap": 4, "upkeep_energy": 3, "requires_tech": "tech_cruisers", "art": "st_ship_cruiser"},
+        {"id": "battleship", "name_loc": "battleship", "role": "military", "cost_alloys": 240, "cost_minerals": 0, "cost_food": 0, "build_months": 8, "power": 64, "hull": 1300, "speed": 10, "naval_cap": 8, "upkeep_energy": 5, "requires_tech": "tech_battleships", "art": "st_ship_battleship"}
+      ]
+    },
+    "act2_techs": {
+      "about": "Act 2 technologies (Stellaris's names and icons). Each gives a modifier or unlocks a ship or building.",
+      "columns": ["id", "name_loc", "cost", "requires", "modifier", "unlocks", "art"],
+      "rows": [
+        {"id": "tech_destroyers", "name_loc": "tech_destroyers", "cost": 400, "requires": "none", "modifier": "none", "unlocks": "destroyer", "art": "st_tech_destroyers"},
+        {"id": "tech_cruisers", "name_loc": "tech_cruisers", "cost": 900, "requires": "tech_destroyers", "modifier": "none", "unlocks": "cruiser", "art": "st_tech_cruisers"},
+        {"id": "tech_battleships", "name_loc": "tech_battleships", "cost": 1800, "requires": "tech_cruisers", "modifier": "none", "unlocks": "battleship", "art": "st_tech_battleships"},
+        {"id": "tech_lasers_2", "name_loc": "tech_lasers_2", "cost": 500, "requires": "none", "modifier": "sa_t_damage_1", "unlocks": "none", "art": "st_tech_lasers_2"},
+        {"id": "tech_lasers_3", "name_loc": "tech_lasers_3", "cost": 1200, "requires": "tech_lasers_2", "modifier": "sa_t_damage_2", "unlocks": "none", "art": "st_tech_lasers_3"},
+        {"id": "tech_ship_armor_1", "name_loc": "tech_ship_armor_1", "cost": 450, "requires": "none", "modifier": "sa_t_hull_1", "unlocks": "none", "art": "st_tech_ship_armor_1"},
+        {"id": "tech_ship_armor_2", "name_loc": "tech_ship_armor_2", "cost": 1100, "requires": "tech_ship_armor_1", "modifier": "sa_t_hull_2", "unlocks": "none", "art": "st_tech_ship_armor_2"},
+        {"id": "tech_shields_1", "name_loc": "tech_shields_1", "cost": 600, "requires": "none", "modifier": "sa_t_hull_1", "unlocks": "none", "art": "st_tech_shields_1"},
+        {"id": "tech_power_plant_1", "name_loc": "tech_power_plant_1", "cost": 350, "requires": "none", "modifier": "sa_t_energy", "unlocks": "none", "art": "st_tech_power_plant_1"},
+        {"id": "tech_space_mining_1", "name_loc": "tech_space_mining_1", "cost": 350, "requires": "none", "modifier": "sa_t_minerals", "unlocks": "none", "art": "st_tech_space_mining_1"},
+        {"id": "tech_food_processing_1", "name_loc": "tech_food_processing_1", "cost": 300, "requires": "none", "modifier": "sa_t_food", "unlocks": "building_hydroponics_farm", "art": "st_tech_food_processing_1"},
+        {"id": "tech_basic_science_lab_1", "name_loc": "tech_basic_science_lab_1", "cost": 400, "requires": "none", "modifier": "sa_t_research", "unlocks": "none", "art": "st_tech_basic_science_lab_1"},
+        {"id": "tech_alloys_1", "name_loc": "tech_alloys_1", "cost": 500, "requires": "none", "modifier": "sa_t_alloys", "unlocks": "building_factory_1", "art": "st_tech_alloys_1"},
+        {"id": "tech_genome_mapping", "name_loc": "tech_genome_mapping", "cost": 450, "requires": "none", "modifier": "sa_t_growth", "unlocks": "none", "art": "st_tech_genome_mapping"},
+        {"id": "tech_hyper_drive_1", "name_loc": "tech_hyper_drive_1", "cost": 700, "requires": "none", "modifier": "sa_t_speed", "unlocks": "none", "art": "st_tech_hyper_drive_1"},
+        {"id": "tech_starbase_3", "name_loc": "tech_starbase_3", "cost": 600, "requires": "none", "modifier": "sa_t_starbase", "unlocks": "none", "art": "st_tech_starbase_3"},
+        {"id": "tech_global_production_strategy", "name_loc": "tech_global_production_strategy", "cost": 1000, "requires": "tech_alloys_1", "modifier": "sa_t_naval", "unlocks": "none", "art": "st_tech_global_production_strategy"}
+      ]
+    },
+    "modifiers": {
+      "about": "Every Act 2 bonus: legacy techs, wonders, rare systems, the space race and Act 2 techs. stat is one the game understands (see game_systems).",
+      "columns": ["id", "stat", "value", "name", "effect_text"],
+      "rows": [
+        {"id": "sa_legacy_astrology", "stat": "unity_mult", "value": 0.05, "name": "Stargazers' Legacy", "effect_text": "+5% Unity"},
+        {"id": "sa_legacy_writing", "stat": "research_mult", "value": 0.03, "name": "Written Record", "effect_text": "+3% Research"},
+        {"id": "sa_legacy_shipbuilding", "stat": "naval_cap_add", "value": 4, "name": "Shipwright Tradition", "effect_text": "+4 Naval Capacity"},
+        {"id": "sa_legacy_mathematics", "stat": "research_mult", "value": 0.05, "name": "Mathematical Heritage", "effect_text": "+5% Research"},
+        {"id": "sa_legacy_celestial_navigation", "stat": "ship_speed_mult", "value": 0.05, "name": "Navigators' Stars", "effect_text": "+5% Ship Speed"},
+        {"id": "sa_legacy_engineering", "stat": "build_speed_mult", "value": 0.1, "name": "Builders' Legacy", "effect_text": "+10% Build Speed"},
+        {"id": "sa_legacy_astronomy", "stat": "survey_speed_mult", "value": 0.25, "name": "Observatory Charts", "effect_text": "+25% Survey Speed"},
+        {"id": "sa_legacy_scientific_theory", "stat": "research_mult", "value": 0.05, "name": "Scientific Method", "effect_text": "+5% Research"},
+        {"id": "sa_legacy_industrialization", "stat": "minerals_mult", "value": 0.05, "name": "Industrial Base", "effect_text": "+5% Minerals"},
+        {"id": "sa_legacy_steel", "stat": "ship_hull_mult", "value": 0.1, "name": "Steel Foundries", "effect_text": "+10% Ship Hull"},
+        {"id": "sa_legacy_electricity", "stat": "energy_mult", "value": 0.05, "name": "Electric Grid", "effect_text": "+5% Energy"},
+        {"id": "sa_legacy_flight", "stat": "ship_speed_mult", "value": 0.05, "name": "Age of Flight", "effect_text": "+5% Ship Speed"},
+        {"id": "sa_legacy_rocketry", "stat": "ship_build_speed_mult", "value": 0.15, "name": "Rocket Yards", "effect_text": "+15% Ship Build Speed"},
+        {"id": "sa_legacy_computers", "stat": "research_mult", "value": 0.05, "name": "Computing Revolution", "effect_text": "+5% Research"},
+        {"id": "sa_legacy_satellites", "stat": "survey_speed_mult", "value": 0.25, "name": "Orbital Network", "effect_text": "+25% Survey Speed"},
+        {"id": "sa_legacy_lasers", "stat": "ship_damage_mult", "value": 0.05, "name": "Directed Energy", "effect_text": "+5% Ship Damage"},
+        {"id": "sa_legacy_robotics", "stat": "alloys_mult", "value": 0.05, "name": "Automated Industry", "effect_text": "+5% Alloys"},
+        {"id": "sa_legacy_nanotechnology", "stat": "ship_hull_mult", "value": 0.05, "name": "Nanofabrication", "effect_text": "+5% Ship Hull"},
+        {"id": "sa_legacy_nuclear_fusion", "stat": "energy_mult", "value": 0.1, "name": "Fusion Power", "effect_text": "+10% Energy"},
+        {"id": "sa_wonder_science", "stat": "research_add", "value": 3, "name": "Wonder of Learning", "effect_text": "+3 Research a month"},
+        {"id": "sa_wonder_culture", "stat": "unity_add", "value": 3, "name": "Wonder of Culture", "effect_text": "+3 Unity a month"},
+        {"id": "sa_wonder_faith", "stat": "unity_add", "value": 2, "name": "Wonder of Faith", "effect_text": "+2 Unity a month"},
+        {"id": "sa_wonder_industry", "stat": "minerals_add", "value": 4, "name": "Wonder of Industry", "effect_text": "+4 Minerals a month"},
+        {"id": "sa_wonder_military", "stat": "alloys_add", "value": 2, "name": "Wonder of War", "effect_text": "+2 Alloys a month"},
+        {"id": "sa_wonder_growth", "stat": "food_add", "value": 4, "name": "Wonder of Plenty", "effect_text": "+4 Food a month"},
+        {"id": "sa_natural_energy", "stat": "energy_mult", "value": 0.05, "name": "Natural Wonder: Energy", "effect_text": "+5% Energy while you hold this system"},
+        {"id": "sa_natural_minerals", "stat": "minerals_mult", "value": 0.05, "name": "Natural Wonder: Minerals", "effect_text": "+5% Minerals while you hold this system"},
+        {"id": "sa_natural_research", "stat": "research_mult", "value": 0.05, "name": "Natural Wonder: Research", "effect_text": "+5% Research while you hold this system"},
+        {"id": "sa_natural_unity", "stat": "unity_mult", "value": 0.1, "name": "Natural Wonder: Unity", "effect_text": "+10% Unity while you hold this system"},
+        {"id": "sa_natural_food", "stat": "food_mult", "value": 0.05, "name": "Natural Wonder: Plenty", "effect_text": "+5% Food while you hold this system"},
+        {"id": "sa_space_race_leader", "stat": "alloys_mult", "value": 0.15, "name": "Ahead in the Space Race", "effect_text": "+15% Alloys"},
+        {"id": "sa_space_race_leader_fleet", "stat": "naval_cap_add", "value": 10, "name": "Space Race Fleet", "effect_text": "+10 Naval Capacity"},
+        {"id": "sa_space_race_victor", "stat": "research_mult", "value": 0.1, "name": "First Among the Stars", "effect_text": "+10% Research"},
+        {"id": "sa_t_damage_1", "stat": "ship_damage_mult", "value": 0.1, "name": "Lasers", "effect_text": "+10% Ship Damage"},
+        {"id": "sa_t_damage_2", "stat": "ship_damage_mult", "value": 0.15, "name": "Better Lasers", "effect_text": "+15% Ship Damage"},
+        {"id": "sa_t_hull_1", "stat": "ship_hull_mult", "value": 0.1, "name": "Ship Armor", "effect_text": "+10% Ship Hull"},
+        {"id": "sa_t_hull_2", "stat": "ship_hull_mult", "value": 0.15, "name": "Better Ship Armor", "effect_text": "+15% Ship Hull"},
+        {"id": "sa_t_energy", "stat": "energy_mult", "value": 0.1, "name": "Power Plants", "effect_text": "+10% Energy"},
+        {"id": "sa_t_minerals", "stat": "minerals_mult", "value": 0.1, "name": "Space Mining", "effect_text": "+10% Minerals"},
+        {"id": "sa_t_food", "stat": "food_mult", "value": 0.1, "name": "Food Processing", "effect_text": "+10% Food"},
+        {"id": "sa_t_research", "stat": "research_mult", "value": 0.1, "name": "Science Labs", "effect_text": "+10% Research"},
+        {"id": "sa_t_alloys", "stat": "alloys_mult", "value": 0.1, "name": "Alloy Works", "effect_text": "+10% Alloys"},
+        {"id": "sa_t_growth", "stat": "pop_growth_mult", "value": 0.25, "name": "Genome Mapping", "effect_text": "+25% Pop Growth"},
+        {"id": "sa_t_speed", "stat": "ship_speed_mult", "value": 0.25, "name": "Hyper Drive", "effect_text": "+25% Ship Speed"},
+        {"id": "sa_t_starbase", "stat": "starbase_power_mult", "value": 0.5, "name": "Starbase Defenses", "effect_text": "+50% Starbase Power"},
+        {"id": "sa_t_naval", "stat": "naval_cap_add", "value": 10, "name": "Production Strategy", "effect_text": "+10 Naval Capacity"}
+      ]
+    },
+    "aliens": {
+      "about": "Stellaris's own empires in Act 2: read from the player's prescripted empires (not human, not machine). aggression is how readily the AI goes to war.",
+      "columns": ["id", "aggression", "desc"],
+      "rows": [
+        {"id": "any", "aggression": 0.5, "desc": "Every non-human, non-machine prescripted empire in the player's Stellaris can appear."}
+      ]
+    },
+    "asset_refs": {
+      "about": "Every picture, font and sound the game uses, and where it comes from in the player's own installs. Civ VI icons (ICON_*) and leader pictures are looked up by name and need no row here.",
+      "columns": ["id", "game", "kind", "lookup", "used_by", "verified", "note"],
+      "rows": [
+        {"id": "st_res_energy", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/resources/energy.dds", "sprite:GFX_resource_energy"], "used_by": "Act 2 resource bar", "verified": true, "note": "Verified on this PC by Grand Galactic."},
+        {"id": "st_res_minerals", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/resources/minerals.dds", "sprite:GFX_resource_minerals"], "used_by": "Act 2 resource bar", "verified": true, "note": "Verified on this PC by Grand Galactic."},
+        {"id": "st_res_food", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/resources/food.dds", "sprite:GFX_resource_food"], "used_by": "Act 2 resource bar", "verified": true, "note": "Verified on this PC by Grand Galactic."},
+        {"id": "st_res_alloys", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/resources/alloys.dds", "sprite:GFX_resource_alloys"], "used_by": "Act 2 resource bar", "verified": true, "note": "Verified on this PC by Grand Galactic."},
+        {"id": "st_res_unity", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/resources/unity.dds", "sprite:GFX_resource_unity"], "used_by": "Act 2 resource bar", "verified": true, "note": "Verified on this PC by Grand Galactic."},
+        {"id": "st_res_influence", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/resources/influence.dds", "sprite:GFX_resource_influence"], "used_by": "Act 2 resource bar", "verified": true, "note": "Verified on this PC by Grand Galactic."},
+        {"id": "st_res_research", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/resources/physics_research.dds", "sprite:GFX_resource_physics_research"], "used_by": "Act 2 resource bar", "verified": true, "note": "Verified on this PC by Grand Galactic."},
+        {"id": "st_ship_science", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/loadingscreens/load_9.dds@0.26,0.14,0.14,0.25", "file:gfx/event_pictures/inf_science_ship.dds@0.62,0.15,0.30,0.75"], "used_by": "Act 2 ships", "verified": true, "note": "Verified on this PC by Grand Galactic."},
+        {"id": "st_ship_construction", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/loadingscreens/load_5.dds@0.08,0.50,0.22,0.39", "file:gfx/interface/icons/technologies/tech_space_construction.dds"], "used_by": "Act 2 ships", "verified": true, "note": "Verified on this PC by Grand Galactic."},
+        {"id": "st_ship_colony", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/loadingscreens/load_20.dds@0.08,0.52,0.22,0.39", "file:gfx/event_pictures/colony_settlement.dds@0.52,0,0.40,0.8"], "used_by": "Act 2 ships", "verified": true, "note": "Verified on this PC by Grand Galactic."},
+        {"id": "st_ship_corvette", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/loadingscreens/load_4.dds@0.37,0.165,0.13,0.23", "file:gfx/event_pictures/ship_in_orbit_3.dds@0.44,0,0.44,1"], "used_by": "Act 2 ships", "verified": true, "note": "Verified on this PC by Grand Galactic."},
+        {"id": "st_ship_destroyer", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/loadingscreens/load_4.dds@0.415,0.29,0.13,0.23", "file:gfx/event_pictures/ship_in_orbit_2.dds@0.36,0,0.42,1"], "used_by": "Act 2 ships", "verified": true, "note": "Verified on this PC by Grand Galactic."},
+        {"id": "st_ship_cruiser", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/loadingscreens/load_10.dds@0.44,0.42,0.23,0.41", "file:gfx/event_pictures/fleet_neutral.dds@0.30,0,0.40,1"], "used_by": "Act 2 ships", "verified": true, "note": "Verified on this PC by Grand Galactic."},
+        {"id": "st_ship_battleship", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/loadingscreens/load_4.dds@0.28,0.38,0.30,0.53", "file:gfx/event_pictures/unidentified_ship.dds@0.30,0,0.48,1"], "used_by": "Act 2 ships", "verified": true, "note": "Verified on this PC by Grand Galactic."},
+        {"id": "st_star_yellow", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/map/star_classes/g_star.dds"], "used_by": "Act 2 stars", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_star_red", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/map/star_classes/m_star.dds", "find:star_class_m"], "used_by": "Act 2 stars", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_star_blue", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/map/star_classes/b_star.dds"], "used_by": "Act 2 stars", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_star_black_hole", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/map/star_classes/black_hole.dds", "find:black_hole"], "used_by": "Act 2 stars", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_star_neutron", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/map/star_classes/neutron_star.dds", "find:neutron"], "used_by": "Act 2 stars", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_star_pulsar", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/map/star_classes/pulsar.dds", "find:pulsar"], "used_by": "Act 2 stars", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_destroyers", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_destroyers.dds", "find:tech_destroyers"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_cruisers", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_cruisers.dds", "find:tech_cruisers"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_battleships", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_battleships.dds", "find:tech_battleships"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_lasers_2", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_lasers_2.dds", "find:tech_lasers_2"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_lasers_3", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_lasers_3.dds", "find:tech_lasers_3"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_ship_armor_1", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_ship_armor_1.dds", "find:tech_ship_armor_1"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_ship_armor_2", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_ship_armor_2.dds", "find:tech_ship_armor_2"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_shields_1", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_shields_1.dds", "find:tech_shields_1"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_power_plant_1", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_power_plant_1.dds", "find:tech_power_plant_1"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_space_mining_1", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_space_mining_1.dds", "find:tech_space_mining_1"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_food_processing_1", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_food_processing_1.dds", "find:tech_food_processing_1"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_basic_science_lab_1", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_basic_science_lab_1.dds", "find:tech_basic_science_lab_1"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_alloys_1", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_alloys_1.dds", "find:tech_alloys_1"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_genome_mapping", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_genome_mapping.dds", "find:tech_genome_mapping"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_hyper_drive_1", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_hyper_drive_1.dds", "find:tech_hyper_drive_1"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_starbase_3", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_starbase_3.dds", "find:tech_starbase_3"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_tech_global_production_strategy", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/technologies/tech_global_production_strategy.dds", "find:tech_global_production_strategy"], "used_by": "Act 2 technology", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_district_city", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/districts/district_city.dds", "find:district_city"], "used_by": "Act 2 planet and map", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_district_generator", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/districts/district_generator.dds", "find:district_generator"], "used_by": "Act 2 planet and map", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_district_mining", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/districts/district_mining.dds", "find:district_mining"], "used_by": "Act 2 planet and map", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_district_farming", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/districts/district_farming.dds", "find:district_farming"], "used_by": "Act 2 planet and map", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_district_industrial", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/districts/district_industrial.dds", "find:district_industrial"], "used_by": "Act 2 planet and map", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_bld_research_lab", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/buildings/building_research_lab_1.dds"], "used_by": "Act 2 planet and map", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_bld_foundry", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/buildings/building_foundry_1.dds"], "used_by": "Act 2 planet and map", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_bld_admin", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/buildings/building_bureaucratic_1.dds"], "used_by": "Act 2 planet and map", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_bld_hydroponics", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/buildings/building_hydroponics_farm.dds"], "used_by": "Act 2 planet and map", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_bld_factory", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/buildings/building_factory_1.dds"], "used_by": "Act 2 planet and map", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_bld_holo", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/buildings/building_holo_theatres.dds"], "used_by": "Act 2 planet and map", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_starbase", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/event_pictures/space_station.dds@0.30,0,0.40,1"], "used_by": "Act 2 planet and map", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_galaxy_background", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/loadingscreens/load_4.dds", "find:loadingscreens/load_"], "used_by": "Title and New Game screens", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_handoff_background", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/loadingscreens/load_20.dds", "file:gfx/loadingscreens/load_13.dds"], "used_by": "Between the acts", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_rare_system", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/planet_type_icons/planet_pc_gaia.dds", "planetclass:pc_gaia"], "used_by": "Act 2 planet and map", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_music", "game": "stellaris", "kind": "music", "lookup": ["dir:music"], "used_by": "Act 2 music", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "civ_font_body", "game": "civ6", "kind": "font", "lookup": ["MinionPro-Regular.otf"], "used_by": "All text", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "civ_font_title", "game": "civ6", "kind": "font", "lookup": ["MinionPro-Bold.otf"], "used_by": "Titles", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "civ_logo", "game": "civ6", "kind": "image", "lookup": ["file:Base/Assets/ARX/Civ6Logo.png"], "used_by": "Title screen", "verified": false, "note": "Read at run time from the player's install."}
+      ]
+    },
+    "game_systems": {
+      "about": "What comes from each game and how it is read.",
+      "columns": ["id", "game", "what", "source", "impl", "verified"],
+      "rows": [
+        {"id": "civ6_data", "game": "civ6", "what": "Civilizations, leaders, colours, city names, techs and their prerequisites, wonders, natural wonders, terrain, text", "source": "Base/Assets and DLC/*/Data XML", "impl": "Assets/Civ6Data.cs", "verified": true},
+        {"id": "civ6_icons", "game": "civ6", "what": "Tech, wonder, building, project, natural wonder, terrain, leader and civilization icons", "source": "Platforms/Windows/BLPs/UI/*.blp atlases + IconDefinitions", "impl": "Assets/Civ6Blp.cs", "verified": true},
+        {"id": "civ6_leaders", "game": "civ6", "what": "Full-size leader pictures", "source": "LeaderFallbackImages.blp via ArtDefs/FallbackLeaders.artdef", "impl": "Assets/Civ6Data.cs", "verified": true},
+        {"id": "civ6_fonts", "game": "civ6", "what": "Fonts", "source": "Base/Assets/UI/Fonts", "impl": "Assets/Civ6Data.cs", "verified": true},
+        {"id": "stellaris_data", "game": "stellaris", "what": "Text, sprites, planet classes, portraits, prescripted alien empires, music", "source": "localisation, interface/*.gfx, common/planet_classes, gfx/portraits, prescripted_countries, music", "impl": "Assets/StellarisData.cs", "verified": true},
+        {"id": "stats", "game": "both", "what": "Modifier stats: energy_mult minerals_mult food_mult alloys_mult research_mult unity_mult (percent of output); *_add (flat per month); naval_cap_add; ship_hull_mult ship_damage_mult ship_speed_mult ship_build_speed_mult build_speed_mult survey_speed_mult pop_growth_mult starbase_power_mult", "source": "sheets/design.json modifiers", "impl": "Sim/Act2.cs", "verified": false}
+      ]
+    }
+  }
+}

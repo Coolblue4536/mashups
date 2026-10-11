@@ -28,7 +28,22 @@ public static class Program
             if (b != null) foreach (var a in b.Atlases.Values.Take(5)) Log.Info($"  atlas {a}");
             return 0;
         }
-        Log.Info("nothing to do yet");
+        if (Arg("--act1balance") is { } runs)
+        {
+            if (civ6 == null) { Log.Info("needs Civilization VI"); return 2; }
+            var content = new Content(new Civ6Data(civ6), null);
+            return Playtest.Act1Balance(content, int.Parse(runs), Arg("--size") ?? "standard", Arg("--difficulty") ?? "DIFFICULTY_PRINCE");
+        }
+        if (Arg("--fullbalance") is { } fruns)
+        {
+            if (civ6 == null) { Log.Info("needs Civilization VI"); return 2; }
+            var content = new Content(new Civ6Data(civ6), stellaris != null ? new StellarisData(stellaris) : null);
+            return Playtest.FullBalance(content, int.Parse(fruns), Arg("--size") ?? "small");
+        }
+        var app = new App(settings, civ6, stellaris,
+            Arg("--screenshot") is { } shot ? (shot, float.Parse(Arg("--screenshot-at") ?? "6", System.Globalization.CultureInfo.InvariantCulture)) : null,
+            Arg("--demo"));
+        app.Run();
         return 0;
     }
 }

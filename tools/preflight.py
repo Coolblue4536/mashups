@@ -1,172 +1,156 @@
 #!/usr/bin/env python3
-"""Preflight: lay every sheet over the others and list what would fail.
+"""Preflight: lay every section of sheets/design.json over the others before a build.
 
-Checks every row x column cell is filled, every cross-sheet reference resolves,
-enum columns hold allowed values, Stellaris modifier keys exist in the game's own
-modifier documentation, and scopes match where each sheet uses a modifier.
+Checks every cell is filled, ids are unique, every cross-reference resolves, and (when the game
+folders are given) every Civ VI type and icon and every Stellaris picture and text key exists in the
+player's own installs.
 
-Cells that can only be confirmed inside the running game (Civ VI type names) are
-reported as "pending in-game check": the mod tolerates a missing one, but they
-are not ticked until a test run confirms them.
-
-Usage: tools/preflight.py [--stellaris-docs <dir>] [--civ6 <Civ VI install folder>]
-  --stellaris-docs: Stellaris's own logs/script_documentation folder (written by the
-                    game at startup), or cwtools-stellaris-config/config/logs.
-  --civ6:           confirms the Civ VI type names against the installed game's data
-                    and records them in sheets/verified/ingame.json.
-Exit code 1 when anything is unfilled, unresolved or invalid.
+Usage: tools/preflight.py [--civ6 <Civ VI folder>] [--stellaris <Stellaris folder>]
+Exit code 1 when anything is wrong.
 """
-import json, os, sys, glob, re
+import glob
+import os
+import re
+import sys
+from collections import Counter
+from pathlib import Path
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SHEETS = os.path.join(ROOT, "sheets")
-LOCK = os.path.join(SHEETS, "verified", "stellaris_keys.json")
-INGAME = os.path.join(SHEETS, "verified", "ingame.json")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import design  # noqa: E402
 
-def load():
-    out = {}
-    for p in sorted(glob.glob(os.path.join(SHEETS, "*.json"))):
-        d = json.load(open(p, encoding="utf-8"))
-        out[d["sheet"]] = d
-    return out
+STATS = {"energy_mult", "minerals_mult", "food_mult", "alloys_mult", "research_mult", "unity_mult",
+         "energy_add", "minerals_add", "food_add", "alloys_add", "research_add", "unity_add", "influence_add",
+         "naval_cap_add", "ship_hull_mult", "ship_damage_mult", "ship_speed_mult", "ship_build_speed_mult",
+         "build_speed_mult", "survey_speed_mult", "pop_growth_mult", "starbase_power_mult"}
 
-def record_civ6_types(sheets, civ6):
-    """Look up every civ6-in-game cell in the installed game's gameplay data."""
-    files = glob.glob(os.path.join(civ6, "Base", "Assets", "Gameplay", "Data", "*.xml")) + \
-        glob.glob(os.path.join(civ6, "DLC", "*", "Data", "*.xml"))
-    if not files:
-        sys.exit(f"--civ6: no gameplay data under {civ6}")
-    text = "\n".join(open(p, encoding="utf-8", errors="ignore").read() for p in files)
-    found = {}
-    for s in sheets.values():
-        for c, rule in s.get("verify", {}).items():
-            if rule != "civ6-in-game":
-                continue
-            for r in s["rows"]:
-                v = str(r[c])
-                if v != "DEFAULT" and re.search(r'"%s"' % re.escape(v), text):
-                    found.setdefault(c, []).append(v)
-    os.makedirs(os.path.dirname(INGAME), exist_ok=True)
-    json.dump({"source": "Civ VI install gameplay data (Base + DLC)", **{k: sorted(v) for k, v in found.items()}},
-              open(INGAME, "w"), indent=1)
 
 def main(argv):
-    docs = None
-    if "--stellaris-docs" in argv:
-        docs = argv[argv.index("--stellaris-docs") + 1]
     civ6 = argv[argv.index("--civ6") + 1] if "--civ6" in argv else None
-    sheets = load()
-    errors, pending = [], []
-    if civ6:
-        record_civ6_types(sheets, civ6)
-    lock = json.load(open(LOCK)) if os.path.exists(LOCK) else {"modifiers": [], "keywords": []}
-    ingame = json.load(open(INGAME)) if os.path.exists(INGAME) else {}
+    st = argv[argv.index("--stellaris") + 1] if "--stellaris" in argv else None
+    S = design.load()
+    errors = []
 
-    known_mods = None
-    if docs:
-        known_mods = set(re.findall(r"^- ([a-z0-9_]+), Category", open(os.path.join(docs, "modifiers.log"), encoding="utf-8", errors="replace").read(), re.M))
-
-    def col(sheet, c):
-        return {str(r[c]) for r in sheets[sheet]["rows"]}
-
-    used_mods = set()
-    for name, s in sheets.items():
-        cols = list(s["columns"])
-        for i, row in enumerate(s["rows"]):
-            key = f"{name}[{i}:{row.get(cols[0])}]"
+    for name, sh in S.items():
+        cols = sh["columns"]
+        for i, row in enumerate(sh["rows"]):
+            rid = row.get(cols[0], f"#{i}")
             for c in cols:
-                v = row.get(c)
-                if v is None or (isinstance(v, str) and v.strip() == ""):
-                    errors.append(f"unfilled  {key}.{c}")
-            extra = set(row) - set(cols)
-            if extra:
-                errors.append(f"unknown columns {key}: {sorted(extra)}")
-            for c, rule in s.get("verify", {}).items():
-                v = row.get(c)
-                if v is None:
-                    continue
-                if rule.startswith("ref:"):
-                    tsheet, tcol = rule[4:].split(".")
-                    if str(v) not in col(tsheet, tcol):
-                        errors.append(f"unresolved {key}.{c} -> {tsheet}.{tcol} = {v}")
-                elif rule.startswith("refs:"):
-                    tsheet, tcol = rule[5:].split(".")
-                    if v != "none":
-                        for part in str(v).split():
-                            if part not in col(tsheet, tcol):
-                                errors.append(f"unresolved {key}.{c} -> {tsheet}.{tcol} = {part}")
-                elif rule.startswith("enum:"):
-                    if str(v) not in rule[5:].split(","):
-                        errors.append(f"invalid   {key}.{c} = {v} (allowed {rule[5:]})")
-                elif rule == "stellaris-modifier-list":
-                    used_mods.add(v)
-                    if known_mods is not None:
-                        if v not in known_mods:
-                            errors.append(f"invalid   {key}.{c} = {v} (not a Stellaris modifier)")
-                    elif v not in lock["modifiers"]:
-                        errors.append(f"unverified {key}.{c} = {v} (run with --stellaris-docs)")
-                elif rule == "civ6-in-game":
-                    if v != "DEFAULT" and v not in ingame.get(c, []):
-                        pending.append(f"{key}.{c} = {v}")
+                if c not in row:
+                    errors.append(f"{name}.{rid}.{c}: missing cell")
+                elif row[c] is None or (isinstance(row[c], str) and not row[c].strip()):
+                    errors.append(f"{name}.{rid}.{c}: empty cell")
+            for c in row:
+                if c not in cols:
+                    errors.append(f"{name}.{rid}.{c}: not a column")
+        for k, n in Counter(r[cols[0]] for r in sh["rows"]).items():
+            if n > 1:
+                errors.append(f"{name}: duplicate {cols[0]} {k}")
 
-    # scope checks: where a modifier is used must match its scope
-    mscope = {r["id"]: r["scope"] for r in sheets["modifiers"]["rows"]}
-    need = {"techs": "country", "natural_wonders": "country", "wonders": "planet"}
-    for sname, scope in need.items():
-        for r in sheets[sname]["rows"]:
-            if mscope.get(r["modifier"]) not in (None, scope):
-                errors.append(f"scope     {sname}.{r['modifier']} is {mscope[r['modifier']]}, needs {scope}")
-    for r in sheets["space_race"]["rows"]:
+    ids = lambda s: {r[S[s]["columns"][0]] for r in S[s]["rows"]}
+    mods, assets, a2techs = ids("modifiers"), ids("asset_refs"), ids("act2_techs")
+    buildings, res = ids("buildings"), ids("resources")
+
+    def ref(where, val, pool, allow_none=True):
+        if allow_none and val == "none":
+            return
+        if val not in pool:
+            errors.append(f"{where}: '{val}' does not resolve")
+
+    for r in S["modifiers"]["rows"]:
+        if r["stat"] not in STATS:
+            errors.append(f"modifiers.{r['id']}.stat: unknown stat {r['stat']}")
+    for s in ("natural_wonders", "wonders"):
+        for r in S[s]["rows"]:
+            ref(f"{s}.{r['id']}.modifier", r["modifier"], mods, False)
+    for r in S["tech_legacy"]["rows"]:
+        ref(f"tech_legacy.{r['civ_tech']}.modifier", r["modifier"], mods, False)
+    for r in S["space_race"]["rows"]:
         for c in ("rival_lead_modifiers", "player_first_modifiers"):
-            for m in str(r[c]).split():
-                if m != "none" and mscope.get(m) != "country":
-                    errors.append(f"scope     space_race.{r['level']}.{c} {m} must be country")
-    # every modifier is used somewhere
-    used_ids = set()
-    for sname in ("techs", "wonders", "natural_wonders"):
-        used_ids |= {r["modifier"] for r in sheets[sname]["rows"]}
-    for r in sheets["space_race"]["rows"]:
-        used_ids |= set(r["rival_lead_modifiers"].split()) | set(r["player_first_modifiers"].split())
-    for m in mscope:
-        if m not in used_ids:
-            errors.append(f"unused    modifiers.{m} is defined but nothing grants it")
-    # handoff records that point at sheets
-    for r in sheets["handoff"]["rows"]:
-        m = re.search(r"ref:(\w+)\.(\w+)", r["stellaris_use"])
-        if m and m.group(1) not in sheets:
-            errors.append(f"unresolved handoff.{r['record']} -> sheet {m.group(1)}")
-    # Stellaris script keywords the launcher writes, against the game's effect/trigger docs
-    kwfile = os.path.join(ROOT, "launcher", "stellaris_keywords.txt")
-    if os.path.exists(kwfile):
-        words = [w.strip() for w in open(kwfile) if w.strip() and not w.startswith("#")]
-        if docs:
-            docs_text = ""
-            for f in ("trigger_docs.log", "triggers.log", "effects.log"):
-                if os.path.exists(os.path.join(docs, f)):
-                    docs_text += open(os.path.join(docs, f), encoding="utf-8", errors="replace").read()
-            known = set(re.findall(r"^([a-z_0-9]+) - ", docs_text, re.M))
-            for w in words:
-                if w not in known:
-                    errors.append(f"invalid   launcher keyword '{w}' is not a Stellaris effect/trigger")
-        else:
-            for w in words:
-                if w not in lock.get("keywords", []):
-                    errors.append(f"unverified launcher keyword '{w}' (run with --stellaris-docs)")
-        if docs and not errors:
-            os.makedirs(os.path.dirname(LOCK), exist_ok=True)
-            json.dump({"source": "Stellaris script_documentation (the game's logs/script_documentation, or cwtools-stellaris-config)",
-                       "modifiers": sorted(used_mods), "keywords": sorted(words)}, open(LOCK, "w"), indent=1)
+            for m in r[c]:
+                ref(f"space_race.{r['id']}.{c}", m, mods, False)
+    for r in S["act2_techs"]["rows"]:
+        ref(f"act2_techs.{r['id']}.requires", r["requires"], a2techs)
+        ref(f"act2_techs.{r['id']}.modifier", r["modifier"], mods)
+        ref(f"act2_techs.{r['id']}.unlocks", r["unlocks"], ids("ships") | ids("planet_buildings"))
+        ref(f"act2_techs.{r['id']}.art", r["art"], assets, False)
+    for r in S["ships"]["rows"]:
+        ref(f"ships.{r['id']}.requires_tech", r["requires_tech"], a2techs)
+        ref(f"ships.{r['id']}.art", r["art"], assets, False)
+    for r in S["planet_buildings"]["rows"]:
+        ref(f"planet_buildings.{r['id']}.requires_tech", r["requires_tech"], a2techs)
+        ref(f"planet_buildings.{r['id']}.resource", r["resource"], res, False)
+        ref(f"planet_buildings.{r['id']}.art", r["art"], assets, False)
+    for r in S["districts"]["rows"]:
+        ref(f"districts.{r['id']}.resource", r["resource"], res, False)
+        ref(f"districts.{r['id']}.art", r["art"], assets, False)
+    for s in ("resources", "star_classes"):
+        for r in S[s]["rows"]:
+            ref(f"{s}.{r['id']}.art", r["art"], assets, False)
+    for r in S["buildings"]["rows"]:
+        ref(f"buildings.{r['id']}.requires_building", r["requires_building"], buildings)
+    for r in S["projects"]["rows"]:
+        ref(f"projects.{r['id']}.requires_building", r["requires_building"], buildings, False)
+    for r in S["wonders"]["rows"]:
+        if r["scope"] not in ("city", "empire"):
+            errors.append(f"wonders.{r['id']}.scope: city or empire")
+    if not any(r["kind"] == "moon" for r in S["projects"]["rows"]):
+        errors.append("projects: no Moon Landing (kind moon)")
+    terrains = ids("terrains")
+    for r in S["features"]["rows"]:
+        for t in r["terrains"]:
+            ref(f"features.{r['id']}.terrains", t, terrains, False)
 
-    cells = sum(len(s["rows"]) * len(s["columns"]) for s in sheets.values())
-    print(f"preflight: {len(sheets)} sheets, {cells} cells")
+    if civ6:
+        xml = "\n".join(Path(p).read_text(encoding="utf-8", errors="ignore") for p in
+                        glob.glob(os.path.join(civ6, "Base", "Assets", "**", "*.xml"), recursive=True) +
+                        glob.glob(os.path.join(civ6, "DLC", "*", "Data", "*.xml")))
+        def civ(where, v):
+            if v != "none" and v != "DEFAULT" and f'"{v}"' not in xml and f">{v}<" not in xml:
+                errors.append(f"{where}: {v} is not in the installed Civ VI")
+        base_techs = set(re.findall(r'TechnologyType="(TECH_[A-Z_]+)"', Path(civ6, "Base", "Assets", "Gameplay", "Data", "Technologies.xml").read_text(encoding="utf-8")))
+        for s, cols in (("buildings", ["id", "requires_tech"]), ("wonders", ["id", "requires_tech"]), ("projects", ["id", "requires_tech", "requires_building"]),
+                        ("terrains", ["id", "icon"]), ("features", ["id", "icon"]), ("natural_wonders", ["id"]), ("difficulties", ["id"]),
+                        ("eras", ["id"]), ("yields", ["icon"]), ("tech_legacy", ["civ_tech"])):
+            for r in S[s]["rows"]:
+                for c in cols:
+                    civ(f"{s}.{r[cols[0]]}.{c}", r[c])
+        for s, c in (("buildings", "requires_tech"), ("wonders", "requires_tech"), ("projects", "requires_tech"), ("tech_legacy", "civ_tech")):
+            for r in S[s]["rows"]:
+                if r[c] != "none" and r[c] not in base_techs:
+                    errors.append(f"{s}.{r[S[s]['columns'][0]]}.{c}: {r[c]} is not a base-game tech")
+    if st:
+        files = {p.replace("\\", "/").lower()[len(st) + 1:] for p in glob.glob(os.path.join(st, "gfx", "**", "*.*"), recursive=True)}
+        loc = set()
+        for f in glob.glob(os.path.join(st, "localisation", "english", "**", "*.yml"), recursive=True):
+            loc |= set(re.findall(r"^\s*([A-Za-z0-9_.\-]+):", Path(f).read_text(encoding="utf-8-sig", errors="ignore"), re.M))
+        for r in S["asset_refs"]["rows"]:
+            if r["game"] != "stellaris" or r["kind"] != "image":
+                continue
+            ok = False
+            for l in r["lookup"]:
+                kind, _, arg = l.partition(":")
+                arg = arg.split("@")[0].lower()
+                if kind == "file" and (arg in files or os.path.splitext(arg)[0] + ".dds" in files):
+                    ok = True
+                elif kind == "find" and any(arg in f for f in files):
+                    ok = True
+                elif kind in ("sprite", "planetclass"):
+                    ok = True  # resolved by the game's own .gfx / planet_classes at run time
+            if not ok:
+                errors.append(f"asset_refs.{r['id']}: no lookup resolves in the installed Stellaris")
+        for s in ("resources", "districts", "planet_buildings", "ships", "act2_techs", "star_classes", "planet_classes"):
+            for r in S[s]["rows"]:
+                key = r.get("name_loc", r["id"])
+                if key not in loc:
+                    errors.append(f"{s}.{r['id']}: Stellaris text key {key} not found")
+
+    cells = sum(len(s["rows"]) * len(s["columns"]) for s in S.values())
+    print(f"preflight: {len(S)} sections, {cells} cells" + (" (checked against Civ VI)" if civ6 else "") + (" (checked against Stellaris)" if st else ""))
     for e in errors:
         print("  FAIL " + e)
-    if pending:
-        print(f"  {len(pending)} cells pending in-game check (Civ VI type names; the mod skips any the game lacks):")
-        for p in pending:
-            print("    - " + p)
     print("preflight: " + ("CLEAN" if not errors else f"{len(errors)} problem(s)"))
     return 1 if errors else 0
+
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

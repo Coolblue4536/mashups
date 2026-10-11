@@ -103,24 +103,23 @@ public sealed class Civ6Blp
             o += 0x67;
         }
 
-        // 4. Atlases: ForgeUI::BCTexturePackageEntry (0x70 bytes, flags 2), one per resource size, in the same order.
+        // 4. Atlases: ForgeUI::BCTexturePackageEntry (flags 2). Each names its big-data resource (page index minus the
+        //    whole textures), and that resource's size must be exactly its tiles plus its index map, which rules out
+        //    look-alike bytes. Records are not evenly spaced in every package, so every offset is checked.
         if (sizes.Count == 0) return;
-        int first = -1;
-        for (int o = outer; o + 0x70 * sizes.Count <= end; o++)
+        var offsets = new long[sizes.Count];
+        long pos = _bigDataOffset + (long)Align(texEnd, 512);
+        for (int k = 0; k < sizes.Count; k++) { offsets[k] = pos; pos += (long)Align(sizes[k], 512); }
+        for (int o = outer; o + 0x70 <= end; o++)
         {
             if (!IsAtlas(d, o)) continue;
-            bool run = true;
-            for (int k = 1; k < sizes.Count && run; k++) run = IsAtlas(d, o + 0x70 * k);
-            if (run) { first = o; break; }
-        }
-        if (first < 0) return;
-        long pos = _bigDataOffset + (long)Align(texEnd, 512);
-        for (int k = 0; k < sizes.Count; k++)
-        {
-            int o = first + 0x70 * k;
-            var a = new AtlasEntry(U32(d, o + 0x40), U16(d, o + 0x54), U16(d, o + 0x56), U32(d, o + 0x64), U16(d, o + 0x68), U16(d, o + 0x6a), pos, sizes[k]);
+            int k = (int)U32(d, o + 0x4c) - Textures.Count;
+            if (k < 0 || k >= sizes.Count) continue;
+            int w = U16(d, o + 0x54), h = U16(d, o + 0x56), bs = U16(d, o + 0x68), bpi = U16(d, o + 0x6a);
+            long expect = (long)U32(d, o + 0x64) * 4 + (long)((w + bs - 1) / bs) * ((h + bs - 1) / bs) * bpi;
+            if ((expect + 3) / 4 * 4 != sizes[k]) continue; // sizes are padded to 4 bytes
+            var a = new AtlasEntry(U32(d, o + 0x40), w, h, U32(d, o + 0x64), bs, bpi, offsets[k], sizes[k]);
             Atlases.TryAdd(a.NameHash, a);
-            pos += (long)Align(sizes[k], 512);
         }
     }
 

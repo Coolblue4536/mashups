@@ -62,7 +62,7 @@ public sealed class Civ6Data
     static readonly HashSet<string> WantTables = new(StringComparer.Ordinal)
     {
         "Civilizations", "Leaders", "CivilizationLeaders", "CityNames", "PlayerColors", "Colors", "Technologies", "TechnologyPrereqs",
-        "Buildings", "Features", "Feature_YieldChanges", "Terrains", "Terrain_YieldChanges", "Projects", "Districts", "Eras",
+        "Buildings", "Features", "Feature_YieldChanges", "Feature_ValidTerrains", "Terrains", "Terrain_YieldChanges", "Projects", "Districts", "Eras",
         "IconDefinitions", "IconTextureAtlases", "Resources", "Resource_YieldChanges", "Improvements", "Difficulties"
     };
 

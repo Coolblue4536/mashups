@@ -5,6 +5,8 @@ namespace StellarAscension;
 /// <summary>A spriteType; Frame is 1-based (Stellaris's default_frame), used when the texture is a strip of Frames icons.</summary>
 public sealed record SpriteInfo(string Name, string TextureFile, int Frames, int Frame = 1);
 public sealed record PortraitInfo(string Name, string Group, string TextureFile);
+/// <summary>One of Stellaris's ready-made empires (prescripted_countries): its name, species class and portrait key.</summary>
+public sealed record PrescriptedEmpire(string Key, string Name, string Adjective, string SpeciesClass, string Portrait, string? SpeciesName);
 
 /// <summary>Reads what the mashup needs from the player's own Stellaris install: names, sprites, planet icons, portraits.</summary>
 public sealed class StellarisData
@@ -19,6 +21,9 @@ public sealed class StellarisData
     public readonly List<PortraitInfo> Portraits = new();
     /// <summary>Lower-case path relative to the install (forward slashes) → real path, for every image under gfx/.</summary>
     public readonly Dictionary<string, string> Files = new();
+    public readonly List<string> StarNames = new();
+    public readonly List<PrescriptedEmpire> Prescripted = new();
+    public readonly List<string> Music = new();
 
     static readonly Regex LocLine = new(@"^\s*([A-Za-z0-9_.\-]+):\d*\s*""(.*)""\s*(#.*)?$", RegexOptions.Compiled);
     static readonly Regex Color = new(@"§.|£[^£ ]*£?", RegexOptions.Compiled);
@@ -33,6 +38,11 @@ public sealed class StellarisData
         LoadSprites();
         LoadPlanetClasses();
         LoadPortraits();
+        LoadStarNames();
+        LoadPrescripted();
+        var music = Path.Combine(Root, "music");
+        if (Directory.Exists(music)) Music.AddRange(Directory.EnumerateFiles(music, "*.ogg").OrderBy(f => f, StringComparer.OrdinalIgnoreCase));
+        Log.Info($"stellaris: {StarNames.Count} star names, {Prescripted.Count} prescripted empires, {Music.Count} music tracks");
         Log.Info($"stellaris: {Files.Count} images, {Loc.Count} loc keys, {Sprites.Count} sprites, {PlanetIcons.Count} planet classes, {Portraits.Count} portraits in {sw.ElapsedMilliseconds} ms");
     }
 
@@ -139,6 +149,36 @@ public sealed class StellarisData
             }
         Portraits.Sort((a, b) => string.CompareOrdinal(a.Group + a.Name, b.Group + b.Name));
     }
+
+    void LoadStarNames()
+    {
+        var f = Path.Combine(Root, "common", "random_names", "base", "00_random_names.txt");
+        if (!File.Exists(f)) return;
+        var block = CwNode.ParseFile(f).Kids.FirstOrDefault(k => k.Key == "star_names");
+        if (block == null) return;
+        foreach (var n in block.Kids)
+            if (n.Key == null && n.Value is { Length: > 1 } v) StarNames.Add(v.Replace('_', ' '));
+    }
+
+    void LoadPrescripted()
+    {
+        var dir = Path.Combine(Root, "prescripted_countries");
+        if (!Directory.Exists(dir)) return;
+        foreach (var f in Directory.EnumerateFiles(dir, "*.txt").OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+            foreach (var e in CwNode.ParseFile(f).Kids)
+            {
+                if (e.Key == null || e.Children == null) continue;
+                var sp = e.Kids.FirstOrDefault(k => k.Key == "species");
+                var name = Text(e.Get("name") ?? "");
+                var adj = Text(e.Get("adjective") ?? "");
+                if (sp == null || name == null || adj == null || name.StartsWith("$")) continue;
+                Prescripted.Add(new PrescriptedEmpire(e.Key, name, adj, sp.Get("class") ?? "", sp.Get("portrait") ?? "", Text(sp.Get("name") ?? "")));
+            }
+    }
+
+    /// <summary>The picture file for a portrait key (e.g. "rep9"), when the install has it.</summary>
+    public string? PortraitFile(string key) =>
+        Portraits.FirstOrDefault(p => string.Equals(p.Name, key, StringComparison.OrdinalIgnoreCase)) is { } p ? FilePath(p.TextureFile) : null;
 
     /// <summary>Resolve one lookup string from asset_refs (file:, sprite:, find:, planetclass:). Returns (path, frames, frame) or null.</summary>
     public (string path, int frames, int frame)? Lookup(string lookup)
