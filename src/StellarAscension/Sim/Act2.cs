@@ -558,7 +558,9 @@ public static class Act2
         var p = s.Player;
         if (!p.Alive) { s.Outcome = "defeated"; return; }
         int owned = s.Systems.Count(x => x.Owner >= 0);
-        if (owned > 0 && s.SystemsOf(p.Id).Count() >= owned * Rules.Act2ConquestShare && s.Month > 24)
+        // Conquest: most of the settled galaxy, and a real share of the whole galaxy (not just an early lead), while every rival is reduced.
+        int mine = s.SystemsOf(p.Id).Count();
+        if (owned > 0 && mine >= owned * Rules.Act2ConquestShare && mine >= s.Systems.Count * 0.5 && s.Month > 120)
         {
             s.Outcome = "won_conquest";
             s.Events.Add(new Act2Event(s.Month, "end", $"{p.Name} holds most of the settled galaxy. You have won.", p.Id));

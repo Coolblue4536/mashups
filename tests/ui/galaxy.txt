@@ -1,0 +1,37 @@
+click New Game
+click Start
+wait 1
+finish1
+wait 0.5
+click Continue
+wait 1.5
+shot g01_handoff
+click Begin
+wait 1.5
+click ×
+wait 0.5
+shot g02_home
+hoversys home
+wait 0.5
+shot g03_hover
+hover off
+turns2 16
+wait 0.5
+system home
+wait 1
+shot g04_t16
+zoom 0.6
+wait 1
+shot g05_zoomed_out
+galaxy
+wait 1.5
+shot g06_galaxy
+click Research
+wait 0.5
+shot g07_research
+click ×
+click Event log
+wait 0.5
+shot g08_log
+click ×
+quit

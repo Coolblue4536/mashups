@@ -9,7 +9,9 @@ public static class Handoff
     {
         var size = Defs.MapSize.TryGetValue(a1.Setup.MapSize, out var ms) ? ms : Defs.MapSize["standard"];
         var length = Defs.GameLength.TryGetValue(a1.Setup.GameLength, out var gl) ? gl : Defs.GameLength["standard"];
-        var diff = Defs.Difficulty.TryGetValue(a1.Setup.Difficulty, out var d) ? d : Defs.Difficulty["DIFFICULTY_PRINCE"];
+        var gd = Defs.GalaxyDifficulty.TryGetValue(a1.Setup.GalaxyDifficulty, out var gdd) ? gdd : Defs.GalaxyDifficulty["captain"];
+        var gs = Defs.GalaxySize.TryGetValue(a1.Setup.GalaxySize, out var gsd) ? gsd : Defs.GalaxySize["medium"];
+        int alienCount = a1.Setup.Aliens >= 0 ? a1.Setup.Aliens : size.Aliens;
         var race = Defs.SpaceRaceById.TryGetValue(a1.Setup.SpaceRace, out var sr) ? sr : Defs.SpaceRaceById["standard"];
         var rng = new Rng(a1.Rng.Next());
         var s = new Act2State { Setup = a1.Setup, EndYear = length.EndYear, Rng = rng };
@@ -25,7 +27,7 @@ public static class Handoff
                 Id = s.Empires.Count, Name = Act1.CivName(content, c), Adjective = Act1.CivAdjective(content, c), Leader = Act1.LeaderName(content, c),
                 IsPlayer = c.IsPlayer, Kind = "civ", CivType = c.CivType, LeaderType = c.Leader, SpaceRank = rank == 0 ? a1.SpaceOrder.Count + 1 : rank,
                 ColorR = def?.Primary.r ?? 200, ColorG = def?.Primary.g ?? 200, ColorB = def?.Primary.b ?? 200,
-                AiMult = c.IsPlayer ? 1 : diff.AiAct2Mult, Aggression = 0.35 + rng.Double() * 0.4,
+                AiMult = c.IsPlayer ? 1 : gd.AiMult, Aggression = (0.35 + rng.Double() * 0.4) * gd.Aggression,
             };
             // Civ VI's primary colours can be near-white or near-black; keep them visible on a dark galaxy.
             if (e.ColorR + e.ColorG + e.ColorB < 120) { e.ColorR = def?.Secondary.r ?? 160; e.ColorG = def?.Secondary.g ?? 160; e.ColorB = def?.Secondary.b ?? 160; }
@@ -42,7 +44,7 @@ public static class Handoff
             .Where(p => !SkipClasses.Contains(p.SpeciesClass) && p.Portrait.Length > 0 && !p.Key.EndsWith("machine_age"))
             .GroupBy(p => p.Name).Select(g => g.First()).ToList();
         rng.Shuffle(aliens);
-        for (int i = 0; i < size.Aliens; i++)
+        for (int i = 0; i < alienCount; i++)
         {
             var p = i < aliens.Count ? aliens[i] : null;
             var hue = rng.Double();
@@ -51,7 +53,7 @@ public static class Handoff
             {
                 Id = s.Empires.Count, Name = p?.Name ?? $"Alien Empire {i + 1}", Adjective = p?.Adjective ?? "Alien", Leader = p?.SpeciesName ?? "",
                 Kind = "alien", Portrait = p?.Portrait ?? "", SpeciesClass = p?.SpeciesClass ?? "", ColorR = r, ColorG = g, ColorB = b,
-                AiMult = diff.AiAct2Mult, Aggression = 0.3 + rng.Double() * 0.5,
+                AiMult = gd.AiMult, Aggression = (0.3 + rng.Double() * 0.5) * gd.Aggression,
             });
         }
         DistinctColors(s, content);
@@ -59,7 +61,7 @@ public static class Handoff
             foreach (var res in Defs.Resources) e.Stock[res.Id] = res.Start;
 
         // ---- galaxy
-        var homes = Galaxy.Make(s, content, rng, Math.Max(size.Act2Systems, s.Empires.Count * 9), s.Empires.Count);
+        var homes = Galaxy.Make(s, content, rng, s.Empires.Count * gs.SystemsPerEmpire, s.Empires.Count);
         rng.Shuffle(homes); // which arm each empire gets
 
         // ---- homes, spread out

@@ -14,6 +14,9 @@ public static class Act1
 {
     public const string Settler = "settler";
 
+    /// <summary>The Civ VI resources (set once the content is read), for tile yields.</summary>
+    public static Dictionary<string, MapResource> ResourceDefs = new();
+
     // ------------------------------------------------------------------ new game
 
     public static Act1State NewGame(GameSetup setup, Content content)
@@ -32,10 +35,15 @@ public static class Act1
         foreach (var g in others.Take(Math.Min(rivals, starts.Count - 1))) picks.Add(rng.Pick(g));
         for (int i = 0; i < picks.Count; i++)
         {
-            var c = new CivState { Id = i, CivType = picks[i].Type, Leader = picks[i].Leader, IsPlayer = i == 0, YieldMult = i == 0 ? 1 : diff.AiYieldMult };
+            var c = new CivState { Id = i, CivType = picks[i].Type, Leader = picks[i].Leader, IsPlayer = i == 0, YieldMult = i == 0 ? 1 : diff.AiYieldMult,
+                                   Aggression = 0.2 + rng.Double() * 0.6 };
             s.Civs.Add(c);
             FoundCity(s, content, c, starts[i].x, starts[i].y);
         }
+        Act1Map.PlaceResources(s, content, rng, starts.Take(s.Civs.Count).ToList());
+        // Everyone starts with a Warrior beside the capital, as in Civ VI.
+        foreach (var c in s.Civs)
+            if (Military.Spawn(s, content, c, "UNIT_WARRIOR", starts[c.Id].x, starts[c.Id].y) is { } w) w.Moves = content.Unit[w.Type].Moves;
         foreach (var c in s.Civs.Where(c => !c.IsPlayer)) Act1Ai.ChooseResearch(s, content, c);
         Reveal(s);
         s.Events.Add(new Act1Event(1, "start", $"{CivName(content, s.Player)} is founded. Win the race to space: complete the Moon Landing first.", 0));
@@ -51,9 +59,11 @@ public static class Act1
 
     // ------------------------------------------------------------------ tiles
 
-    public static Yields TileYield(Act1State s, int x, int y)
+    /// <summary>A tile's yields; its resource counts once the civ can see it (civ null: the tile's owner, or always if unowned).</summary>
+    public static Yields TileYield(Act1State s, int x, int y, CivState? civ = null)
     {
         var tile = s.At(x, y);
+        civ ??= tile.City >= 0 && s.City(tile.City) is { } oc ? s.Civs[oc.Owner] : null;
         if (tile.Natural != null)
         {
             var n = Defs.NaturalWonder.TryGetValue(tile.Natural, out var nd) ? nd : Defs.NaturalWonder["DEFAULT"];
@@ -65,6 +75,10 @@ public static class Act1
         {
             var fe = Defs.Features[tile.Feature];
             f += fe.Food; p += fe.Production; g += fe.Gold; sc += fe.Science;
+        }
+        if (tile.Resource != null && ResourceDefs.TryGetValue(tile.Resource, out var r) && (civ == null || r.PrereqTech == "none" || civ.Techs.Contains(r.PrereqTech)))
+        {
+            f += r.Yield.Food; p += r.Yield.Production; g += r.Yield.Gold; sc += r.Yield.Science;
         }
         return new Yields(f, p, g, sc);
     }
@@ -90,6 +104,7 @@ public static class Act1
         if (y < 1 || y >= s.H - 1 || !CanSettleTerrain(s, x, y)) return false;
         if (civ.IsPlayer && !s.At(x, y).Revealed) return false;
         if (s.At(x, y).Built != null) return false;
+        if (s.UnitAt(x, y) is { } u && u.Owner != civ.Id) return false;
         var owner = s.At(x, y).City;
         if (owner >= 0 && s.City(owner)?.Owner != civ.Id) return false;
         int min = (int)Rules.CityMinDistance;
@@ -111,7 +126,8 @@ public static class Act1
             name = civ.NextCityName < names.Count ? names[civ.NextCityName] : $"{CivAdjective(content, civ)} City {civ.NextCityName + 1}";
             civ.NextCityName++;
         } while (s.Cities.Any(c => c.Name == name));
-        var city = new CityState { Id = s.NextCityId++, Owner = civ.Id, X = x, Y = y, Name = name, Capital = !s.CitiesOf(civ.Id).Any(), Founded = s.Turn };
+        var city = new CityState { Id = s.NextCityId++, Owner = civ.Id, X = x, Y = y, Name = name, Capital = !s.CitiesOf(civ.Id).Any(), Founded = s.Turn,
+                                   Founder = civ.Id, Hp = Rules.CityMaxHp };
         s.Cities.Add(city);
         foreach (var (tx, ty) in Hex.Within(x, y, (int)Rules.CityRadius, s.W, s.H))
             if (s.At(tx, ty).City < 0) s.At(tx, ty).City = city.Id;
@@ -220,6 +236,7 @@ public static class Act1
     public static double BuildCost(Act1State s, Content content, CivState civ, string id) => id switch
     {
         Settler => Math.Round((Rules.SettlerCost + Rules.SettlerCostStep * civ.SettlersBuilt) * Rules.Act1BuildCostMult),
+        _ when content.Unit.TryGetValue(id, out var u) => u.Cost,
         _ when content.BuildingCost.TryGetValue(id, out var b) => b,
         _ when content.WonderCost.TryGetValue(id, out var w) => w,
         _ when content.ProjectCost.TryGetValue(id, out var p) => p,
@@ -230,7 +247,7 @@ public static class Act1
         Hex.Neighbors(c.X, c.Y, s.W, s.H).Any(n => !Defs.Terrains[s.At(n.x, n.y).Terrain].Land);
 
     public static string Kind(string id) =>
-        id == Settler ? "unit" : Defs.Wonder.ContainsKey(id) ? "wonder" : Defs.Project.ContainsKey(id) ? "project" : "building";
+        id == Settler || Military.IsUnit(id) ? "unit" : Defs.Wonder.ContainsKey(id) ? "wonder" : Defs.Project.ContainsKey(id) ? "project" : "building";
 
     /// <summary>Why a build isn't possible right now, or null when it is.</summary>
     public static string? CantBuild(Act1State s, Content content, CityState city, string id)
@@ -241,6 +258,7 @@ public static class Act1
             if (city.Pop < Rules.SettlerMinPop) return $"Needs a size {Rules.SettlerMinPop} city.";
             return null;
         }
+        if (Military.IsUnit(id)) return Military.CantTrain(s, content, city, id);
         if (Defs.Building.TryGetValue(id, out var b))
         {
             if (city.Buildings.Contains(id)) return "Already built here.";
@@ -269,11 +287,11 @@ public static class Act1
         return "Unknown.";
     }
 
-    public static IEnumerable<string> AllBuilds() =>
-        new[] { Settler }.Concat(Defs.Buildings.Select(b => b.Id)).Concat(Defs.Wonders.Select(w => w.Id)).Concat(Defs.Projects.Select(p => p.Id));
+    public static IEnumerable<string> AllBuilds(Content content) =>
+        new[] { Settler }.Concat(content.Units.Select(u => u.Type)).Concat(Defs.Buildings.Select(b => b.Id)).Concat(Defs.Wonders.Select(w => w.Id)).Concat(Defs.Projects.Select(p => p.Id));
 
     public static List<string> AvailableBuilds(Act1State s, Content content, CityState city) =>
-        AllBuilds().Where(id => CantBuild(s, content, city, id) == null).ToList();
+        AllBuilds(content).Where(id => CantBuild(s, content, city, id) == null).ToList();
 
     public static bool CanBuy(string id) => Kind(id) is "unit" or "building";
 
@@ -321,8 +339,8 @@ public static class Act1
         if (s.Outcome != "") return;
         var order = s.Civs.Where(c => c.Alive).ToList();
         s.Rng.Shuffle(order);
-        foreach (var civ in order.Where(c => !c.IsPlayer)) Act1Ai.TakeTurn(s, content, civ);
-        foreach (var civ in order)
+        foreach (var civ in order.Where(c => !c.IsPlayer)) { if (civ.Alive) Act1Ai.TakeTurn(s, content, civ); if (s.Outcome != "") return; }
+        foreach (var civ in order.Where(c => c.Alive))
         {
             double science = 0, gold = 0;
             foreach (var city in s.CitiesOf(civ.Id).ToList())
@@ -348,6 +366,10 @@ public static class Act1
             if (s.Outcome != "") break;
         }
         foreach (var civ in s.Civs.Where(c => !c.IsPlayer && c.Alive)) Act1Ai.PlaceSettlers(s, content, civ);
+        // Cities fire on enemies next to them, then everyone's units get their moves back and heal.
+        foreach (var civ in s.Civs.Where(c => c.Alive).ToList()) Military.CityStrikes(s, content, civ);
+        Military.NewTurn(s, content);
+        foreach (var u in s.UnitsOf(s.Player.Id).Where(u => u.TargetX >= 0).ToList()) Military.ContinueMove(s, u);
         s.Year = Math.Max(s.Year + 1, CalendarYear(s, content));
         Reveal(s);
         s.Turn++;
@@ -407,6 +429,11 @@ public static class Act1
         city.Build = null;
         switch (Kind(id))
         {
+            case "unit" when id != Settler:
+                var u = Military.Spawn(s, content, civ, id, city.X, city.Y);
+                string un = content.Text(content.Unit[id].NameLoc);
+                if (civ.IsPlayer) s.Events.Add(new Act1Event(s.Turn, "trained", u != null ? $"{city.Name} trained a {un}." : $"{city.Name} trained a {un}, but there was no room for it.", civ.Id, city.X, city.Y));
+                break;
             case "unit":
                 civ.SettlersBuilt++;
                 civ.PendingSettlers++;
@@ -499,13 +526,16 @@ public static class Act1
 
     public const int SightRadius = 4;
 
-    /// <summary>Tiles the player sees right now: near their cities and their territory.</summary>
+    /// <summary>Tiles the player sees right now: near their cities and units, and their territory.</summary>
     public static bool Visible(Act1State s, int x, int y)
     {
         var t = s.At(x, y);
         if (t.City >= 0 && s.City(t.City)?.Owner == s.Player.Id) return true;
-        return s.CitiesOf(s.Player.Id).Any(c => Hex.Distance(c.X, c.Y, x, y, s.W) <= SightRadius - 1);
+        return s.CitiesOf(s.Player.Id).Any(c => Hex.Distance(c.X, c.Y, x, y, s.W) <= SightRadius - 1)
+            || s.UnitsOf(s.Player.Id).Any(u => Hex.Distance(u.X, u.Y, x, y, s.W) <= UnitSight(u));
     }
+
+    public static int UnitSight(UnitState u) => u.Type is "UNIT_SCOUT" or "UNIT_RANGER" or "UNIT_HELICOPTER" ? 3 : 2;
 
     /// <summary>Marks what the player has seen: around their cities, the seas after Cartography, everything after Flight.</summary>
     public static void Reveal(Act1State s)
@@ -514,6 +544,8 @@ public static class Act1
         bool all = p.Techs.Contains("TECH_FLIGHT"), seas = p.Techs.Contains("TECH_CARTOGRAPHY");
         foreach (var c in s.CitiesOf(p.Id))
             foreach (var (x, y) in Hex.Within(c.X, c.Y, SightRadius + (c.Capital ? 1 : 0), s.W, s.H)) s.At(x, y).Revealed = true;
+        foreach (var u in s.UnitsOf(p.Id))
+            foreach (var (x, y) in Hex.Within(u.X, u.Y, UnitSight(u), s.W, s.H)) s.At(x, y).Revealed = true;
         if (all || seas)
             for (int i = 0; i < s.Tiles.Length; i++)
                 if (all || !Defs.Terrains[s.Tiles[i].Terrain].Land) s.Tiles[i].Revealed = true;

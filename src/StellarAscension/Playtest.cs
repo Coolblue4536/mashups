@@ -48,7 +48,8 @@ public static class Playtest
                 var y = Act1.CivYields(st, content, st.Player);
                 Log.Info($"  turn {st.Turn} {Act1.YearText(st.Year)}: cities {st.CitiesOf(st.Player.Id).Count()}, pop {st.CitiesOf(st.Player.Id).Sum(c => c.Pop)}, "
                          + $"food {y.Food:0} prod {y.Production:0} gold {y.Gold:0} sci {y.Science:0}, techs {st.Player.Techs.Count}, era {Act1.EraIndex(content, st.Player)}, "
-                         + $"rival best techs {st.Civs.Where(c => !c.IsPlayer).Max(c => c.Techs.Count)}");
+                         + $"rival best techs {st.Civs.Where(c => !c.IsPlayer).Max(c => c.Techs.Count)}, units {st.Units.Count} ({string.Join(",", st.Civs.Select(c => st.UnitsOf(c.Id).Count()))}), "
+                         + $"best unit {st.Units.Select(u => content.Unit[u.Type]).OrderByDescending(u => u.Combat).Select(u => u.Type[5..]).FirstOrDefault()}, wars {st.Wars.Count}, alive {st.Civs.Count(c => c.Alive)}");
             });
             results.Add(r);
             Log.Info($"act1 run {i + 1}: {r}");
@@ -129,7 +130,8 @@ public static class Playtest
         {
             var (race, size, rivals, diff, pace, rename, length) = runs[i];
             var civ = content.Civs[(i * 5 + 3) % content.Civs.Count];
-            var setup = new GameSetup { Civ = civ.Type, Leader = civ.Leader, MapSize = size, SpaceRace = race, Rivals = rivals, Difficulty = diff, GameLength = length, Seed = (ulong)(9100 + i) };
+            var setup = new GameSetup { Civ = civ.Type, Leader = civ.Leader, MapSize = size, SpaceRace = race, Rivals = rivals, Difficulty = diff, GameLength = length, Seed = (ulong)(9100 + i),
+                                        GalaxySize = Defs.GalaxySizes[i % Defs.GalaxySizes.Length].Id, Aliens = i % 5, GalaxyDifficulty = Defs.GalaxyDifficulties[i % Defs.GalaxyDifficulties.Length].Id };
             var sw = System.Diagnostics.Stopwatch.StartNew();
             var a1 = Act1.NewGame(setup, content);
             a1.Civs[0].YieldMult = pace;
@@ -143,13 +145,14 @@ public static class Playtest
             int wonders = a1.Cities.Sum(c => c.Wonders.Count);
             int place = a1.SpaceOrder.IndexOf(a1.Player.Id) + 1;
             string where = place == 0 ? "never reached space" : $"#{place} of {a1.SpaceOrder.Count} in space";
-            Log.Info($"matrix {i + 1}: {race}, {size}, {rivals} rivals, {Defs.Difficulty[diff].Name}, {length} game{(rename ? ", long non-English names" : "")}; {Act1.CivName(content, a1.Player)}: act 1 {a1.Outcome} at turn {a1.Turn} ({Act1.YearText(a1.Year)}), player {where}, {wonders} wonders, {a1.Tiles.Count(t => t.Natural != null)} natural wonders");
+            Log.Info($"matrix {i + 1}: {race}, {size}, {rivals} rivals, {Defs.Difficulty[diff].Name}, {length} game{(rename ? ", long non-English names" : "")}; {Act1.CivName(content, a1.Player)}: act 1 {a1.Outcome} at turn {a1.Turn} ({Act1.YearText(a1.Year)}), player {where}, {wonders} wonders, {a1.Tiles.Count(t => t.Natural != null)} natural wonders, "
+                     + $"{a1.Units.Count} units (best {a1.Units.Select(u => content.Unit[u.Type]).OrderByDescending(u => u.Combat).Select(u => content.Text(u.NameLoc)).FirstOrDefault()}), {a1.Civs.Count(c => !c.Alive)} civs destroyed, {a1.Cities.Count(c => c.Founder != c.Owner)} cities captured");
             Check(a1.Civs.Count == rivals + 1, "civ count");
             Check(a1.Cities.Select(c => c.Name).Concat(a1.Civs.Select(c => Act1.CivName(content, c))).All(n => !Gfx.Fold(n).Contains('?')), "every Act 1 name drawable");
             if (race == "ruthless") Check((a1.Outcome == "defeat") == (a1.SpaceOrder.Count > 0 && a1.SpaceOrder[0] != a1.Player.Id), "Ruthless: defeat exactly when a rival is first");
             if (a1.Outcome != "space") continue;
             var s = PlayAct2(content, a1);
-            Check(s.Empires.Count(e => e.Kind == "civ") == a1.Civs.Count, "every civ became an empire");
+            Check(s.Empires.Count(e => e.Kind == "civ") == a1.Civs.Count(cv => cv.Alive), "every surviving civ became an empire");
             Check(s.Systems.Count(x => x.Home) == s.Empires.Count, "one home per empire");
             Check(Handoff.Bfs(s, 0).Count == s.Systems.Count, "galaxy connected");
             var bad = s.Systems.Select(x => x.Name).Concat(s.Systems.SelectMany(x => x.Planets).Select(p => p.Name)).Concat(s.Empires.Select(e => e.Name)).Where(n => !Gfx.Drawable(Gfx.Fold(n)) || Gfx.Fold(n).Contains('?') && !n.Contains('?')).ToList();
@@ -158,7 +161,8 @@ public static class Playtest
             Check(!rename || s.Systems.Any(x => x.Home && x.Planets.Any(p => p.Homeworld && p.Name == LongName)), "renamed capital carried to the homeworld");
             Check(!rename || s.Systems.SelectMany(x => x.Planets).Any(p => others.Contains(p.Name)), "renamed cities name the other home planets");
             Check(s.Outcome != "", "act 2 ended");
-            Log.Info($"   act 2 {s.Outcome} in {s.Year}; {s.Systems.Count} systems; top scores " + string.Join(", ", s.Empires.OrderByDescending(e => e.Score).Take(4).Select(e => $"{e.Adjective}{(e.IsPlayer ? "*" : "")} {e.Score}")) + $"; player {s.Player.Score}; {sw.Elapsed.TotalSeconds:0.0}s");
+            Check(s.Empires.Count(e => e.Kind == "alien") == setup.Aliens, "chosen number of alien empires");
+            Log.Info($"   act 2 {s.Outcome} in {s.Year}; {setup.GalaxySize} galaxy, {s.Systems.Count} systems, {setup.Aliens} aliens, AI {setup.GalaxyDifficulty}; top scores " + string.Join(", ", s.Empires.OrderByDescending(e => e.Score).Take(4).Select(e => $"{e.Adjective}{(e.IsPlayer ? "*" : "")} {e.Score}")) + $"; player {s.Player.Score}; {sw.Elapsed.TotalSeconds:0.0}s");
         }
         Log.Info(fails == 0 ? "matrix: ALL PASS" : $"matrix: {fails} FAILED");
         return fails == 0 ? 0 : 1;

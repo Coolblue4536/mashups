@@ -22,6 +22,16 @@ public static class Program
 
         if (args.Contains("--selftest")) return SelfTest.Run(civ6, stellaris);
         if (Arg("--probe") is { } probeOut) return Probe.Run(civ6, stellaris, probeOut);
+        if (Arg("--icon") is { } iconName && civ6 != null)
+        {
+            var d = new Civ6Data(civ6);
+            foreach (var n in iconName.Split(','))
+            {
+                var img = d.Icon(n);
+                Log.Info($"{n}: {(img == null ? "not found" : $"{img.W}x{img.H}, mean alpha {img.Rgba.Where((_, i) => i % 4 == 3).Average(b => (double)b):0}, mean rgb {img.Rgba.Where((_, i) => i % 4 != 3).Average(b => (double)b):0}")}");
+            }
+            return 0;
+        }
         if (Arg("--blpinfo") is { } blpPath)
         {
             var b = Civ6Blp.Open(blpPath);

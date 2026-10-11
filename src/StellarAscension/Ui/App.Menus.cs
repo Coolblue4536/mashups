@@ -76,8 +76,12 @@ public sealed partial class App
         {
             MapSize = Settings.MapSize ?? "standard", SpaceRace = Settings.SpaceRace ?? "standard", Difficulty = Settings.Difficulty ?? "DIFFICULTY_PRINCE",
             GameLength = "standard", Seed = (ulong)DateTime.Now.Ticks,
+            GalaxySize = Settings.GalaxySize is { } g && Defs.GalaxySize.ContainsKey(g) ? g : "medium",
+            GalaxyDifficulty = Settings.GalaxyDifficulty is { } gd && Defs.GalaxyDifficulty.ContainsKey(gd) ? gd : "captain",
         };
+        if (Environment.GetEnvironmentVariable("SA_SEED") is { } seed && ulong.TryParse(seed, out var sv)) _setup.Seed = sv;
         _setup.Rivals = Settings.Rivals > 0 ? Settings.Rivals : Defs.MapSize[_setup.MapSize].DefaultRivals;
+        _setup.Aliens = Settings.Aliens >= 0 ? Settings.Aliens : Defs.MapSize[_setup.MapSize].Aliens;
         _civPick = Math.Max(0, c.Civs.FindIndex(x => x.Leader == Settings.Civ));
         Current = Screen.Setup;
     }
@@ -107,7 +111,7 @@ public sealed partial class App
 
         // Leader
         var pick = c.Civs[Math.Clamp(_civPick, 0, c.Civs.Count - 1)];
-        var mid = new Rectangle(list.X + list.Width + 20, 90, Math.Max(300, Gfx.W - list.Width - 500 - 80), Gfx.H - 130);
+        var mid = new Rectangle(list.X + list.Width + 20, 90, Math.Max(260, Gfx.W - list.Width - 540 - 80), Gfx.H - 130);
         G.Panel(mid);
         var art = LeaderArt(pick.Leader);
         if (art != null) Gfx.DrawFit(art, new Rectangle(mid.X + 10, mid.Y + 10, mid.Width - 20, mid.Height - 130), Color.White);
@@ -119,56 +123,89 @@ public sealed partial class App
         G.Text(c.Text(pick.LeaderNameLoc), mid.X + 116, mid.Y + mid.Height - 104, 28, Gfx.Ink, true);
         G.Text(c.Text(pick.DescLoc) + (pick.CapitalLoc != null ? $" · capital {c.Text(pick.CapitalLoc)}" : ""), mid.X + 116, mid.Y + mid.Height - 66, 19, Gfx.Muted);
 
-        // Options
-        var opt = new Rectangle(Gfx.W - 460, 90, 420, Gfx.H - 130);
+        // Options: Earth (Act 1) and the galaxy (Act 2), one row each: a label, then the choices.
+        var opt = new Rectangle(Gfx.W - 540, 90, 500, Gfx.H - 130);
         G.Panel(opt);
-        float x = opt.X + 18, y = opt.Y + 14, w = opt.Width - 36;
-        G.Text("Map", x, y, 20, Gfx.Gold); y += 28;
-        float bw = (w - 12) / 3;
+        float x = opt.X + 18, y = opt.Y + 14, w = opt.Width - 36, lw = 112, bx = x + lw, bwAll = w - lw;
+        void Label(string t) => G.Text(t, x, y + 7, 17, Gfx.Ink);
+        bool Choice(int i, int perRow, string text, bool sel, string? tip = null, int row = 0)
+        {
+            float bw = (bwAll - (perRow - 1) * 5) / perRow;
+            return G.Button(new Rectangle(bx + i % perRow * (bw + 5), y + (i / perRow) * 36, bw, 32), text, selected: sel, tip: tip, size: 15);
+        }
+        void Stepper(string text, ref int value, int min, int max, string? tip = null)
+        {
+            Label(text);
+            G.TextCentered(value.ToString(), new Rectangle(bx + 46, y, 60, 32), 19, Gfx.Gold);
+            if (G.Button(new Rectangle(bx, y, 40, 32), "-", value > min, tip: tip)) value--;
+            if (G.Button(new Rectangle(bx + 112, y, 40, 32), "+", value < max, tip: tip)) value++;
+            y += 40;
+        }
+        G.Text("Earth", x, y, 24, Gfx.Gold, true); G.Text("Act 1", x + 80, y + 7, 15, Gfx.Muted); y += 36;
+        Label("Map");
         for (int i = 0; i < Defs.MapSizes.Length; i++)
         {
             var m = Defs.MapSizes[i];
-            if (G.Button(new Rectangle(x + i * (bw + 6), y, bw, 36), m.Name, selected: _setup.MapSize == m.Id, tip: m.Desc, size: 18))
-            {
-                _setup.MapSize = m.Id;
-                _setup.Rivals = m.DefaultRivals;
-            }
+            if (Choice(i, 3, m.Name, _setup.MapSize == m.Id, m.Desc)) { _setup.MapSize = m.Id; _setup.Rivals = m.DefaultRivals; _setup.Aliens = m.Aliens; }
         }
-        y += 46;
+        y += 40;
         var ms = Defs.MapSize[_setup.MapSize];
-        G.Text($"Rivals: {_setup.Rivals}", x, y + 6, 20, Gfx.Ink);
-        if (G.Button(new Rectangle(x + w - 96, y, 44, 34), "-", _setup.Rivals > 1)) _setup.Rivals--;
-        if (G.Button(new Rectangle(x + w - 44, y, 44, 34), "+", _setup.Rivals < ms.MaxRivals)) _setup.Rivals++;
-        y += 48;
-        G.Text("Space Race", x, y, 20, Gfx.Gold); y += 28;
-        for (int i = 0; i < Defs.SpaceRace.Length; i++)
-        {
-            var sr = Defs.SpaceRace[i];
-            if (G.Button(new Rectangle(x + i * (bw + 6), y, bw, 36), sr.Name, selected: _setup.SpaceRace == sr.Id, size: 18)) _setup.SpaceRace = sr.Id;
-        }
-        y += 42;
-        y += G.Para(Defs.SpaceRaceById[_setup.SpaceRace].Desc, x, y, 16, w, Gfx.Muted) + 10;
-        G.Text("Difficulty", x, y, 20, Gfx.Gold); y += 28;
-        float dw = (w - 18) / 4;
+        int rivals = _setup.Rivals;
+        Stepper("Rivals", ref rivals, 1, ms.MaxRivals, "Other civilizations on Earth.");
+        _setup.Rivals = rivals;
+        Label("Difficulty");
         for (int i = 0; i < Defs.Difficulties.Length; i++)
         {
             var d = Defs.Difficulties[i];
             var name = c.Text(d.NameLoc) is { Length: > 0 } n && !n.StartsWith("LOC_") ? n : d.Name;
-            if (G.Button(new Rectangle(x + i % 4 * (dw + 6), y + i / 4 * 40, dw, 34), name, selected: _setup.Difficulty == d.Id, tip: d.Desc, size: 16)) _setup.Difficulty = d.Id;
+            if (Choice(i, 4, name, _setup.Difficulty == d.Id, d.Desc)) _setup.Difficulty = d.Id;
         }
-        y += 90;
-        G.Text("Act 2 ends", x, y, 20, Gfx.Gold); y += 28;
+        y += 76;
+        Label("Space Race");
+        for (int i = 0; i < Defs.SpaceRace.Length; i++)
+        {
+            var sr = Defs.SpaceRace[i];
+            if (Choice(i, 3, sr.Name, _setup.SpaceRace == sr.Id, sr.Desc)) _setup.SpaceRace = sr.Id;
+        }
+        y += 38;
+        y += G.Para(Defs.SpaceRaceById[_setup.SpaceRace].Desc, bx, y, 14, bwAll, Gfx.Muted) + 14;
+
+        Raylib.DrawLineEx(new Vector2(x, y), new Vector2(x + w, y), 1, G.PanelEdge);
+        y += 10;
+        G.Text("The galaxy", x, y, 24, Gfx.Gold, true); G.Text("Act 2", x + 150, y + 7, 15, Gfx.Muted); y += 36;
+        Label("Size");
+        for (int i = 0; i < Defs.GalaxySizes.Length; i++)
+        {
+            var gs = Defs.GalaxySizes[i];
+            if (Choice(i, 5, gs.Name, _setup.GalaxySize == gs.Id, gs.Desc)) _setup.GalaxySize = gs.Id;
+        }
+        y += 40;
+        int aliens = _setup.Aliens >= 0 ? _setup.Aliens : ms.Aliens;
+        Stepper("Alien empires", ref aliens, 0, 8, "Stellaris's own empires that share the galaxy with Earth's civilizations.");
+        _setup.Aliens = aliens;
+        Label("AI empires");
+        for (int i = 0; i < Defs.GalaxyDifficulties.Length; i++)
+        {
+            var gd = Defs.GalaxyDifficulties[i];
+            if (Choice(i, 3, gd.Name, _setup.GalaxyDifficulty == gd.Id, gd.Desc)) _setup.GalaxyDifficulty = gd.Id;
+        }
+        y += 76;
+        Label("Ends in");
         for (int i = 0; i < Defs.GameLengths.Length; i++)
         {
             var gl = Defs.GameLengths[i];
-            if (G.Button(new Rectangle(x + i * (bw + 6), y, bw, 36), $"{gl.Name} ({gl.EndYear})", selected: _setup.GameLength == gl.Id, size: 16)) _setup.GameLength = gl.Id;
+            if (Choice(i, 3, $"{gl.EndYear}", _setup.GameLength == gl.Id, gl.Desc)) _setup.GameLength = gl.Id;
         }
-        y += 50;
+        y += 40;
+        int empires = _setup.Rivals + 1 + aliens;
+        G.Text($"About {empires * Defs.GalaxySize[_setup.GalaxySize].SystemsPerEmpire} star systems for {empires} empires. {Defs.GalaxyDifficulty[_setup.GalaxyDifficulty].Desc}",
+               x, y, 14, Gfx.Muted);
         if (G.Button(new Rectangle(x, opt.Y + opt.Height - 70, w, 54), "Start Game", size: 24))
         {
             _setup.Civ = pick.Type;
             _setup.Leader = pick.Leader;
             Settings.Civ = pick.Leader; Settings.MapSize = _setup.MapSize; Settings.SpaceRace = _setup.SpaceRace; Settings.Difficulty = _setup.Difficulty; Settings.Rivals = _setup.Rivals;
+            Settings.GalaxySize = _setup.GalaxySize; Settings.GalaxyDifficulty = _setup.GalaxyDifficulty; Settings.Aliens = _setup.Aliens;
             Settings.Save();
             Game = new SaveGame { Phase = "act1", Act1 = Act1.NewGame(_setup, c) };
             SaveNow();

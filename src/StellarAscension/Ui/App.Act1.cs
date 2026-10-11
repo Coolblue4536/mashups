@@ -82,7 +82,10 @@ public sealed partial class App
         Notifications1(s);
         if (_selCity >= 0 && s.City(_selCity) is { } city && city.Owner == s.Player.Id) CityPanel(s, c, city);
         else if (_selCity >= 0 && s.City(_selCity) is { } other) ForeignCityPanel(s, c, other);
+        if (SelectedUnit(s) is { } unit) UnitPanel(s, c, unit);
+        else _selUnit = -1;
         EndTurnButton(s, c);
+        if (_cardTile is { } ct && _overlay1 == "" && s.Outcome == "" && G.MouseOnMap) TileCard(s, c, ct.x, ct.y);
         if (_overlay1 == "research") ResearchOverlay(s, c);
         else if (_overlay1 == "race") RaceOverlay(s, c);
         else if (_overlay1 == "wonders") WondersOverlay(s, c);
@@ -91,8 +94,12 @@ public sealed partial class App
         Toasts(_overlay1 == "" && s.Outcome == "");
     }
 
+    (int x, int y)? _cardTile;
+
     void HandleMapInput1(float dt)
     {
+        UnitKeys(A1);
+        if (Raylib.IsKeyPressed(KeyboardKey.Y) && _overlay1 == "") _yieldLens = !_yieldLens;
         float pan = 900 * dt / _zoom1;
         if (Raylib.IsKeyDown(KeyboardKey.A) || Raylib.IsKeyDown(KeyboardKey.Left)) _cam1.X -= pan;
         if (Raylib.IsKeyDown(KeyboardKey.D) || Raylib.IsKeyDown(KeyboardKey.Right)) _cam1.X += pan;
@@ -101,6 +108,7 @@ public sealed partial class App
         if (Raylib.IsKeyPressed(KeyboardKey.Escape))
         {
             if (_settlerMode) _settlerMode = false;
+            else if (_overlay1 == "" && _selUnit >= 0) _selUnit = -1;
             else _overlay1 = _overlay1 == "" ? "menu" : "";
         }
         if (_overlay1 != "") return;
@@ -113,8 +121,11 @@ public sealed partial class App
                 _zoom1 = Math.Clamp(_zoom1 * (wheel > 0 ? 1.12f : 1 / 1.12f), 0.35f, 2.2f);
                 _cam1 += before - ToWorld(Gfx.Mouse);
             }
-            if (Raylib.IsMouseButtonDown(MouseButton.Right) || Raylib.IsMouseButtonDown(MouseButton.Middle))
+            if (Raylib.IsMouseButtonPressed(MouseButton.Right)) _rightPress = Gfx.Mouse;
+            bool dragging = _rightPress is { } rp && Vector2.Distance(rp, Gfx.Mouse) > 6;
+            if (Raylib.IsMouseButtonDown(MouseButton.Right) && dragging || Raylib.IsMouseButtonDown(MouseButton.Middle))
                 _cam1 -= Raylib.GetMouseDelta() / _zoom1;
+            if (dragging) _rightDragged = true;
         }
         // wrap east-west, clamp north-south
         float mw = MapPixelW;
@@ -142,6 +153,7 @@ public sealed partial class App
         return t;
     }
     readonly HashSet<string> _wrapped = new();
+    bool _rightDragged;
     readonly Dictionary<string, List<string>> _variants = new();
 
     /// <summary>The variants of a "{n}" sprite name that exist in the player's Civ VI.</summary>
@@ -335,8 +347,11 @@ public sealed partial class App
                 else if (Defs.Wonder.TryGetValue(built, out var wd)) Sprite(MapTex(wd.Sprite), p, size * 1.25f, fogTint, size * 0.1f);
             }
         }
+        DrawTileExtras(s, c, tiles, hover);
+        DrawSelection(s, c, tiles, hover);
         foreach (var (p, w, x, y) in tiles)
             if (s.At(x, y).Revealed && s.CityAt(x, y) is { } city) DrawCity(s, c, city, p, Act1.Visible(s, x, y));
+        DrawUnits(s, c, tiles);
         // ---- selection, settling, hover
         foreach (var (p, w, x, y) in tiles)
         {
@@ -347,9 +362,16 @@ public sealed partial class App
             if (hover is { } hv && hv.x == x && hv.y == y) Raylib.DrawPolyLinesEx(p, 6, r, 30, 2.5f, Gfx.Gold);
         }
         // ---- clicks
+        bool rightClick = Raylib.IsMouseButtonReleased(MouseButton.Right) && !_rightDragged && _rightPress != null && !G.ClickTaken;
+        if (Raylib.IsMouseButtonReleased(MouseButton.Right)) { _rightPress = null; _rightDragged = false; }
+        if (hover is { } hr && _overlay1 == "" && rightClick && !_settlerMode) UnitClick(s, c, hr, true);
+        int? flagHit = _overlay1 == "" && G.MouseOnMap ? _unitHits.Where(t => Raylib.CheckCollisionPointRec(Gfx.Mouse, t.r)).Select(t => (int?)t.unit).LastOrDefault() : null;
         if (hover is { } h && _overlay1 == "" && (scriptedClick || Raylib.IsMouseButtonPressed(MouseButton.Left) && !G.ClickTaken))
         {
-            if (_settlerMode)
+            if (!scriptedClick && !_settlerMode && flagHit is { } fu && s.Unit(fu) is { } fUnit && fUnit.Owner == player.Id) { _selUnit = fu; _selCity = -1; }
+            else if (!_settlerMode && UnitClick(s, c, h, false)) { }
+            else if (scriptedClick && !_settlerMode && s.UnitAt(h.x, h.y) is { } su && su.Owner == player.Id && s.CityAt(h.x, h.y) == null) { _selUnit = su.Id; _selCity = -1; }
+            else if (_settlerMode)
             {
                 if (Act1.PlaceSettler(s, c, player, h.x, h.y))
                 {
@@ -358,10 +380,11 @@ public sealed partial class App
                     SaveNow();
                 }
             }
-            else if (s.At(h.x, h.y).Revealed && s.CityAt(h.x, h.y) is { } clicked) _selCity = clicked.Id;
-            else _selCity = -1;
+            else if (s.At(h.x, h.y).Revealed && s.CityAt(h.x, h.y) is { } clicked) { _selCity = clicked.Id; _selUnit = -1; }
+            else if (s.UnitAt(h.x, h.y) is { } tu && tu.Owner == player.Id) { _selUnit = tu.Id; _selCity = -1; }
+            else { _selCity = -1; _selUnit = -1; }
         }
-        if (hover is { } ht && _overlay1 == "") TileTip(s, c, ht.x, ht.y);
+        _cardTile = hover is { } ht && _overlay1 == "" && !scriptedClick ? ht : null;
     }
 
     static Rectangle Inflate(Rectangle r, float d) => new(r.X - d, r.Y - d, r.Width + 2 * d, r.Height + 2 * d);
@@ -415,22 +438,6 @@ public sealed partial class App
         if (city.Id == _selCity) Raylib.DrawPolyLinesEx(p, 6, HexR * _zoom1, 30, 3, Gfx.Gold);
     }
 
-    void TileTip(Act1State s, Content c, int x, int y)
-    {
-        var tile = s.At(x, y);
-        if (!tile.Revealed) { G.Tip("Unexplored. Your borders and new cities reveal the land; Cartography charts the seas, Flight the whole world."); return; }
-        var t = Defs.Terrains[tile.Terrain];
-        var lines = new List<string>();
-        lines.Add(tile.Natural != null ? c.Name(tile.Natural) + " (natural wonder)" : c.Text(t.NameLoc) + (tile.Feature >= 0 ? ", " + c.Text(Defs.Features[tile.Feature].NameLoc) : ""));
-        var y0 = Act1.TileYield(s, x, y);
-        if (Act1.Workable(s, x, y)) lines.Add($"{Gfx.Num(y0.Food)} Food, {Gfx.Num(y0.Production)} Production, {Gfx.Num(y0.Gold)} Gold, {Gfx.Num(y0.Science)} Science");
-        else lines.Add("Can't be worked.");
-        if (tile.Natural != null) lines.Add($"In Act 2 this becomes a rare star system: {Defs.Modifier[c.NaturalDef(tile.Natural).Modifier].EffectText}.");
-        if (tile.City >= 0 && s.City(tile.City) is { } owner) lines.Add($"Territory of {owner.Name} ({Act1.CivName(c, s.Civs[owner.Owner])}).");
-        if (_settlerMode) lines.Add(Act1.CanFoundCity(s, s.Player, x, y) ? "Click to found a city here." : "You can't found a city here.");
-        G.Tip(string.Join("\n", lines));
-    }
-
     // ---------------------------------------------------------------- top bar
 
     void TopBar1(Act1State s, Content c)
@@ -459,7 +466,10 @@ public sealed partial class App
         Stat("ICON_YIELD_PRODUCTION_5", $"+{Gfx.Num(y.Production)}", "Production per turn across all your cities.");
         Stat("ICON_YIELD_FOOD_5", $"+{Gfx.Num(y.Food)}", "Food per turn across all your cities (before citizens eat).");
         // Research
-        var rr = new Rectangle(x + 10, 6, 330, 36);
+        string when = $"Turn {s.Turn} · {Act1.YearText(s.Year)}";
+        // The research box takes what's left between the yields and the buttons on the right.
+        float right = Gfx.W - 94 - G.Measure(when, 20) - 20 - (120 + 6 + 110 + 6 + 86 + 12);
+        var rr = new Rectangle(x + 10, 6, Math.Clamp(right - x - 10, 200, 330), 36);
         if (p.Researching != null)
         {
             var t = c.Tech[p.Researching];
@@ -471,9 +481,9 @@ public sealed partial class App
         }
         else if (G.Button(rr, "Choose research", size: 18)) _overlay1 = "research";
         x = rr.X + rr.Width + 12;
-        if (G.Button(new Rectangle(x, 6, 120, 36), "Space Race", size: 17, selected: _overlay1 == "race")) _overlay1 = _overlay1 == "race" ? "" : "race";
+        if (G.Button(new Rectangle(x, 6, 120, 36), "Space Race", size: 17, selected: _overlay1 == "race", tip: "Every civilization's progress, and war and peace.")) _overlay1 = _overlay1 == "race" ? "" : "race";
         if (G.Button(new Rectangle(x + 126, 6, 110, 36), "Wonders", size: 17, selected: _overlay1 == "wonders")) _overlay1 = _overlay1 == "wonders" ? "" : "wonders";
-        string when = $"Turn {s.Turn} · {Act1.YearText(s.Year)}";
+        if (G.Button(new Rectangle(x + 242, 6, 86, 36), "Yields", size: 17, selected: _yieldLens, tip: "Show every tile's food, production, gold and science (Y).")) _yieldLens = !_yieldLens;
         G.TextRight(when, Gfx.W - 94, 14, 20, Gfx.Gold);
         if (G.Button(new Rectangle(Gfx.W - 80, 6, 70, 36), "Menu", size: 17, tip: "Save, quit, or go back to the title (Esc)")) _overlay1 = _overlay1 == "menu" ? "" : "menu";
     }
@@ -483,11 +493,11 @@ public sealed partial class App
         for (int i = _seenEvents1; i < s.Events.Count; i++)
         {
             var e = s.Events[i];
-            if (e.Civ == s.Player.Id || e.Kind is "wonder" or "rival_space" or "satellite" or "defeat" or "time")
+            if (e.Civ == s.Player.Id || e.Kind is "wonder" or "rival_space" or "satellite" or "defeat" or "time" or "war" or "peace" or "eliminated")
                 _toasts.Add((e.Text, (float)Raylib.GetTime() + 7));
         }
         _seenEvents1 = s.Events.Count;
-        if (_overlay1 != "") return; // a window is open: keep the log out of its way
+        if (_overlay1 != "" || _selUnit >= 0) return; // a window or the unit panel is open: keep the log out of the way
         var recent = s.Events.Where(e => e.Civ == s.Player.Id || e.Kind is "wonder" or "rival_space" or "satellite").TakeLast(6).Reverse().ToList();
         float y = Gfx.H - 20 - recent.Count * 26;
         foreach (var e in recent)
@@ -525,13 +535,16 @@ public sealed partial class App
 
     // ---------------------------------------------------------------- city
 
-    Texture2D? BuildIcon(string id) => id == Act1.Settler ? Icon("ICON_UNIT_SETTLER") : Icon("ICON_" + id);
+    Texture2D? BuildIcon(string id) => id == Act1.Settler ? Icon("ICON_UNIT_SETTLER") : Military.IsUnit(id) ? UnitPortrait(id) : Icon("ICON_" + id);
 
     string BuildName(Content c, string id) => id == Act1.Settler ? c.Text("LOC_UNIT_SETTLER_NAME") : c.Name(id);
 
     string BuildDesc(Content c, string id)
     {
         if (id == Act1.Settler) return "Founds a new city. Costs the city 1 citizen.";
+        if (c.Unit.TryGetValue(id, out var u))
+            return $"Land unit. Strength {u.Combat}" + (u.IsRanged ? $", {(u.Siege ? "bombard" : "ranged")} {u.Ranged} (range {u.Range})" : "") + $", {u.Moves} moves, {Gfx.Num(u.Maintenance * Rules.UnitMaintenanceMult)} gold a turn."
+                   + (u.Upgrade != "none" && c.Unit.TryGetValue(u.Upgrade, out var up) ? $" Upgrades to {c.Text(up.NameLoc)}." : "") + (u.Resource != "none" ? $" Needs {c.Text("LOC_" + u.Resource + "_NAME")}." : "");
         if (Defs.Building.TryGetValue(id, out var b)) return b.Desc;
         if (Defs.Wonder.TryGetValue(id, out var w)) return $"World wonder: {w.Desc} In Act 2 it becomes a feature on your homeworld: {Defs.Modifier[w.Modifier].EffectText}.";
         if (Defs.Project.TryGetValue(id, out var p)) return p.Desc;
@@ -582,7 +595,7 @@ public sealed partial class App
         G.Text("Choose production", x, y, 18, Gfx.Gold);
         y += 26;
         var listR = new Rectangle(x - 4, y, w + 8, panel.Y + panel.Height - y - 10);
-        var options = Act1.AllBuilds().Select(id => (id, why: Act1.CantBuild(s, c, city, id)))
+        var options = Act1.AllBuilds(c).Select(id => (id, why: Act1.CantBuild(s, c, city, id)))
             .Where(o => o.why == null || (Act1.Kind(o.id) != "unit" && !o.why.StartsWith("Already") && o.why != "Coastal cities only." && (Act1.Kind(o.id) == "project" || o.why.StartsWith("Needs a"))))
             .OrderBy(o => o.why != null).ThenBy(o => Act1.Kind(o.id) switch { "project" => 0, "unit" => 1, "building" => 2, _ => 3 })
             .ThenBy(o => Act1.BuildCost(s, c, s.Player, o.id)).ToList();
@@ -608,7 +621,7 @@ public sealed partial class App
     void ForeignCityPanel(Act1State s, Content c, CityState city)
     {
         var civ = s.Civs[city.Owner];
-        var panel = new Rectangle(Gfx.W - 400, 58, 390, 210);
+        var panel = new Rectangle(Gfx.W - 400, 58, 390, 214);
         G.Panel(panel);
         G.Text(city.Name, panel.X + 16, panel.Y + 12, 26, Gfx.Gold, true);
         if (G.Button(new Rectangle(panel.X + panel.Width - 40, panel.Y + 12, 28, 28), "×", size: 18)) _selCity = -1;
@@ -616,6 +629,7 @@ public sealed partial class App
         G.Text(Act1.CivName(c, civ), panel.X + 120, panel.Y + 62, 20, Gfx.Ink);
         G.Text(Act1.LeaderName(c, civ), panel.X + 120, panel.Y + 90, 18, Gfx.Muted);
         G.Text($"Size {city.Pop}" + (city.Wonders.Count > 0 ? $" · {city.Wonders.Count} wonder{(city.Wonders.Count == 1 ? "" : "s")}" : ""), panel.X + 120, panel.Y + 118, 17, Gfx.Muted);
+        G.Text($"Strength {Math.Round(Military.CityStrength(s, c, city))} · {Math.Ceiling(city.Hp)}/{Rules.CityMaxHp} HP" + (s.AtWar(civ.Id, s.Player.Id) ? " · AT WAR" : ""), panel.X + 16, panel.Y + 182, 15, s.AtWar(civ.Id, s.Player.Id) ? Gfx.Bad : Gfx.Muted);
         if (city.Wonders.Count > 0) G.Para(string.Join(", ", city.Wonders.Select(c.Name)), panel.X + 16, panel.Y + 158, 15, panel.Width - 32, Gfx.Muted);
     }
 
@@ -631,9 +645,12 @@ public sealed partial class App
         if (s.Outcome != "") { label = "Act 1 is over"; act = () => { }; }
         else if (p.PendingSettlers > 0) { label = _settlerMode ? "Click a green tile to found a city" : "Place your Settler"; act = () => _settlerMode = true; }
         else if (p.Researching == null && Act1.Researchable(c, p).Any()) { label = "Choose research"; act = () => _overlay1 = "research"; }
-        else if (idle != null) { label = $"Choose production in {idle.Name}"; act = () => { _selCity = idle.Id; CenterOn(idle.X, idle.Y); }; }
+        else if (idle != null) { label = $"Choose production in {idle.Name}"; act = () => { _selCity = idle.Id; _selUnit = -1; CenterOn(idle.X, idle.Y); }; }
+        else if (IdleUnits(s).FirstOrDefault() is { } waiting) { label = "A unit needs orders"; act = () => { _selUnit = waiting.Id; _selCity = -1; CenterOn(waiting.X, waiting.Y); }; }
         else { label = "Next turn"; act = () => NextTurn1(); }
         if (G.Button(r, label, size: 22) || (Raylib.IsKeyPressed(KeyboardKey.Enter) && _overlay1 == "")) act();
+        if (label == "A unit needs orders" && G.Button(new Rectangle(r.X, r.Y - 34, r.Width, 30), "Skip all units this turn", size: 15, tip: "End the turn without orders for them."))
+            foreach (var u in IdleUnits(s).ToList()) u.Skipped = true;
         if (p.PendingSettlers > 0 && !_settlerMode && label.StartsWith("Place")) { }
     }
 
@@ -702,18 +719,30 @@ public sealed partial class App
         G.Para($"{race.Name}: {race.Desc}", r.X + 24, r.Y + 60, 17, r.Width - 48, Gfx.Muted);
         float y = r.Y + 110;
         G.Text("Civilization", r.X + 120, y, 17, Gfx.Gold); G.Text("Era", r.X + 520, y, 17, Gfx.Gold); G.Text("Techs", r.X + 700, y, 17, Gfx.Gold);
-        G.Text("Satellite", r.X + 800, y, 17, Gfx.Gold); G.Text("Moon Landing", r.X + 920, y, 17, Gfx.Gold);
+        G.Text("Satellite", r.X + 740, y, 17, Gfx.Gold); G.Text("Moon Landing", r.X + 840, y, 17, Gfx.Gold); G.Text("Army", r.X + 640, y, 17, Gfx.Gold);
         y += 30;
-        foreach (var civ in s.Civs.OrderByDescending(x => x.MoonTurn > 0).ThenBy(x => x.MoonTurn).ThenByDescending(x => x.Techs.Count))
+        foreach (var civ in s.Civs.OrderByDescending(x => x.Alive).ThenByDescending(x => x.MoonTurn > 0).ThenBy(x => x.MoonTurn).ThenByDescending(x => x.Techs.Count))
         {
             Gfx.DrawFit(CivIcon(civ.Leader), new Rectangle(r.X + 40, y, 64, 64), Color.White);
             G.Text(Act1.CivName(c, civ) + (civ.IsPlayer ? " (you)" : ""), r.X + 120, y + 8, 20, civ.IsPlayer ? Gfx.Gold : Gfx.Ink);
             G.Text(Act1.LeaderName(c, civ), r.X + 120, y + 36, 16, Gfx.Muted);
             G.Text(c.Text("LOC_" + Content.EraOf(Act1.EraIndex(c, civ)) + "_NAME"), r.X + 520, y + 20, 18, Gfx.Ink);
             G.Text($"{civ.Techs.Count}", r.X + 700, y + 20, 18, Gfx.Ink);
-            G.Text(civ.SatelliteDone ? "Launched" : "—", r.X + 800, y + 20, 18, civ.SatelliteDone ? Gfx.Good : Gfx.Muted);
+            G.Text(civ.SatelliteDone ? "Launched" : "—", r.X + 740, y + 20, 18, civ.SatelliteDone ? Gfx.Good : Gfx.Muted);
             int rank = s.SpaceOrder.IndexOf(civ.Id) + 1;
-            G.Text(rank > 0 ? $"#{rank} (turn {civ.MoonTurn})" : "—", r.X + 920, y + 20, 18, rank == 1 ? Gfx.Gold : rank > 0 ? Gfx.Good : Gfx.Muted);
+            G.Text(rank > 0 ? $"#{rank} (turn {civ.MoonTurn})" : civ.Alive ? "—" : "Destroyed", r.X + 840, y + 20, 18, rank == 1 ? Gfx.Gold : rank > 0 ? Gfx.Good : civ.Alive ? Gfx.Muted : Gfx.Bad);
+            G.Text($"{s.UnitsOf(civ.Id).Count()} units", r.X + 640, y + 20, 18, Gfx.Ink);
+            if (!civ.IsPlayer && civ.Alive && s.Player.Alive)
+            {
+                var b = new Rectangle(r.X + r.Width - 150, y + 14, 130, 34);
+                if (s.AtWar(civ.Id, s.Player.Id))
+                {
+                    bool ok = Military.WouldAcceptPeace(s, c, civ, s.Player);
+                    G.Text("AT WAR", r.X + 120 + G.Measure(Act1.CivName(c, civ), 20) + 14, y + 10, 15, Gfx.Bad);
+                    if (G.Button(b, "Make peace", ok, size: 15, tip: ok ? "They will accept." : $"They won't accept yet (a war lasts at least {Rules.WarMinTurns} turns, and they must not be winning).")) { Military.MakePeace(s, c, s.Player, civ); SaveNow(); }
+                }
+                else if (G.Button(b, "Declare war", size: 15, tip: "Your units may then cross their borders, fight theirs and take their cities.")) { Military.DeclareWar(s, c, s.Player, civ); SaveNow(); }
+            }
             y += 74;
         }
     }
@@ -768,6 +797,17 @@ public sealed partial class App
                 Game.Phase = "handoff";
                 SaveNow();
                 Current = Screen.Handoff;
+            }
+        }
+        else if (s.Outcome == "conquered" || s.SpaceOrder.Count == 0)
+        {
+            G.TextCentered("Your civilization has fallen", new Rectangle(r.X, r.Y + 60, r.Width, 40), 30, Gfx.Bad, true);
+            G.Para("Your last city was taken. Without a city there is no one left to reach for the stars, so this game is over.", r.X + 40, r.Y + 140, 19, r.Width - 80, Gfx.Ink);
+            if (G.Button(new Rectangle(r.X + r.Width / 2 - 160, r.Y + r.Height - 74, 320, 54), "Back to title", size: 22))
+            {
+                File.Delete(SaveGame.DefaultPath);
+                Game = null;
+                Current = Screen.Title;
             }
         }
         else

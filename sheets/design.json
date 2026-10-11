@@ -52,7 +52,24 @@
         {"id": "act2_score_per_system", "value": 4, "desc": "Score per owned system."},
         {"id": "act2_score_per_tech", "value": 6, "desc": "Score per Act 2 technology."},
         {"id": "act2_score_per_power", "value": 0.05, "desc": "Score per point of fleet power."},
-        {"id": "act2_conquest_share", "value": 0.6, "desc": "Owning this share of all colonized and outposted systems wins outright."}
+        {"id": "act2_conquest_share", "value": 0.6, "desc": "Owning this share of all colonized and outposted systems, and at least half of every system in the galaxy, after the first 10 years, wins outright."},
+        {"id": "unit_cost_mult", "value": 1, "desc": "Civ VI unit cost (from the install) is multiplied by this and by act1_build_cost_mult, as buildings are."},
+        {"id": "unit_maintenance_mult", "value": 0.5, "desc": "Gold each unit costs a turn: Civ VI's maintenance times this."},
+        {"id": "combat_damage", "value": 30, "desc": "Damage dealt by an even fight (Civ VI: 30 HP), scaled by e^(0.04 x strength difference)."},
+        {"id": "unit_heal_own", "value": 15, "desc": "HP a unit heals a turn without moving or fighting, in your own territory (10 more in a city)."},
+        {"id": "unit_heal_other", "value": 5, "desc": "HP a unit heals a turn without moving or fighting, outside your territory."},
+        {"id": "city_max_hp", "value": 200, "desc": "City hit points."},
+        {"id": "city_heal", "value": 20, "desc": "HP a city heals a turn when it was not attacked."},
+        {"id": "city_base_strength", "value": 12, "desc": "City strength: this plus the best land unit the owner could train (tech only), plus 3 for a capital."},
+        {"id": "fortify_bonus", "value": 6, "desc": "Strength a fortified unit gets when defending."},
+        {"id": "terrain_defense_bonus", "value": 3, "desc": "Defending strength on hills, forest or jungle."},
+        {"id": "anti_cavalry_bonus", "value": 10, "desc": "Anti-cavalry units' strength against cavalry."},
+        {"id": "ranged_vs_city_penalty", "value": 17, "desc": "Ranged (non-siege) units' strength against cities is reduced by this (Civ VI)."},
+        {"id": "upgrade_gold_per_production", "value": 1.2, "desc": "Upgrading costs this much gold per point of production between the two units."},
+        {"id": "ai_war_min_turn", "value": 50, "desc": "Act 1 AIs don't declare war before this turn."},
+        {"id": "ai_war_power_ratio", "value": 1.6, "desc": "Act 1 AIs only declare war on a neighbour their army is this much stronger than."},
+        {"id": "war_min_turns", "value": 10, "desc": "An Act 1 war lasts at least this many turns before peace."},
+        {"id": "map_resource_density", "value": 0.16, "desc": "Share of tiles with a Civ VI resource (bonus, luxury or strategic)."}
       ]
     },
     "space_race": {
@@ -65,26 +82,26 @@
       ]
     },
     "difficulties": {
-      "about": "Civ VI's difficulty levels. Rivals' yields (Act 1) and output (Act 2) are multiplied.",
-      "columns": ["id", "name_loc", "name", "ai_yield_mult", "ai_act2_mult", "desc"],
+      "about": "Civ VI's difficulty levels (Act 1): rivals' yields are multiplied. Act 2 has its own AI difficulty (galaxy_difficulties).",
+      "columns": ["id", "name_loc", "name", "ai_yield_mult", "desc"],
       "rows": [
-        {"id": "DIFFICULTY_SETTLER", "name_loc": "LOC_DIFFICULTY_SETTLER_NAME", "name": "Settler", "ai_yield_mult": 0.6, "ai_act2_mult": 0.7, "desc": "Rivals are slow. Learn the game."},
-        {"id": "DIFFICULTY_CHIEFTAIN", "name_loc": "LOC_DIFFICULTY_CHIEFTAIN_NAME", "name": "Chieftain", "ai_yield_mult": 0.75, "ai_act2_mult": 0.8, "desc": "Rivals are slower than you."},
-        {"id": "DIFFICULTY_WARLORD", "name_loc": "LOC_DIFFICULTY_WARLORD_NAME", "name": "Warlord", "ai_yield_mult": 0.9, "ai_act2_mult": 0.9, "desc": "Rivals are a little slower than you."},
-        {"id": "DIFFICULTY_PRINCE", "name_loc": "LOC_DIFFICULTY_PRINCE_NAME", "name": "Prince", "ai_yield_mult": 1.0, "ai_act2_mult": 1.0, "desc": "Everyone plays by the same numbers."},
-        {"id": "DIFFICULTY_KING", "name_loc": "LOC_DIFFICULTY_KING_NAME", "name": "King", "ai_yield_mult": 1.15, "ai_act2_mult": 1.1, "desc": "Rivals get +15% yields."},
-        {"id": "DIFFICULTY_EMPEROR", "name_loc": "LOC_DIFFICULTY_EMPEROR_NAME", "name": "Emperor", "ai_yield_mult": 1.3, "ai_act2_mult": 1.2, "desc": "Rivals get +30% yields."},
-        {"id": "DIFFICULTY_IMMORTAL", "name_loc": "LOC_DIFFICULTY_IMMORTAL_NAME", "name": "Immortal", "ai_yield_mult": 1.5, "ai_act2_mult": 1.35, "desc": "Rivals get +50% yields."},
-        {"id": "DIFFICULTY_DEITY", "name_loc": "LOC_DIFFICULTY_DEITY_NAME", "name": "Deity", "ai_yield_mult": 1.75, "ai_act2_mult": 1.5, "desc": "Rivals get +75% yields."}
+        {"id": "DIFFICULTY_SETTLER", "name_loc": "LOC_DIFFICULTY_SETTLER_NAME", "name": "Settler", "ai_yield_mult": 0.6, "desc": "Rivals are slow. Learn the game."},
+        {"id": "DIFFICULTY_CHIEFTAIN", "name_loc": "LOC_DIFFICULTY_CHIEFTAIN_NAME", "name": "Chieftain", "ai_yield_mult": 0.75, "desc": "Rivals are slower than you."},
+        {"id": "DIFFICULTY_WARLORD", "name_loc": "LOC_DIFFICULTY_WARLORD_NAME", "name": "Warlord", "ai_yield_mult": 0.9, "desc": "Rivals are a little slower than you."},
+        {"id": "DIFFICULTY_PRINCE", "name_loc": "LOC_DIFFICULTY_PRINCE_NAME", "name": "Prince", "ai_yield_mult": 1.0, "desc": "Everyone plays by the same numbers."},
+        {"id": "DIFFICULTY_KING", "name_loc": "LOC_DIFFICULTY_KING_NAME", "name": "King", "ai_yield_mult": 1.15, "desc": "Rivals get +15% yields."},
+        {"id": "DIFFICULTY_EMPEROR", "name_loc": "LOC_DIFFICULTY_EMPEROR_NAME", "name": "Emperor", "ai_yield_mult": 1.3, "desc": "Rivals get +30% yields."},
+        {"id": "DIFFICULTY_IMMORTAL", "name_loc": "LOC_DIFFICULTY_IMMORTAL_NAME", "name": "Immortal", "ai_yield_mult": 1.5, "desc": "Rivals get +50% yields."},
+        {"id": "DIFFICULTY_DEITY", "name_loc": "LOC_DIFFICULTY_DEITY_NAME", "name": "Deity", "ai_yield_mult": 1.75, "desc": "Rivals get +75% yields."}
       ]
     },
     "map_sizes": {
-      "about": "Act 1 map and Act 2 galaxy sizes.",
-      "columns": ["id", "name", "width", "height", "default_rivals", "max_rivals", "natural_wonders", "aliens", "act2_systems", "desc"],
+      "about": "Act 1 map sizes, with the default number of rivals and of Stellaris alien empires that join in Act 2.",
+      "columns": ["id", "name", "width", "height", "default_rivals", "max_rivals", "natural_wonders", "aliens", "desc"],
       "rows": [
-        {"id": "small", "name": "Small", "width": 36, "height": 22, "default_rivals": 3, "max_rivals": 5, "natural_wonders": 4, "aliens": 2, "act2_systems": 48, "desc": "A short game: 36 x 22 tiles."},
-        {"id": "standard", "name": "Standard", "width": 46, "height": 28, "default_rivals": 5, "max_rivals": 7, "natural_wonders": 6, "aliens": 3, "act2_systems": 72, "desc": "The usual game: 46 x 28 tiles."},
-        {"id": "large", "name": "Large", "width": 58, "height": 34, "default_rivals": 7, "max_rivals": 10, "natural_wonders": 8, "aliens": 4, "act2_systems": 100, "desc": "A long game with many rivals: 58 x 34 tiles."}
+        {"id": "small", "name": "Small", "width": 36, "height": 22, "default_rivals": 3, "max_rivals": 5, "natural_wonders": 4, "aliens": 2, "desc": "A short game: 36 x 22 tiles."},
+        {"id": "standard", "name": "Standard", "width": 46, "height": 28, "default_rivals": 5, "max_rivals": 7, "natural_wonders": 6, "aliens": 3, "desc": "The usual game: 46 x 28 tiles."},
+        {"id": "large", "name": "Large", "width": 58, "height": 34, "default_rivals": 7, "max_rivals": 10, "natural_wonders": 8, "aliens": 4, "desc": "A long game with many rivals: 58 x 34 tiles."}
       ]
     },
     "game_lengths": {
@@ -221,6 +238,40 @@
       "rows": [
         {"id": "PROJECT_LAUNCH_EARTH_SATELLITE", "requires_tech": "TECH_ROCKETRY", "requires_building": "DISTRICT_SPACEPORT", "cost": 900, "kind": "satellite", "desc": "Your first satellite. Needed before the Moon Landing."},
         {"id": "PROJECT_LAUNCH_MOON_LANDING", "requires_tech": "TECH_SATELLITES", "requires_building": "DISTRICT_SPACEPORT", "cost": 1500, "kind": "moon", "desc": "Completing this ends Act 1: your civilization reaches space."}
+      ]
+    },
+    "units": {
+      "about": "Act 1 land units, stone age to space age. Strength, cost, moves, upkeep, tech, resource and upgrade are read from the player's Civ VI (Units, UnitUpgrades); the numbers here are the base game's, used only if the install lacks a value. 'line' sets the role the AI gives it and what it upgrades along.",
+      "columns": ["id", "line", "combat", "ranged", "range", "moves", "cost", "maintenance", "prereq_tech", "resource", "upgrade", "siege"],
+      "rows": [
+        {"id": "UNIT_SCOUT", "line": "recon", "combat": 10, "ranged": 0, "range": 0, "moves": 3, "cost": 30, "maintenance": 0, "prereq_tech": "none", "resource": "none", "upgrade": "UNIT_RANGER", "siege": false},
+        {"id": "UNIT_RANGER", "line": "recon", "combat": 45, "ranged": 60, "range": 1, "moves": 3, "cost": 380, "maintenance": 5, "prereq_tech": "TECH_RIFLING", "resource": "none", "upgrade": "none", "siege": false},
+        {"id": "UNIT_WARRIOR", "line": "melee", "combat": 20, "ranged": 0, "range": 0, "moves": 2, "cost": 40, "maintenance": 0, "prereq_tech": "none", "resource": "none", "upgrade": "UNIT_SWORDSMAN", "siege": false},
+        {"id": "UNIT_SWORDSMAN", "line": "melee", "combat": 35, "ranged": 0, "range": 0, "moves": 2, "cost": 90, "maintenance": 2, "prereq_tech": "TECH_IRON_WORKING", "resource": "RESOURCE_IRON", "upgrade": "UNIT_MUSKETMAN", "siege": false},
+        {"id": "UNIT_MUSKETMAN", "line": "melee", "combat": 55, "ranged": 0, "range": 0, "moves": 2, "cost": 240, "maintenance": 4, "prereq_tech": "TECH_GUNPOWDER", "resource": "RESOURCE_NITER", "upgrade": "UNIT_LINE_INFANTRY", "siege": false},
+        {"id": "UNIT_LINE_INFANTRY", "line": "melee", "combat": 65, "ranged": 0, "range": 0, "moves": 2, "cost": 360, "maintenance": 5, "prereq_tech": "TECH_MILITARY_SCIENCE", "resource": "RESOURCE_NITER", "upgrade": "UNIT_INFANTRY", "siege": false},
+        {"id": "UNIT_INFANTRY", "line": "melee", "combat": 75, "ranged": 0, "range": 0, "moves": 2, "cost": 430, "maintenance": 6, "prereq_tech": "TECH_REPLACEABLE_PARTS", "resource": "none", "upgrade": "UNIT_MECHANIZED_INFANTRY", "siege": false},
+        {"id": "UNIT_MECHANIZED_INFANTRY", "line": "melee", "combat": 85, "ranged": 0, "range": 0, "moves": 3, "cost": 650, "maintenance": 8, "prereq_tech": "TECH_SATELLITES", "resource": "none", "upgrade": "none", "siege": false},
+        {"id": "UNIT_SPEARMAN", "line": "anti_cavalry", "combat": 25, "ranged": 0, "range": 0, "moves": 2, "cost": 65, "maintenance": 1, "prereq_tech": "TECH_BRONZE_WORKING", "resource": "none", "upgrade": "UNIT_PIKEMAN", "siege": false},
+        {"id": "UNIT_PIKEMAN", "line": "anti_cavalry", "combat": 45, "ranged": 0, "range": 0, "moves": 2, "cost": 200, "maintenance": 3, "prereq_tech": "TECH_MILITARY_TACTICS", "resource": "none", "upgrade": "UNIT_AT_CREW", "siege": false},
+        {"id": "UNIT_AT_CREW", "line": "anti_cavalry", "combat": 75, "ranged": 0, "range": 0, "moves": 2, "cost": 400, "maintenance": 4, "prereq_tech": "TECH_CHEMISTRY", "resource": "none", "upgrade": "UNIT_MODERN_AT", "siege": false},
+        {"id": "UNIT_MODERN_AT", "line": "anti_cavalry", "combat": 85, "ranged": 0, "range": 0, "moves": 3, "cost": 580, "maintenance": 8, "prereq_tech": "TECH_COMPOSITES", "resource": "none", "upgrade": "none", "siege": false},
+        {"id": "UNIT_SLINGER", "line": "ranged", "combat": 5, "ranged": 15, "range": 1, "moves": 2, "cost": 35, "maintenance": 0, "prereq_tech": "none", "resource": "none", "upgrade": "UNIT_ARCHER", "siege": false},
+        {"id": "UNIT_ARCHER", "line": "ranged", "combat": 15, "ranged": 25, "range": 2, "moves": 2, "cost": 60, "maintenance": 1, "prereq_tech": "TECH_ARCHERY", "resource": "none", "upgrade": "UNIT_CROSSBOWMAN", "siege": false},
+        {"id": "UNIT_CROSSBOWMAN", "line": "ranged", "combat": 30, "ranged": 40, "range": 2, "moves": 2, "cost": 180, "maintenance": 3, "prereq_tech": "TECH_MACHINERY", "resource": "none", "upgrade": "UNIT_FIELD_CANNON", "siege": false},
+        {"id": "UNIT_FIELD_CANNON", "line": "ranged", "combat": 50, "ranged": 60, "range": 2, "moves": 2, "cost": 330, "maintenance": 5, "prereq_tech": "TECH_BALLISTICS", "resource": "none", "upgrade": "UNIT_MACHINE_GUN", "siege": false},
+        {"id": "UNIT_MACHINE_GUN", "line": "ranged", "combat": 70, "ranged": 85, "range": 2, "moves": 2, "cost": 540, "maintenance": 6, "prereq_tech": "TECH_ADVANCED_BALLISTICS", "resource": "none", "upgrade": "none", "siege": false},
+        {"id": "UNIT_HORSEMAN", "line": "light_cavalry", "combat": 36, "ranged": 0, "range": 0, "moves": 4, "cost": 80, "maintenance": 2, "prereq_tech": "TECH_HORSEBACK_RIDING", "resource": "RESOURCE_HORSES", "upgrade": "UNIT_CAVALRY", "siege": false},
+        {"id": "UNIT_CAVALRY", "line": "light_cavalry", "combat": 62, "ranged": 0, "range": 0, "moves": 5, "cost": 330, "maintenance": 5, "prereq_tech": "TECH_MILITARY_SCIENCE", "resource": "RESOURCE_HORSES", "upgrade": "UNIT_HELICOPTER", "siege": false},
+        {"id": "UNIT_HELICOPTER", "line": "light_cavalry", "combat": 86, "ranged": 0, "range": 0, "moves": 4, "cost": 600, "maintenance": 7, "prereq_tech": "TECH_SYNTHETIC_MATERIALS", "resource": "none", "upgrade": "none", "siege": false},
+        {"id": "UNIT_HEAVY_CHARIOT", "line": "heavy_cavalry", "combat": 28, "ranged": 0, "range": 0, "moves": 2, "cost": 65, "maintenance": 1, "prereq_tech": "TECH_THE_WHEEL", "resource": "none", "upgrade": "UNIT_KNIGHT", "siege": false},
+        {"id": "UNIT_KNIGHT", "line": "heavy_cavalry", "combat": 50, "ranged": 0, "range": 0, "moves": 4, "cost": 180, "maintenance": 3, "prereq_tech": "TECH_STIRRUPS", "resource": "RESOURCE_IRON", "upgrade": "UNIT_TANK", "siege": false},
+        {"id": "UNIT_TANK", "line": "heavy_cavalry", "combat": 85, "ranged": 0, "range": 0, "moves": 4, "cost": 480, "maintenance": 6, "prereq_tech": "TECH_COMBUSTION", "resource": "RESOURCE_OIL", "upgrade": "UNIT_MODERN_ARMOR", "siege": false},
+        {"id": "UNIT_MODERN_ARMOR", "line": "heavy_cavalry", "combat": 95, "ranged": 0, "range": 0, "moves": 4, "cost": 680, "maintenance": 8, "prereq_tech": "TECH_COMPOSITES", "resource": "RESOURCE_URANIUM", "upgrade": "none", "siege": false},
+        {"id": "UNIT_CATAPULT", "line": "siege", "combat": 25, "ranged": 35, "range": 2, "moves": 2, "cost": 120, "maintenance": 2, "prereq_tech": "TECH_ENGINEERING", "resource": "none", "upgrade": "UNIT_BOMBARD", "siege": true},
+        {"id": "UNIT_BOMBARD", "line": "siege", "combat": 45, "ranged": 55, "range": 2, "moves": 2, "cost": 280, "maintenance": 4, "prereq_tech": "TECH_METAL_CASTING", "resource": "RESOURCE_NITER", "upgrade": "UNIT_ARTILLERY", "siege": true},
+        {"id": "UNIT_ARTILLERY", "line": "siege", "combat": 60, "ranged": 80, "range": 2, "moves": 2, "cost": 430, "maintenance": 6, "prereq_tech": "TECH_STEEL", "resource": "none", "upgrade": "UNIT_ROCKET_ARTILLERY", "siege": true},
+        {"id": "UNIT_ROCKET_ARTILLERY", "line": "siege", "combat": 70, "ranged": 100, "range": 3, "moves": 3, "cost": 680, "maintenance": 8, "prereq_tech": "TECH_GUIDANCE_SYSTEMS", "resource": "none", "upgrade": "none", "siege": true}
       ]
     },
     "tech_legacy": {
@@ -382,6 +433,29 @@
         {"id": "tech_global_production_strategy", "name_loc": "tech_global_production_strategy", "cost": 1600, "requires": "tech_alloys_1", "modifier": "sa_t_naval", "unlocks": "none", "art": "st_tech_global_production_strategy"}
       ]
     },
+    "galaxy_sizes": {
+      "about": "Act 2 galaxy size: star systems per empire (every empire gets one identical spiral arm of this many systems).",
+      "columns": ["id", "name", "systems_per_empire", "desc"],
+      "rows": [
+        {"id": "tiny", "name": "Tiny", "systems_per_empire": 9, "desc": "About 9 systems per empire: crowded, borders meet fast."},
+        {"id": "small", "name": "Small", "systems_per_empire": 12, "desc": "About 12 systems per empire."},
+        {"id": "medium", "name": "Medium", "systems_per_empire": 15, "desc": "About 15 systems per empire: room to grow before borders meet."},
+        {"id": "large", "name": "Large", "systems_per_empire": 19, "desc": "About 19 systems per empire."},
+        {"id": "huge", "name": "Huge", "systems_per_empire": 24, "desc": "About 24 systems per empire: a long expansion phase."}
+      ]
+    },
+    "galaxy_difficulties": {
+      "about": "Act 2 AI difficulty (Stellaris's names). Every AI empire's output is multiplied by ai_mult; aggression scales how readily they declare war.",
+      "columns": ["id", "name", "ai_mult", "aggression", "desc"],
+      "rows": [
+        {"id": "cadet", "name": "Cadet", "ai_mult": 0.65, "aggression": 0.6, "desc": "AI empires make 35% less and rarely start wars."},
+        {"id": "ensign", "name": "Ensign", "ai_mult": 0.85, "aggression": 0.8, "desc": "AI empires make 15% less."},
+        {"id": "captain", "name": "Captain", "ai_mult": 1.0, "aggression": 1.0, "desc": "AI empires play by the same numbers as you."},
+        {"id": "commodore", "name": "Commodore", "ai_mult": 1.2, "aggression": 1.15, "desc": "AI empires make 20% more."},
+        {"id": "admiral", "name": "Admiral", "ai_mult": 1.4, "aggression": 1.3, "desc": "AI empires make 40% more and go to war more readily."},
+        {"id": "grand_admiral", "name": "Grand Admiral", "ai_mult": 1.65, "aggression": 1.5, "desc": "AI empires make 65% more and are quick to war."}
+      ]
+    },
     "modifiers": {
       "about": "Every Act 2 bonus: legacy techs, wonders, rare systems, the space race and Act 2 techs. stat is one the game understands (see game_systems).",
       "columns": ["id", "stat", "value", "name", "effect_text"],
@@ -503,7 +577,19 @@
         {"id": "st_music", "game": "stellaris", "kind": "music", "lookup": ["dir:music"], "used_by": "Act 2 music", "verified": false, "note": "Read at run time from the player's install."},
         {"id": "civ_font_body", "game": "civ6", "kind": "font", "lookup": ["MinionPro-Regular.otf"], "used_by": "All text", "verified": false, "note": "Read at run time from the player's install."},
         {"id": "civ_font_title", "game": "civ6", "kind": "font", "lookup": ["MinionPro-Bold.otf"], "used_by": "Titles", "verified": false, "note": "Read at run time from the player's install."},
-        {"id": "civ_logo", "game": "civ6", "kind": "image", "lookup": ["file:Base/Assets/ARX/Civ6Logo.png"], "used_by": "Title screen", "verified": false, "note": "Read at run time from the player's install."}
+        {"id": "civ_logo", "game": "civ6", "kind": "image", "lookup": ["file:Base/Assets/ARX/Civ6Logo.png"], "used_by": "Title screen", "verified": false, "note": "Read at run time from the player's install."},
+        {"id": "st_nav_tech", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/navbar_icons_technology.dds@0,0,0.3333,1"], "used_by": "Act 2 menu rail", "verified": false, "note": "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."},
+        {"id": "st_nav_tech_hi", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/navbar_icons_technology.dds@0.6667,0,0.3333,1"], "used_by": "Act 2 menu rail", "verified": false, "note": "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."},
+        {"id": "st_nav_contacts", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/navbar_icons_galaxy.dds@0,0,0.3333,1"], "used_by": "Act 2 menu rail", "verified": false, "note": "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."},
+        {"id": "st_nav_contacts_hi", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/navbar_icons_galaxy.dds@0.6667,0,0.3333,1"], "used_by": "Act 2 menu rail", "verified": false, "note": "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."},
+        {"id": "st_nav_fleets", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/navbar_icons_fleet_manager.dds@0,0,0.3333,1"], "used_by": "Act 2 menu rail", "verified": false, "note": "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."},
+        {"id": "st_nav_fleets_hi", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/navbar_icons_fleet_manager.dds@0.6667,0,0.3333,1"], "used_by": "Act 2 menu rail", "verified": false, "note": "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."},
+        {"id": "st_nav_log", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/navbar_icons_situation.dds@0,0,0.3333,1"], "used_by": "Act 2 menu rail", "verified": false, "note": "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."},
+        {"id": "st_nav_log_hi", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/navbar_icons_situation.dds@0.6667,0,0.3333,1"], "used_by": "Act 2 menu rail", "verified": false, "note": "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."},
+        {"id": "st_nav_planets", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/navbar_icons_planets_and_sectors.dds@0,0,0.3333,1"], "used_by": "Act 2 menu rail", "verified": false, "note": "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."},
+        {"id": "st_nav_planets_hi", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/navbar_icons_planets_and_sectors.dds@0.6667,0,0.3333,1"], "used_by": "Act 2 menu rail", "verified": false, "note": "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."},
+        {"id": "st_nav_designer", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/navbar_icons_ship_designer.dds@0,0,0.3333,1"], "used_by": "Act 2 menu rail", "verified": false, "note": "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."},
+        {"id": "st_nav_designer_hi", "game": "stellaris", "kind": "image", "lookup": ["file:gfx/interface/icons/navbar_icons_ship_designer.dds@0.6667,0,0.3333,1"], "used_by": "Act 2 menu rail", "verified": false, "note": "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."}
       ]
     },
     "game_systems": {

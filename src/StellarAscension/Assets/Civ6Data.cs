@@ -31,6 +31,8 @@ public sealed class Civ6Data
     public readonly Dictionary<string, (string atlas, int index)> Icons = new(StringComparer.Ordinal);
     /// <summary>Atlas name (e.g. ICON_ATLAS_TECH) → (texture name e.g. Tech128, icon size, icons per row).</summary>
     public readonly Dictionary<string, (string file, int size, int perRow)> AtlasDefs = new(StringComparer.Ordinal);
+    /// <summary>Every size an atlas is listed at, biggest first (not every size is in every install's packages).</summary>
+    readonly Dictionary<string, List<(string file, int size, int perRow)>> _atlasSizes = new(StringComparer.Ordinal);
     /// <summary>LEADER_* → (BLP package name, entry name) for the full-size leader picture.</summary>
     public readonly Dictionary<string, (string package, string entry)> LeaderArt = new(StringComparer.Ordinal);
     readonly List<string> _dataDirs = new();
@@ -63,7 +65,8 @@ public sealed class Civ6Data
     {
         "Civilizations", "Leaders", "CivilizationLeaders", "CityNames", "PlayerColors", "Colors", "Technologies", "TechnologyPrereqs",
         "Buildings", "Features", "Feature_YieldChanges", "Feature_ValidTerrains", "Terrains", "Terrain_YieldChanges", "Projects", "Districts", "Eras",
-        "IconDefinitions", "IconTextureAtlases", "Resources", "Resource_YieldChanges", "Improvements", "Difficulties"
+        "IconDefinitions", "IconTextureAtlases", "Resources", "Resource_YieldChanges", "Resource_ValidTerrains", "Resource_ValidFeatures", "Improvements", "Difficulties",
+        "Units", "UnitUpgrades"
     };
 
     void LoadXmlTree(string dir)
@@ -76,7 +79,7 @@ public sealed class Civ6Data
             // Only English text; other languages live in Vanilla_xx_XX.xml / *_xx_XX.xml files.
             if (Regex.IsMatch(rel, @"_(de_DE|es_ES|fr_FR|it_IT|ja_JP|ko_KR|pl_PL|pt_BR|ru_RU|zh_Hans_CN|zh_Hant_HK)\.xml$", RegexOptions.IgnoreCase)) continue;
             try { ReadXml(f); }
-            catch (Exception e) { if (text) Log.Info($"civ6: skipped {rel} ({e.Message})"); }
+            catch (Exception e) { if (text || rel.Contains("Icons", StringComparison.OrdinalIgnoreCase)) Log.Info($"civ6: skipped {rel} ({e.Message})"); }
         }
     }
 
@@ -143,8 +146,12 @@ public sealed class Civ6Data
             {
                 var size = r.Int("IconSize");
                 // The same atlas name is listed once per icon size; keep the biggest.
-                if (!AtlasDefs.TryGetValue(n, out var cur) || size > cur.size)
-                    AtlasDefs[n] = (Path.GetFileNameWithoutExtension(file), size, Math.Max(1, r.Int("IconsPerRow", 1)));
+                var entry = (Path.GetFileNameWithoutExtension(file), size, Math.Max(1, r.Int("IconsPerRow", 1)));
+                if (!AtlasDefs.TryGetValue(n, out var cur) || size > cur.size) AtlasDefs[n] = entry;
+                if (!_atlasSizes.TryGetValue(n, out var l)) _atlasSizes[n] = l = new();
+                l.RemoveAll(x => x.size == size);
+                l.Add(entry);
+                l.Sort((a, b) => b.size.CompareTo(a.size));
             }
         foreach (var r in Rows("IconDefinitions"))
             if (r.Get("Name") is { } n && r.Get("Atlas") is { } atlas)
@@ -194,13 +201,17 @@ public sealed class Civ6Data
     public ImageData? Icon(string name)
     {
         if (!Icons.TryGetValue(name, out var ic)) return null;
-        // Several atlases share a name at different sizes (ICON_ATLAS_TECH at 128, 256...). Try the defined one.
-        if (!AtlasDefs.TryGetValue(ic.atlas, out var def)) return null;
-        var tex = AtlasTexture(def.file);
-        if (tex == null) return null;
-        int col = ic.index % def.perRow, row = ic.index / def.perRow;
-        if ((col + 1) * def.size > tex.W || (row + 1) * def.size > tex.H) return null;
-        return tex.Crop(col * def.size, row * def.size, def.size, def.size);
+        // An atlas is listed once per size (ICON_ATLAS_RESOURCES at 256, 64, 50, 38): use the biggest one the packages have.
+        if (!_atlasSizes.TryGetValue(ic.atlas, out var sizes)) return null;
+        foreach (var def in sizes)
+        {
+            var tex = AtlasTexture(def.file);
+            if (tex == null) continue;
+            int col = ic.index % def.perRow, row = ic.index / def.perRow;
+            if ((col + 1) * def.size > tex.W || (row + 1) * def.size > tex.H) continue;
+            return tex.Crop(col * def.size, row * def.size, def.size, def.size);
+        }
+        return null;
     }
 
     /// <summary>The leader's full-size neutral picture (the one Civ VI shows when the 3D leader can't load).</summary>

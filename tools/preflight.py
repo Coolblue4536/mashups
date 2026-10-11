@@ -95,6 +95,13 @@ def main(argv):
             errors.append(f"wonders.{r['id']}.scope: city or empire")
     if not any(r["kind"] == "moon" for r in S["projects"]["rows"]):
         errors.append("projects: no Moon Landing (kind moon)")
+    units = ids("units")
+    for r in S["units"]["rows"]:
+        ref(f"units.{r['id']}.upgrade", r["upgrade"], units)
+        if r["line"] not in ("recon", "melee", "anti_cavalry", "ranged", "light_cavalry", "heavy_cavalry", "siege"):
+            errors.append(f"units.{r['id']}.line: unknown line {r['line']}")
+        if (r["ranged"] > 0) != (r["range"] > 0):
+            errors.append(f"units.{r['id']}: ranged strength and range go together")
     terrains = ids("terrains")
     for r in S["features"]["rows"]:
         for t in r["terrains"]:
@@ -110,11 +117,11 @@ def main(argv):
         base_techs = set(re.findall(r'TechnologyType="(TECH_[A-Z_]+)"', Path(civ6, "Base", "Assets", "Gameplay", "Data", "Technologies.xml").read_text(encoding="utf-8")))
         for s, cols in (("buildings", ["id", "requires_tech"]), ("wonders", ["id", "requires_tech"]), ("projects", ["id", "requires_tech", "requires_building"]),
                         ("terrains", ["id", "icon"]), ("features", ["id", "icon"]), ("natural_wonders", ["id"]), ("difficulties", ["id"]),
-                        ("eras", ["id"]), ("yields", ["icon"]), ("tech_legacy", ["civ_tech"])):
+                        ("eras", ["id"]), ("yields", ["icon"]), ("tech_legacy", ["civ_tech"]), ("units", ["id", "prereq_tech", "resource"])):
             for r in S[s]["rows"]:
                 for c in cols:
                     civ(f"{s}.{r[cols[0]]}.{c}", r[c])
-        for s, c in (("buildings", "requires_tech"), ("wonders", "requires_tech"), ("projects", "requires_tech"), ("tech_legacy", "civ_tech")):
+        for s, c in (("buildings", "requires_tech"), ("wonders", "requires_tech"), ("projects", "requires_tech"), ("tech_legacy", "civ_tech"), ("units", "prereq_tech")):
             for r in S[s]["rows"]:
                 if r[c] != "none" and r[c] not in base_techs:
                     errors.append(f"{s}.{r[S[s]['columns'][0]]}.{c}: {r[c]} is not a base-game tech")

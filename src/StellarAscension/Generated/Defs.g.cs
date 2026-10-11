@@ -99,18 +99,52 @@ public static class Rules
     public const double Act2ScorePerTech = 6.0;
     /// <summary>Score per point of fleet power.</summary>
     public const double Act2ScorePerPower = 0.05;
-    /// <summary>Owning this share of all colonized and outposted systems wins outright.</summary>
+    /// <summary>Owning this share of all colonized and outposted systems, and at least half of every system in the galaxy, after the first 10 years, wins outright.</summary>
     public const double Act2ConquestShare = 0.6;
+    /// <summary>Civ VI unit cost (from the install) is multiplied by this and by act1_build_cost_mult, as buildings are.</summary>
+    public const double UnitCostMult = 1.0;
+    /// <summary>Gold each unit costs a turn: Civ VI's maintenance times this.</summary>
+    public const double UnitMaintenanceMult = 0.5;
+    /// <summary>Damage dealt by an even fight (Civ VI: 30 HP), scaled by e^(0.04 x strength difference).</summary>
+    public const double CombatDamage = 30.0;
+    /// <summary>HP a unit heals a turn without moving or fighting, in your own territory (10 more in a city).</summary>
+    public const double UnitHealOwn = 15.0;
+    /// <summary>HP a unit heals a turn without moving or fighting, outside your territory.</summary>
+    public const double UnitHealOther = 5.0;
+    /// <summary>City hit points.</summary>
+    public const double CityMaxHp = 200.0;
+    /// <summary>HP a city heals a turn when it was not attacked.</summary>
+    public const double CityHeal = 20.0;
+    /// <summary>City strength: this plus the best land unit the owner could train (tech only), plus 3 for a capital.</summary>
+    public const double CityBaseStrength = 12.0;
+    /// <summary>Strength a fortified unit gets when defending.</summary>
+    public const double FortifyBonus = 6.0;
+    /// <summary>Defending strength on hills, forest or jungle.</summary>
+    public const double TerrainDefenseBonus = 3.0;
+    /// <summary>Anti-cavalry units' strength against cavalry.</summary>
+    public const double AntiCavalryBonus = 10.0;
+    /// <summary>Ranged (non-siege) units' strength against cities is reduced by this (Civ VI).</summary>
+    public const double RangedVsCityPenalty = 17.0;
+    /// <summary>Upgrading costs this much gold per point of production between the two units.</summary>
+    public const double UpgradeGoldPerProduction = 1.2;
+    /// <summary>Act 1 AIs don't declare war before this turn.</summary>
+    public const double AiWarMinTurn = 50.0;
+    /// <summary>Act 1 AIs only declare war on a neighbour their army is this much stronger than.</summary>
+    public const double AiWarPowerRatio = 1.6;
+    /// <summary>An Act 1 war lasts at least this many turns before peace.</summary>
+    public const double WarMinTurns = 10.0;
+    /// <summary>Share of tiles with a Civ VI resource (bonus, luxury or strategic).</summary>
+    public const double MapResourceDensity = 0.16;
 }
 
 /// <summary>How hard losing the race to space hits you. Chosen on the setup screen.</summary>
 public sealed record SpaceRaceDef(string Id, string Name, string Desc, bool DefeatIfBeaten, string[] RivalLeadModifiers, string[] PlayerFirstModifiers);
 
-/// <summary>Civ VI's difficulty levels. Rivals' yields (Act 1) and output (Act 2) are multiplied.</summary>
-public sealed record DifficultyDef(string Id, string NameLoc, string Name, double AiYieldMult, double AiAct2Mult, string Desc);
+/// <summary>Civ VI's difficulty levels (Act 1): rivals' yields are multiplied. Act 2 has its own AI difficulty (galaxy_difficulties).</summary>
+public sealed record DifficultyDef(string Id, string NameLoc, string Name, double AiYieldMult, string Desc);
 
-/// <summary>Act 1 map and Act 2 galaxy sizes.</summary>
-public sealed record MapSizeDef(string Id, string Name, int Width, int Height, int DefaultRivals, int MaxRivals, int NaturalWonders, int Aliens, int Act2Systems, string Desc);
+/// <summary>Act 1 map sizes, with the default number of rivals and of Stellaris alien empires that join in Act 2.</summary>
+public sealed record MapSizeDef(string Id, string Name, int Width, int Height, int DefaultRivals, int MaxRivals, int NaturalWonders, int Aliens, string Desc);
 
 /// <summary>How long Act 2 runs before the highest score wins. Each turn is act2_months_per_turn months.</summary>
 public sealed record GameLengthDef(string Id, string Name, int EndYear, string Desc);
@@ -135,6 +169,9 @@ public sealed record WonderDef(string Id, string RequiresTech, int Cost, string 
 
 /// <summary>Act 1 space projects (Civ VI's), built in a city with a Spaceport. Cost is Civ VI's, before act1_build_cost_mult.</summary>
 public sealed record ProjectDef(string Id, string RequiresTech, string RequiresBuilding, int Cost, string Kind, string Desc);
+
+/// <summary>Act 1 land units, stone age to space age. Strength, cost, moves, upkeep, tech, resource and upgrade are read from the player's Civ VI (Units, UnitUpgrades); the numbers here are the base game's, used only if the install lacks a value. 'line' sets the role the AI gives it and what it upgrades along.</summary>
+public sealed record UnitDef(string Id, string Line, int Combat, int Ranged, int Range, int Moves, int Cost, int Maintenance, string PrereqTech, string Resource, string Upgrade, bool Siege);
 
 /// <summary>Civ VI techs that carry a Space Age legacy: each one you research gives its modifier at the start of Act 2. The tech's tooltip names it.</summary>
 public sealed record TechLegacyDef(string CivTech, string Title, string Modifier);
@@ -166,6 +203,12 @@ public sealed record ShipDef(string Id, string NameLoc, string Role, int CostAll
 /// <summary>Act 2 technologies (Stellaris's names and icons). Each gives a modifier or unlocks a ship or building.</summary>
 public sealed record Act2TechDef(string Id, string NameLoc, int Cost, string Requires, string Modifier, string Unlocks, string Art);
 
+/// <summary>Act 2 galaxy size: star systems per empire (every empire gets one identical spiral arm of this many systems).</summary>
+public sealed record GalaxySizeDef(string Id, string Name, int SystemsPerEmpire, string Desc);
+
+/// <summary>Act 2 AI difficulty (Stellaris's names). Every AI empire's output is multiplied by ai_mult; aggression scales how readily they declare war.</summary>
+public sealed record GalaxyDifficultyDef(string Id, string Name, double AiMult, double Aggression, string Desc);
+
 /// <summary>Every Act 2 bonus: legacy techs, wonders, rare systems, the space race and Act 2 techs. stat is one the game understands (see game_systems).</summary>
 public sealed record ModifierDef(string Id, string Stat, double Value, string Name, string EffectText);
 
@@ -190,22 +233,22 @@ public static partial class Defs
 
     public static readonly DifficultyDef[] Difficulties =
     {
-        new("DIFFICULTY_SETTLER", "LOC_DIFFICULTY_SETTLER_NAME", "Settler", 0.6, 0.7, "Rivals are slow. Learn the game."),
-        new("DIFFICULTY_CHIEFTAIN", "LOC_DIFFICULTY_CHIEFTAIN_NAME", "Chieftain", 0.75, 0.8, "Rivals are slower than you."),
-        new("DIFFICULTY_WARLORD", "LOC_DIFFICULTY_WARLORD_NAME", "Warlord", 0.9, 0.9, "Rivals are a little slower than you."),
-        new("DIFFICULTY_PRINCE", "LOC_DIFFICULTY_PRINCE_NAME", "Prince", 1.0, 1.0, "Everyone plays by the same numbers."),
-        new("DIFFICULTY_KING", "LOC_DIFFICULTY_KING_NAME", "King", 1.15, 1.1, "Rivals get +15% yields."),
-        new("DIFFICULTY_EMPEROR", "LOC_DIFFICULTY_EMPEROR_NAME", "Emperor", 1.3, 1.2, "Rivals get +30% yields."),
-        new("DIFFICULTY_IMMORTAL", "LOC_DIFFICULTY_IMMORTAL_NAME", "Immortal", 1.5, 1.35, "Rivals get +50% yields."),
-        new("DIFFICULTY_DEITY", "LOC_DIFFICULTY_DEITY_NAME", "Deity", 1.75, 1.5, "Rivals get +75% yields."),
+        new("DIFFICULTY_SETTLER", "LOC_DIFFICULTY_SETTLER_NAME", "Settler", 0.6, "Rivals are slow. Learn the game."),
+        new("DIFFICULTY_CHIEFTAIN", "LOC_DIFFICULTY_CHIEFTAIN_NAME", "Chieftain", 0.75, "Rivals are slower than you."),
+        new("DIFFICULTY_WARLORD", "LOC_DIFFICULTY_WARLORD_NAME", "Warlord", 0.9, "Rivals are a little slower than you."),
+        new("DIFFICULTY_PRINCE", "LOC_DIFFICULTY_PRINCE_NAME", "Prince", 1.0, "Everyone plays by the same numbers."),
+        new("DIFFICULTY_KING", "LOC_DIFFICULTY_KING_NAME", "King", 1.15, "Rivals get +15% yields."),
+        new("DIFFICULTY_EMPEROR", "LOC_DIFFICULTY_EMPEROR_NAME", "Emperor", 1.3, "Rivals get +30% yields."),
+        new("DIFFICULTY_IMMORTAL", "LOC_DIFFICULTY_IMMORTAL_NAME", "Immortal", 1.5, "Rivals get +50% yields."),
+        new("DIFFICULTY_DEITY", "LOC_DIFFICULTY_DEITY_NAME", "Deity", 1.75, "Rivals get +75% yields."),
     };
     public static readonly System.Collections.Generic.Dictionary<string, DifficultyDef> Difficulty = System.Linq.Enumerable.ToDictionary(Difficulties, d => d.Id);
 
     public static readonly MapSizeDef[] MapSizes =
     {
-        new("small", "Small", 36, 22, 3, 5, 4, 2, 48, "A short game: 36 x 22 tiles."),
-        new("standard", "Standard", 46, 28, 5, 7, 6, 3, 72, "The usual game: 46 x 28 tiles."),
-        new("large", "Large", 58, 34, 7, 10, 8, 4, 100, "A long game with many rivals: 58 x 34 tiles."),
+        new("small", "Small", 36, 22, 3, 5, 4, 2, "A short game: 36 x 22 tiles."),
+        new("standard", "Standard", 46, 28, 5, 7, 6, 3, "The usual game: 46 x 28 tiles."),
+        new("large", "Large", 58, 34, 7, 10, 8, 4, "A long game with many rivals: 58 x 34 tiles."),
     };
     public static readonly System.Collections.Generic.Dictionary<string, MapSizeDef> MapSize = System.Linq.Enumerable.ToDictionary(MapSizes, d => d.Id);
 
@@ -336,6 +379,39 @@ public static partial class Defs
         new("PROJECT_LAUNCH_MOON_LANDING", "TECH_SATELLITES", "DISTRICT_SPACEPORT", 1500, "moon", "Completing this ends Act 1: your civilization reaches space."),
     };
     public static readonly System.Collections.Generic.Dictionary<string, ProjectDef> Project = System.Linq.Enumerable.ToDictionary(Projects, d => d.Id);
+
+    public static readonly UnitDef[] Units =
+    {
+        new("UNIT_SCOUT", "recon", 10, 0, 0, 3, 30, 0, "none", "none", "UNIT_RANGER", false),
+        new("UNIT_RANGER", "recon", 45, 60, 1, 3, 380, 5, "TECH_RIFLING", "none", "none", false),
+        new("UNIT_WARRIOR", "melee", 20, 0, 0, 2, 40, 0, "none", "none", "UNIT_SWORDSMAN", false),
+        new("UNIT_SWORDSMAN", "melee", 35, 0, 0, 2, 90, 2, "TECH_IRON_WORKING", "RESOURCE_IRON", "UNIT_MUSKETMAN", false),
+        new("UNIT_MUSKETMAN", "melee", 55, 0, 0, 2, 240, 4, "TECH_GUNPOWDER", "RESOURCE_NITER", "UNIT_LINE_INFANTRY", false),
+        new("UNIT_LINE_INFANTRY", "melee", 65, 0, 0, 2, 360, 5, "TECH_MILITARY_SCIENCE", "RESOURCE_NITER", "UNIT_INFANTRY", false),
+        new("UNIT_INFANTRY", "melee", 75, 0, 0, 2, 430, 6, "TECH_REPLACEABLE_PARTS", "none", "UNIT_MECHANIZED_INFANTRY", false),
+        new("UNIT_MECHANIZED_INFANTRY", "melee", 85, 0, 0, 3, 650, 8, "TECH_SATELLITES", "none", "none", false),
+        new("UNIT_SPEARMAN", "anti_cavalry", 25, 0, 0, 2, 65, 1, "TECH_BRONZE_WORKING", "none", "UNIT_PIKEMAN", false),
+        new("UNIT_PIKEMAN", "anti_cavalry", 45, 0, 0, 2, 200, 3, "TECH_MILITARY_TACTICS", "none", "UNIT_AT_CREW", false),
+        new("UNIT_AT_CREW", "anti_cavalry", 75, 0, 0, 2, 400, 4, "TECH_CHEMISTRY", "none", "UNIT_MODERN_AT", false),
+        new("UNIT_MODERN_AT", "anti_cavalry", 85, 0, 0, 3, 580, 8, "TECH_COMPOSITES", "none", "none", false),
+        new("UNIT_SLINGER", "ranged", 5, 15, 1, 2, 35, 0, "none", "none", "UNIT_ARCHER", false),
+        new("UNIT_ARCHER", "ranged", 15, 25, 2, 2, 60, 1, "TECH_ARCHERY", "none", "UNIT_CROSSBOWMAN", false),
+        new("UNIT_CROSSBOWMAN", "ranged", 30, 40, 2, 2, 180, 3, "TECH_MACHINERY", "none", "UNIT_FIELD_CANNON", false),
+        new("UNIT_FIELD_CANNON", "ranged", 50, 60, 2, 2, 330, 5, "TECH_BALLISTICS", "none", "UNIT_MACHINE_GUN", false),
+        new("UNIT_MACHINE_GUN", "ranged", 70, 85, 2, 2, 540, 6, "TECH_ADVANCED_BALLISTICS", "none", "none", false),
+        new("UNIT_HORSEMAN", "light_cavalry", 36, 0, 0, 4, 80, 2, "TECH_HORSEBACK_RIDING", "RESOURCE_HORSES", "UNIT_CAVALRY", false),
+        new("UNIT_CAVALRY", "light_cavalry", 62, 0, 0, 5, 330, 5, "TECH_MILITARY_SCIENCE", "RESOURCE_HORSES", "UNIT_HELICOPTER", false),
+        new("UNIT_HELICOPTER", "light_cavalry", 86, 0, 0, 4, 600, 7, "TECH_SYNTHETIC_MATERIALS", "none", "none", false),
+        new("UNIT_HEAVY_CHARIOT", "heavy_cavalry", 28, 0, 0, 2, 65, 1, "TECH_THE_WHEEL", "none", "UNIT_KNIGHT", false),
+        new("UNIT_KNIGHT", "heavy_cavalry", 50, 0, 0, 4, 180, 3, "TECH_STIRRUPS", "RESOURCE_IRON", "UNIT_TANK", false),
+        new("UNIT_TANK", "heavy_cavalry", 85, 0, 0, 4, 480, 6, "TECH_COMBUSTION", "RESOURCE_OIL", "UNIT_MODERN_ARMOR", false),
+        new("UNIT_MODERN_ARMOR", "heavy_cavalry", 95, 0, 0, 4, 680, 8, "TECH_COMPOSITES", "RESOURCE_URANIUM", "none", false),
+        new("UNIT_CATAPULT", "siege", 25, 35, 2, 2, 120, 2, "TECH_ENGINEERING", "none", "UNIT_BOMBARD", true),
+        new("UNIT_BOMBARD", "siege", 45, 55, 2, 2, 280, 4, "TECH_METAL_CASTING", "RESOURCE_NITER", "UNIT_ARTILLERY", true),
+        new("UNIT_ARTILLERY", "siege", 60, 80, 2, 2, 430, 6, "TECH_STEEL", "none", "UNIT_ROCKET_ARTILLERY", true),
+        new("UNIT_ROCKET_ARTILLERY", "siege", 70, 100, 3, 3, 680, 8, "TECH_GUIDANCE_SYSTEMS", "none", "none", true),
+    };
+    public static readonly System.Collections.Generic.Dictionary<string, UnitDef> Unit = System.Linq.Enumerable.ToDictionary(Units, d => d.Id);
 
     public static readonly TechLegacyDef[] TechLegacy =
     {
@@ -486,6 +562,27 @@ public static partial class Defs
     };
     public static readonly System.Collections.Generic.Dictionary<string, Act2TechDef> Act2Tech = System.Linq.Enumerable.ToDictionary(Act2Techs, d => d.Id);
 
+    public static readonly GalaxySizeDef[] GalaxySizes =
+    {
+        new("tiny", "Tiny", 9, "About 9 systems per empire: crowded, borders meet fast."),
+        new("small", "Small", 12, "About 12 systems per empire."),
+        new("medium", "Medium", 15, "About 15 systems per empire: room to grow before borders meet."),
+        new("large", "Large", 19, "About 19 systems per empire."),
+        new("huge", "Huge", 24, "About 24 systems per empire: a long expansion phase."),
+    };
+    public static readonly System.Collections.Generic.Dictionary<string, GalaxySizeDef> GalaxySize = System.Linq.Enumerable.ToDictionary(GalaxySizes, d => d.Id);
+
+    public static readonly GalaxyDifficultyDef[] GalaxyDifficulties =
+    {
+        new("cadet", "Cadet", 0.65, 0.6, "AI empires make 35% less and rarely start wars."),
+        new("ensign", "Ensign", 0.85, 0.8, "AI empires make 15% less."),
+        new("captain", "Captain", 1.0, 1.0, "AI empires play by the same numbers as you."),
+        new("commodore", "Commodore", 1.2, 1.15, "AI empires make 20% more."),
+        new("admiral", "Admiral", 1.4, 1.3, "AI empires make 40% more and go to war more readily."),
+        new("grand_admiral", "Grand Admiral", 1.65, 1.5, "AI empires make 65% more and are quick to war."),
+    };
+    public static readonly System.Collections.Generic.Dictionary<string, GalaxyDifficultyDef> GalaxyDifficulty = System.Linq.Enumerable.ToDictionary(GalaxyDifficulties, d => d.Id);
+
     public static readonly ModifierDef[] Modifiers =
     {
         new("sa_legacy_astrology", "unity_mult", 0.05, "Stargazers' Legacy", "+5% Unity"),
@@ -604,6 +701,18 @@ public static partial class Defs
         new("civ_font_body", "civ6", "font", new[] { "MinionPro-Regular.otf" }, "All text", false, "Read at run time from the player's install."),
         new("civ_font_title", "civ6", "font", new[] { "MinionPro-Bold.otf" }, "Titles", false, "Read at run time from the player's install."),
         new("civ_logo", "civ6", "image", new[] { "file:Base/Assets/ARX/Civ6Logo.png" }, "Title screen", false, "Read at run time from the player's install."),
+        new("st_nav_tech", "stellaris", "image", new[] { "file:gfx/interface/icons/navbar_icons_technology.dds@0,0,0.3333,1" }, "Act 2 menu rail", false, "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."),
+        new("st_nav_tech_hi", "stellaris", "image", new[] { "file:gfx/interface/icons/navbar_icons_technology.dds@0.6667,0,0.3333,1" }, "Act 2 menu rail", false, "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."),
+        new("st_nav_contacts", "stellaris", "image", new[] { "file:gfx/interface/icons/navbar_icons_galaxy.dds@0,0,0.3333,1" }, "Act 2 menu rail", false, "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."),
+        new("st_nav_contacts_hi", "stellaris", "image", new[] { "file:gfx/interface/icons/navbar_icons_galaxy.dds@0.6667,0,0.3333,1" }, "Act 2 menu rail", false, "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."),
+        new("st_nav_fleets", "stellaris", "image", new[] { "file:gfx/interface/icons/navbar_icons_fleet_manager.dds@0,0,0.3333,1" }, "Act 2 menu rail", false, "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."),
+        new("st_nav_fleets_hi", "stellaris", "image", new[] { "file:gfx/interface/icons/navbar_icons_fleet_manager.dds@0.6667,0,0.3333,1" }, "Act 2 menu rail", false, "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."),
+        new("st_nav_log", "stellaris", "image", new[] { "file:gfx/interface/icons/navbar_icons_situation.dds@0,0,0.3333,1" }, "Act 2 menu rail", false, "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."),
+        new("st_nav_log_hi", "stellaris", "image", new[] { "file:gfx/interface/icons/navbar_icons_situation.dds@0.6667,0,0.3333,1" }, "Act 2 menu rail", false, "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."),
+        new("st_nav_planets", "stellaris", "image", new[] { "file:gfx/interface/icons/navbar_icons_planets_and_sectors.dds@0,0,0.3333,1" }, "Act 2 menu rail", false, "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."),
+        new("st_nav_planets_hi", "stellaris", "image", new[] { "file:gfx/interface/icons/navbar_icons_planets_and_sectors.dds@0.6667,0,0.3333,1" }, "Act 2 menu rail", false, "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."),
+        new("st_nav_designer", "stellaris", "image", new[] { "file:gfx/interface/icons/navbar_icons_ship_designer.dds@0,0,0.3333,1" }, "Act 2 menu rail", false, "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."),
+        new("st_nav_designer_hi", "stellaris", "image", new[] { "file:gfx/interface/icons/navbar_icons_ship_designer.dds@0.6667,0,0.3333,1" }, "Act 2 menu rail", false, "Stellaris's navbar icon (frame 1 normal, frame 3 highlighted)."),
     };
     public static readonly System.Collections.Generic.Dictionary<string, AssetRefDef> AssetRef = System.Linq.Enumerable.ToDictionary(AssetRefs, d => d.Id);
 

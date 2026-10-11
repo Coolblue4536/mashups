@@ -52,6 +52,9 @@ public sealed class Settings
     public string? Difficulty { get; set; }
     public string? MapSize { get; set; }
     public int Rivals { get; set; } = -1;
+    public string? GalaxySize { get; set; }
+    public string? GalaxyDifficulty { get; set; }
+    public int Aliens { get; set; } = -1;
 
     static string FilePath => Path.Combine(Paths.DataDir, "settings.json");
 

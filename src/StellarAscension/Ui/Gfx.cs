@@ -58,7 +58,9 @@ public sealed class Gfx
     public static float H => Raylib.GetScreenHeight();
     /// <summary>In UI scripts the real pointer is ignored, so it can't hover or click anything.</summary>
     public static bool IgnoreMouse;
-    public static Vector2 Mouse => IgnoreMouse ? new Vector2(-9999, -9999) : Raylib.GetMousePosition();
+    /// <summary>UI scripts can point a pretend mouse at the screen (for hover cards in screenshots).</summary>
+    public static Vector2? FakeMouse;
+    public static Vector2 Mouse => FakeMouse ?? (IgnoreMouse ? new Vector2(-9999, -9999) : Raylib.GetMousePosition());
 
     /// <summary>The characters the fonts are built with: Latin (with accents), Greek, Cyrillic and common punctuation.</summary>
     public static readonly int[] Glyphs = Enumerable.Range(32, 95).Concat(Enumerable.Range(0xA0, 0x24F - 0xA0 + 1)).Concat(Enumerable.Range(0x370, 0x90)).Concat(Enumerable.Range(0x400, 0x100))
@@ -273,6 +275,9 @@ public sealed class Gfx
         Block(r);
         return Scripted(line1, enabled) || enabled && Clicked(r);
     }
+
+    /// <summary>A custom-drawn clickable area that UI scripts can press by its label, like a button.</summary>
+    public bool HitArea(Rectangle r, string label) => Scripted(label, true) || Clicked(r);
 
     /// <summary>Scripted presses come from outside the scroll area too; this lets list rows accept them.</summary>
     public bool ScriptActive => ScriptClicked;

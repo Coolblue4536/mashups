@@ -2,7 +2,7 @@ namespace StellarAscension;
 
 /// <summary>How rival civilizations play Act 1. They follow exactly the player's rules; only their yields are
 /// scaled by the difficulty. Also drives the player's civ in automated runs (self-test, balance).</summary>
-public static class Act1Ai
+public static partial class Act1Ai
 {
     static HashSet<string>? _spacePath;
 
@@ -43,6 +43,7 @@ public static class Act1Ai
     public static void TakeTurn(Act1State s, Content content, CivState civ)
     {
         if (civ.Researching == null) ChooseResearch(s, content, civ);
+        Units(s, content, civ);
         foreach (var city in s.CitiesOf(civ.Id).ToList())
         {
             if (city.Build != null && Act1.CantBuild(s, content, city, city.Build) == null) continue;
@@ -70,6 +71,8 @@ public static class Act1Ai
         var options = Act1.AvailableBuilds(s, content, city);
         if (options.Count == 0) return null;
         var cities = s.CitiesOf(civ.Id).ToList();
+        // Under attack: defend first.
+        if (s.Units.Any(u => s.AtWar(u.Owner, civ.Id) && Hex.Distance(u.X, u.Y, city.X, city.Y, s.W) <= 3) && BestUnit(s, content, civ, city) is { } defender) return defender;
         // Space first, once it's possible.
         foreach (var p in Defs.Projects.OrderByDescending(p => p.Kind == "moon"))
             if (options.Contains(p.Id)) return p.Id;
@@ -86,8 +89,11 @@ public static class Act1Ai
             double cost = Act1.BuildCost(s, content, civ, id);
             switch (Act1.Kind(id))
             {
-                case "unit":
+                case "unit" when id == Act1.Settler:
                     if (wantSettlers && city.Pop >= (city.Capital ? 2 : 3)) scored.Add((id, 2.2 / Math.Sqrt(cost)));
+                    break;
+                case "unit":
+                    if (id == BestUnit(s, content, civ, city) && UnitScore(s, content, civ, city, id) is var us and > 0) scored.Add((id, us));
                     break;
                 case "building":
                     if (id == "DISTRICT_SPACEPORT") break;

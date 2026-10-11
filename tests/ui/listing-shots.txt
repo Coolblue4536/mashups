@@ -1,13 +1,24 @@
+# Listing screenshots at 1920x1080 (run with SA_WINDOW=1920x1080 SA_SEED=20261011)
 click New Game
+wait 0.5
+shot setup
 click Start
 wait 1
-turns1 130
+turns1 110
 city capital
 wait 1.5
 shot act1_city
 click ×
+unit
+wait 0.5
+hover 2 1
 wait 1
-shot act1_map
+shot act1_units
+hover off
+lens on
+wait 0.5
+shot act1_yields
+lens off
 finish1
 wait 1
 click Continue
@@ -18,10 +29,11 @@ wait 1
 click ×
 turns2 30
 system home
+wait 0.5
+hoversys home
 wait 1.5
 shot act2_home
-click ×
-wait 1
+hover off
 galaxy
 wait 1.5
 shot act2_galaxy

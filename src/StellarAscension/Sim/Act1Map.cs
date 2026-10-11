@@ -129,6 +129,53 @@ public static class Act1Map
         }
     }
 
+    /// <summary>Scatters Civ VI's resources by its own frequencies and valid terrains, then makes sure every start
+    /// has a food resource, Horses and Iron within reach (Civ VI's "balanced" strategic resources).</summary>
+    public static void PlaceResources(Act1State s, Content content, Rng rng, List<(int x, int y)> starts)
+    {
+        if (content.MapResources.Count == 0) return;
+        bool Fits(MapResource r, int x, int y)
+        {
+            var tile = s.At(x, y);
+            if (tile.Resource != null || tile.Natural != null || s.CityAt(x, y) != null) return false;
+            var t = Defs.Terrains[tile.Terrain];
+            if (tile.Feature >= 0 && r.Features.Contains(Defs.Features[tile.Feature].Id)) return true;
+            return r.Terrains.Contains(t.Id) && (tile.Feature < 0 || r.Features.Length == 0 && Defs.Features[tile.Feature].Id is "FEATURE_FOREST" or "FEATURE_JUNGLE");
+        }
+        for (int y = 1; y < s.H - 1; y++)
+            for (int x = 0; x < s.W; x++)
+            {
+                if (!rng.Chance(Rules.MapResourceDensity)) continue;
+                bool water = !Defs.Terrains[s.At(x, y).Terrain].Land;
+                var cands = content.MapResources.Where(r => (water ? r.SeaFrequency : r.Frequency) > 0 && Fits(r, x, y)).ToList();
+                if (cands.Count == 0) continue;
+                s.At(x, y).Resource = rng.Weighted(cands, r => water ? r.SeaFrequency : r.Frequency).Type;
+            }
+        foreach (var (sx, sy) in starts)
+        {
+            void Ensure(Func<MapResource, bool> which, int min, int max)
+            {
+                var near = Hex.Within(sx, sy, max, s.W, s.H).Where(t => Hex.Distance(sx, sy, t.x, t.y, s.W) >= min).ToList();
+                if (near.Any(t => s.At(t.x, t.y).Resource is { } r && content.MapResource.TryGetValue(r, out var d) && which(d))) return;
+                var opts = content.MapResources.Where(which).ToList();
+                if (opts.Count == 0) return;
+                foreach (var t in near.OrderBy(_ => rng.Double()))
+                    if (opts.Where(r => Fits(r, t.x, t.y)).Select(r => r.Type).FirstOrDefault() is { } type) { s.At(t.x, t.y).Resource = type; return; }
+                // No suitable ground nearby: put it on any free land tile in reach (Civ VI also adjusts starts for balance).
+                foreach (var t in near.OrderBy(_ => rng.Double()))
+                {
+                    var tile = s.At(t.x, t.y);
+                    if (tile.Resource == null && tile.Natural == null && s.CityAt(t.x, t.y) == null && Defs.Terrains[tile.Terrain].Land && Defs.Terrains[tile.Terrain].Passable)
+                    { tile.Resource = opts[0].Type; return; }
+                }
+            }
+            Ensure(r => r.Class == "bonus" && r.Yield.Food > 0 && r.Frequency > 0, 1, 2);
+            Ensure(r => r.Type == "RESOURCE_HORSES", 1, 3);
+            Ensure(r => r.Type == "RESOURCE_IRON", 2, 4);
+            Ensure(r => r.Type == "RESOURCE_NITER", 2, 5);
+        }
+    }
+
     /// <summary>Good, well-spread start tiles: flat grass or plains with food and production around.</summary>
     public static List<(int x, int y)> StartPositions(Act1State s, int count, Rng rng)
     {

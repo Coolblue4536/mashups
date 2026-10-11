@@ -116,6 +116,7 @@ public sealed partial class App
                 {
                     var s = A1;
                     while (s.Outcome == "") { Act1Ai.TakeTurn(s, Content!, s.Player); Act1Ai.PlaceSettlers(s, Content!, s.Player); Act1.EndTurn(s, Content!); }
+                    _selUnit = -1;
                     _overlay1 = "";
                     ScriptLog(true, $"finish1: {s.Outcome} at turn {s.Turn}");
                 }
@@ -133,14 +134,38 @@ public sealed partial class App
                 else ScriptLog(false, "order " + arg);
                 break;
             case "galaxy": // Act 2: zoom out to the whole galaxy
-                if (Current == Screen.Act2)
+                if (Current == Screen.Act2) { FitGalaxy(); _selSystem = -1; _selPlanet = -1; ScriptLog(true, "galaxy"); }
+                break;
+            case "hover": // hover <dx> <dy>: point the pretend mouse at a tile relative to your capital ("hover off" stops)
+                if (arg == "off") { Gfx.FakeMouse = null; ScriptLog(true, "hover off"); break; }
+                if (Current == Screen.Act1 && A1.CitiesOf(A1.Player.Id).FirstOrDefault(x => x.Capital) is { } cap)
                 {
-                    _zoom2 = Math.Clamp(Gfx.H * 0.9f / (A2.GalaxyRadius * 2.3f), 0.25f, 1f);
-                    _cam2 = new System.Numerics.Vector2(0, 0) - new System.Numerics.Vector2(Gfx.W / 2 / _zoom2, Gfx.H / 2 / _zoom2);
-                    _selSystem = -1; _selPlanet = -1;
-                    ScriptLog(true, "galaxy");
+                    var parts = arg.Split(' ');
+                    int hx = ((cap.X + int.Parse(parts[0])) % A1.W + A1.W) % A1.W, hy = Math.Clamp(cap.Y + int.Parse(parts[1]), 0, A1.H - 1);
+                    Gfx.FakeMouse = TileScreen(hx, hy);
+                    ScriptLog(true, $"hover {hx},{hy}");
                 }
                 break;
+            case "unit": // select your first unit (or the first of a type: unit UNIT_WARRIOR)
+                if (Current == Screen.Act1 && A1.UnitsOf(A1.Player.Id).FirstOrDefault(u => arg.Length == 0 || u.Type == arg) is { } su)
+                { _selUnit = su.Id; _selCity = -1; CenterOn(su.X, su.Y); ScriptLog(true, "unit " + su.Type); }
+                else ScriptLog(false, "unit " + arg);
+                break;
+            case "zoom": // Act 2: zoom <factor> about the screen centre
+                if (Current == Screen.Act2)
+                {
+                    var centre = new System.Numerics.Vector2(Gfx.W / 2, Gfx.H / 2);
+                    var before = W2(centre);
+                    _zoom2 = _zoom2Target = Math.Clamp(_zoom2 * float.Parse(arg, System.Globalization.CultureInfo.InvariantCulture), ZoomMin, ZoomMax);
+                    _cam2 += before - W2(centre);
+                    ScriptLog(true, "zoom " + arg);
+                }
+                break;
+            case "hoversys": // Act 2: point the pretend mouse at a system ("home")
+                if (Current == Screen.Act2 && (arg == "home" ? A2.Sys(A2.Player.Capital) : A2.Systems.FirstOrDefault(x => x.Name.StartsWith(arg))) is { } hsys)
+                { Gfx.FakeMouse = S2(hsys.X, hsys.Y); ScriptLog(true, "hoversys " + hsys.Name); }
+                break;
+            case "lens": _yieldLens = arg != "off"; ScriptLog(true, "lens " + arg); break;
             case "quit": FinishScript(); return;
             default: ScriptLog(false, "unknown command " + cmd); break;
         }
@@ -169,7 +194,8 @@ public sealed partial class App
         _scriptSettleTries = 0;
         if (p.PendingSettlers > 0) { Act1Ai.PlaceSettlers(s, Content!, p); _settlerMode = false; }
         if (p.Researching == null) Act1Ai.ChooseResearch(s, Content!, p);
-        Act1Ai.TakeTurn(s, Content!, p); // choose production the way the AI would
+        Act1Ai.TakeTurn(s, Content!, p); // choose production and move units the way the AI would
+        foreach (var u in s.UnitsOf(p.Id)) u.Skipped = true;
         foreach (var idle in s.CitiesOf(p.Id).Where(x => x.Build == null))
             if (Act1.AvailableBuilds(s, Content!, idle).FirstOrDefault() is { } b) Act1.SetBuild(s, Content!, idle, b);
         if (p.PendingSettlers > 0) return; // the AI bought a Settler: place it first (next frame)

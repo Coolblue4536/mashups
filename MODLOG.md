@@ -9,7 +9,99 @@
 - **Civ VI.** Its `.blp` art packages are decoded directly: texture entries, BC1 to BC4 and RGBA textures, and the tile atlases used for icons and leader pictures. Its XML gameplay data and text databases supply the techs, civilizations, leaders, buildings, wonders and names. Fonts come from the install too.
 - **Stellaris.** `.dds` pictures, localisation, planet classes, star names, prescripted empires, loading screens and music.
 
-## Test report, 2026-10-11 (Windows 11 PC; Civ VI on Steam with all DLC; Stellaris 4.5.2)
+## v0.3.0, 2026-10-11: galaxy options, Act 1 units and war, resources and the tile card, a Stellaris-style galaxy view
+
+### What was asked
+- Options for the galaxy's size, for the other AI empires, and for their overall difficulty.
+- A cleaner, more appealing galaxy view, with zoom in and out.
+- Act 1 units that progress from the stone age to the space age and get stronger over time.
+- A Civ VI-style card when hovering a tile, showing what it provides.
+
+### What was built
+1. **Galaxy options on the New Game screen.** It now has an Earth section (Act 1) and a galaxy section (Act 2).
+   - **Galaxy size:** Tiny to Huge, 9 to 24 systems per empire.
+   - **Alien empires:** 0 to 8.
+   - **AI empires:** Cadet, Ensign, Captain, Commodore, Admiral or Grand Admiral. This multiplies every AI empire's output (×0.65 to ×1.65) and their war-readiness.
+   - Act 1 difficulty now applies to Act 1 only.
+   - The sheet has two new tables, `galaxy_sizes` and `galaxy_difficulties`. The unused `difficulties.ai_act2_mult` and `map_sizes.act2_systems` columns were removed.
+2. **Act 1 units** (`units` table, `Sim/Military.cs`, `Sim/Act1AiMilitary.cs`).
+   - **Roster:** 28 of Civ VI's base land units in 7 lines, from Warrior and Slinger to Mechanized Infantry, Modern Armor and Rocket Artillery.
+   - **Read from your Civ VI:** strength, ranged strength and range, moves, cost, upkeep, prerequisite tech, strategic resource and upgrade path (`Units`, `UnitUpgrades`). The sheet keeps the base game's numbers as fallbacks.
+   - **Rules:**
+     - One military unit per tile.
+     - Terrain movement costs: hills and woods cost +1. Mountains and natural wonders can't be entered.
+     - Units embark after Shipbuilding, and can cross ocean after Cartography.
+     - Borders are closed in peacetime.
+     - Moves can span several turns.
+     - Combat uses Civ VI's damage curve, 30·e^(0.04·Δstrength). Hills, woods, fortifying and anti-cavalry give their bonuses, and ranged units take Civ VI's penalty against cities.
+     - Cities have strength and 200 HP, heal, and fire on nearby enemies.
+     - A melee unit captures a city at 0 HP. A civ that loses its last city is destroyed.
+   - **Progression:** obsolete units can't be trained; units upgrade for gold inside your borders; units gain XP and up to 3 veteran levels (+4 strength each).
+   - **Upkeep:** units cost gold each turn, and units are disbanded if the gold runs out.
+   - **AI:**
+     - It keeps a garrison in every city and trains a balanced army sized to its cities and wars.
+     - It upgrades units when it has the gold.
+     - Now and then it declares war on a weaker neighbour, more often on harder difficulties.
+     - In war it marches on the nearest enemy city, attacks only at good odds, and makes peace when the war stops paying.
+   - **Diplomacy:** the player declares war or makes peace in the Space Race window.
+   - **Starting units:** everyone starts with a Warrior.
+   - **On screen:**
+     - Units show as Civ VI unit flags (`ICON_UNIT_*_WHITE` in the owner's colours), with health and veteran pips.
+     - Selecting a unit shows its reach in blue and its targets in red.
+     - Hovering a far tile previews the path, and hovering a target previews the attack.
+     - A unit panel shows the Civ VI portrait, with Fortify, Skip, Upgrade and Disband buttons. **F** fortifies and **Space** skips.
+     - The end-turn button prompts "A unit needs orders", with a "Skip all units" option.
+3. **Resources.**
+   - Civ VI's bonus, luxury and strategic resources are placed by Civ VI's own frequencies and valid terrains and features. Their yields come from `Resource_YieldChanges`; culture and faith count as gold.
+   - Strategic resources stay hidden until their reveal tech.
+   - Every start gets food, Horses, Iron and Niter in reach.
+   - Strategic resources gate units, as in Civ VI: Swordsmen need Iron in your borders.
+4. **The tile card.** Hovering any tile shows the terrain and feature, the resource with its Civ VI icon and class, and which units need it.
+   - Yields appear as Civ VI's yield icons with numbers. The card also shows the movement cost and defence bonus, the owner, and any unit or city there with its strength and HP.
+   - With a unit selected, it shows the attack forecast.
+   - The hovered tile shows its yield icons on the map. **Y** or the Yields button turns them on for every tile you can see.
+5. **The galaxy view, rebuilt in Stellaris's layout.**
+   - **Top bar:** resource pills with income, the fleet cap, and the date and turn.
+   - **Left rail:** Stellaris's own navbar icons (`navbar_icons_*.dds`): Research (with a badge when idle), Shipyard, Empires (with a badge at war), Outliner, Event log, and Next idle fleet.
+   - **Outliner:** your planets and fleets with their status. Click one to jump there.
+   - **Panels:** the system panel has a planet drill-down with a back button, and the fleet panel sits below it.
+   - **Hover card:** star, owner, planet pictures, habitable count and fleets.
+   - **Zoom:** smooth zoom toward the cursor (0.18× to 3.2×), the **+ / −** keys, and buttons for zoom in, zoom out, All and Cap, with a zoom bar.
+   - **Zoomed out:** names are hidden except for claimed systems, and each empire's name sits across its territory, sized to fit and never overlapping.
+   - **Map detail:** hyperlanes have a soft glow. Markers under each star show your colonies and free habitable worlds. Fleet chevrons show ship counts and red rings at war, and the selected fleet's route is dashed.
+   - **Event log:** the always-on log was replaced by a log window (**L**); news pop-ups remain.
+
+### Bugs found and fixed while testing
+1. **Civ VI resource icons didn't load.** The atlas is listed at 256, 64, 50 and 38 px, the reader kept only the biggest, and the 256 px one isn't in the packages. Icons now try each listed size, biggest first. A new `--icon` command reports whether icons decode.
+2. **The starting Warrior had no moves on turn 1.**
+3. **Iron couldn't always be placed near a start.** Iron needs hills, so a start with no hills nearby got none. Balanced placement now falls back to any free land tile in reach.
+4. **Conquest victory came too early.** In a tiny two-empire galaxy, owning 60% of the few claimed systems won by 2202. Conquest now also needs half of every system in the galaxy, after the first 10 years.
+5. **The top-bar Yields button ran into the date at 1600 px wide.** The research box now shrinks to fit.
+6. **The yields lens was cluttered,** covering every revealed ocean tile. It now covers tiles you can see.
+7. **The tile card hinted at hidden resources** ("research X to reveal it"). That line was removed, as in Civ VI.
+8. **The self-test's Ruthless check broke.** Its deliberately weak player could now be conquered before the race ended, so that test now turns AI wars off.
+
+### Tested
+- **Self-test: ALL PASS.** New checks:
+  - The unit roster, unit flag, portrait and resource icons.
+  - Starting Warriors, resources on the map, and Horses and Iron near every start.
+  - **Unit rules:** reach never includes impassable tiles, foreign cities block movement, no attacks at peace, war allows them, and a melee unit takes a city at 0 HP and moves in.
+  - **Upgrades:** Warrior → Swordsman needs Iron Working plus Iron and costs gold, and obsolete units can't be trained.
+  - **Peace:** units are sent out of the other side's borders.
+  - **Galaxy options:** 5 aliens, a huge galaxy, and Grand Admiral applied to every AI empire.
+- **Matrix (10 games, each with a different galaxy size, alien count and AI level): ALL PASS.**
+  - Units reach Mechanized Infantry, Modern Armor or Helicopters by the space age, and 0 to 4 cities change hands per game.
+  - A deliberately weak player (and the player at Deity) was conquered in 3 of 10 games, which ends Act 1. The Ruthless defeat rules held.
+- **Act 1 balance (4 games):** space at turns 167 to 236, with 2 wars at a time in the middle eras and units growing from 10 to about 55 across the map.
+- **UI scripts: all pass.** `tests/ui/both-acts.txt` (31 steps), `units.txt` (22), `galaxy.txt` (23) and `listing-shots.txt` (24). The new script commands are `unit`, `hover`, `hoversys`, `lens`, `zoom` and `galaxy`, with a pretend mouse so the real cursor is never moved.
+- **Screenshots:** new 1080p listing shots in `docs/screenshots/`: setup, units with the tile card, the yields lens, a city, the handoff, the home system with its hover card, and the galaxy.
+
+### Still open
+- **No naval units.** Land units embark instead. There are also no barbarians or city-states.
+- **No human playthrough yet** with mouse and keyboard. Everything was driven by script and checked in screenshots.
+- **AI war balance needs play-testing.** At Prince and above, AIs will attack a player who builds no army, as Civ VI's AIs do. On Settler and Chieftain they rarely start wars.
+
+## Test report (v0.2.0), 2026-10-11 (Windows 11 PC; Civ VI on Steam with all DLC; Stellaris 4.5.2)
 
 ### Safety and the player's games
 - **Backups.** Before anything was changed, the old mod build's files were backed up to `backups/cleanup-20261011-1459/` and `backups/stellaris-20261011-0315/` in the folder above the repo. That covers `dlc_load.json`, `settings.txt`, `pdx_settings.txt` and the installed mods.

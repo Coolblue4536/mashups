@@ -1,0 +1,34 @@
+click New Game
+wait 0.5
+shot u01_setup
+click Start
+wait 2
+click ×
+unit
+wait 1
+shot u02_unit_selected
+hover 1 1
+wait 0.5
+shot u03_tile_card
+hover off
+turns1 60
+click ×
+unit
+wait 1
+hover 2 0
+wait 0.5
+shot u04_t60_unit
+hover off
+lens on
+wait 0.5
+shot u05_yield_lens
+lens off
+click Space Race
+wait 0.5
+shot u06_race
+click ×
+turns1 60
+unit
+wait 1
+shot u07_t120
+quit
