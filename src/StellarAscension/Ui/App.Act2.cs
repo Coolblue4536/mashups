@@ -95,8 +95,9 @@ public sealed partial class App
         else if (_overlay2 == "battle") BattleWindow(s, c);
         else if (_overlay2 == "system") SystemView(s, c);
         else if (_overlay2 == "menu") MenuOverlay();
+        OfferPopup2(s, c);
         if (s.Outcome != "") EndPopup2(s, c);
-        Toasts(_overlay2 == "" && s.Outcome == "");
+        Toasts(_overlay2 == "" && s.Outcome == "" && !s.Offers.Any(o => !o.Seen));
     }
 
     void HandleInput2(float dt)

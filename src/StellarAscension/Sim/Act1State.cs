@@ -75,6 +75,20 @@ public sealed class UnitState
 }
 
 /// <summary>An Act 1 trade deal: From gives To access to a resource, or gold each turn, or open borders, until Until.</summary>
+/// <summary>A deal an AI civ offers the player: it gives resource Give, asks for resource Get, Gold a turn
+/// (positive: they pay you; negative: you pay them) and maybe open borders; or an alliance. Answer before Expires (turn).</summary>
+public sealed class Act1Offer
+{
+    public int From { get; set; }
+    public string Kind { get; set; } = "trade";
+    public string Give { get; set; } = "";
+    public string Get { get; set; } = "";
+    public int Gold { get; set; }
+    public bool Borders { get; set; }
+    public int Expires { get; set; }
+    public bool Seen { get; set; }
+}
+
 public sealed class DealState
 {
     public int From { get; set; }
@@ -173,6 +187,9 @@ public sealed class Act1State
     public int NextUnitId { get; set; }
     public List<WarState> Wars { get; set; } = new();
     public List<DealState> Deals { get; set; } = new();
+    public List<Act1Offer> Offers { get; set; } = new();
+    /// <summary>Civ id -> the turn it may next offer the player a deal.</summary>
+    public Dictionary<int, int> NextOffer { get; set; } = new();
     /// <summary>Alliances (pairs of civ ids, lower first).</summary>
     public List<int[]> Alliances { get; set; } = new();
     /// <summary>Recent fights for the screen (attacker unit, defender unit or city, damage each way, turn).</summary>

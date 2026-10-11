@@ -9,6 +9,51 @@
 - **Civ VI.** Its `.blp` art packages are decoded directly: texture entries, BC1 to BC4 and RGBA textures, and the tile atlases used for icons and leader pictures. Its XML gameplay data and text databases supply the techs, civilizations, leaders, buildings, wonders and names. Fonts come from the install too.
 - **Stellaris.** `.dds` pictures, localisation, planet classes, star names, prescripted empires, loading screens and music.
 
+## v0.4.1, 2026-10-11: Real alien portraits, and the AI offers you deals
+
+### What was asked
+- "My Stellaris install should have alien portraits; try looking for it again."
+- "Alien empires should be able to trade with me": AI empires should send offers to the player, not only take the player's.
+
+### What was found and built
+1. **Portraits were there.** The loader only read the old `texturefile` entries, so it found none.
+   - Modern Stellaris portraits are 3D entities. Their painted textures are listed under `character_textures` (or `tied_texture`), and some keys are aliases of others (`default = pla17_m`).
+   - The loader now reads both forms and follows aliases: **430 portraits** (it was 0).
+   - **The crop:** each texture holds the figure plus loose parts. The game crops to the largest painted piece and clears any other pieces inside its box.
+   - **Curated list:** some textures are only a body or a scrap, so 135 portraits that come out whole were picked by eye from contact sheets of all 359 species portraits. They are listed in the new `portraits` table (key and species group).
+   - A species uses its own portrait when it is listed, else a listed one from the same group (the same one every time).
+   - Alien empires now show their portrait in the Diplomacy window, the battle window, the offer popup and the end screen. The emblem stays only as a fallback.
+2. **AI offers to the player, in both acts:**
+   - **Act 1** (civs with open relations):
+     - What they offer: a resource swap, gold each turn for one of your resources, one of theirs for your gold, open borders, or an alliance at opinion 40+.
+     - About 12% a turn per civ, with 15 turns between offers (20 after a refusal). Offers last 5 turns.
+   - **Act 2** (empires with communications):
+     - What they offer: their best surplus for the resource they lack most and you produce well. The deal leans slightly your way, more if they like you. Friendly empires (opinion 40+) offer alliances.
+     - About 7 years between offers (10 after a refusal), and no new trade offer while one of their deals with you runs. Offers last 3 turns.
+   - **On screen:** a message popup with the leader's picture or species portrait, what you receive and give (with icons), their opinion, and **Accept offer**, **Decline offer** or **Later**. An offer you put off shows in the Diplomacy window, marked *Offer* in the list, until it expires.
+   - Each offer is also logged as an event.
+   - Accepting checks that the deal still works (both sides still hold the resources, no war).
+
+### Fixed while testing
+- **Too many offers in space:** at first each empire offered every 2 years, about 200 offers a game (nearly one a turn). Now 26–81 a game, about one every 3–7 turns.
+- **Popup stayed hidden:** the popup waits while another window (such as the research chooser) is open, and the toasts hide while it shows so they don't cover it.
+- **Grammar:** "Korean Empire offer…" now reads "offers".
+
+### Tested
+- **Preflight:** clean. The self-test checks the `portraits` table against the install.
+- **Self-test: ALL PASS.** New checks:
+  - Stellaris portraits found (430), with every listed one present.
+  - Every species gets a whole portrait.
+  - Accepting an AI civ's offer makes the deal.
+  - Declining makes them wait before offering again.
+  - An alien empire offers the player a deal, and accepting it makes the deal.
+- **Matrix (10 games): ALL PASS.**
+  - The headless player accepts two offers in three and declines the third.
+  - Offers per game: Act 1, 0–18 (0 in the Deity game, where the AIs dislike the player); Act 2, 1–81.
+  - New matrix checks: AI civs and AI empires offer the player deals.
+- **UI scripts:** `both-acts` (31), `units` (22), `galaxy` (23), `v4` (37) and the new `offers` (25), all passing. The `offers` script covers the popup in both acts, Later, the offer in the Diplomacy window, and Accept.
+- **Screenshots:** new `act1-offer.jpg` and `act2-offer.jpg`. `act2-battle.jpg` and `act2-diplomacy.jpg` were retaken with real portraits.
+
 ## v0.4.0, 2026-10-11: Builders, traits, diplomacy with envoys, tribes, multi-turn battles with retreat, pre-FTL research, exotic sites, a tiered tech tree, ship icons and the system view
 
 ### What was asked
@@ -93,7 +138,7 @@
 - **Early tribes too harsh:** in one test game the player was left with a single city. Raiders now start after turn 15, one per camp in the ancient era, within 6 tiles of their camp.
 - **The UI test couldn't rebuild** while the matrix ran in the background (the program was locked). The tests now run one after another.
 - **Ship pictures (cropped paintings) looked like tiles** in the battle window and system view. They are now Stellaris's class silhouettes in empire colours.
-- **Alien empires had no portrait** (this install has none). They now get an emblem in their colours.
+- **Alien empires had no portrait.** They got an emblem in their colours. (This was wrong; v0.4.1 finds the portraits.)
 - **The battle banner touched the unit panel.** It now moves aside and hides behind open windows.
 
 ### Tested
@@ -124,7 +169,7 @@
 ### Still open
 - **Some of the "Fight on / Emergency FTL" choice is automatic:** the battle window opens at the end of your turn, and fleets keep fighting through the turn's six months before you see it.
 - **No naval units or ranged city attacks you control.** City strikes are automatic.
-- **AI trade offers to the player:** AIs trade with each other, but you start deals with them, not the other way round.
+- ~~AI trade offers to the player~~ (done in v0.4.1).
 - **Balance needs human play:** tribes, war frequency, the pace of pre-FTL research, and Act 2 battle length.
 
 ## v0.3.0, 2026-10-11: galaxy options, Act 1 units and war, resources and the tile card, a Stellaris-style galaxy view

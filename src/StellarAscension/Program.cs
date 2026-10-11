@@ -32,6 +32,28 @@ public static class Program
             }
             return 0;
         }
+        if (Arg("--portraits") is { } pdir && stellaris != null)
+        {
+            // Test aid: the portraits of Stellaris's ready-made empires, as the game shows them.
+            var st = new StellarisData(stellaris);
+            var res = new AssetResolver(null, st);
+            Directory.CreateDirectory(pdir);
+            int n = 0;
+            if (args.Contains("--all"))
+            {
+                // Every portrait's figure crop, for picking the good ones by eye.
+                foreach (var pi in st.Portraits)
+                    if (res.RawFigure(pi.Name) is { } raw) ImageWriter.SavePng(raw, Path.Combine(pdir, $"{pi.Group}__{pi.Name}.png"));
+                return 0;
+            }
+            foreach (var e in st.Prescripted.Where(e => e.Portrait.Length > 0).GroupBy(e => e.Portrait).Select(g => g.First()).Take(16))
+            {
+                var img = res.Portrait(e.Portrait);
+                Log.Info($"{e.Name}: {e.Portrait} -> {(img == null ? "none" : $"{img.W}x{img.H}")}");
+                if (img != null) ImageWriter.SavePng(img, Path.Combine(pdir, $"{n++:00}_{e.Portrait}.png"));
+            }
+            return 0;
+        }
         if (Arg("--blpinfo") is { } blpPath)
         {
             var b = Civ6Blp.Open(blpPath);

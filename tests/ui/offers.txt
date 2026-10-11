@@ -1,0 +1,40 @@
+# AI offers to the player in both acts: the message popup, Later, the offer in the Diplomacy window, Accept
+click New Game
+wait 0.5
+click Start
+wait 1
+click ×
+turns1 40
+meetall
+offer
+overlay
+wait 1
+shot o01_offer_act1
+click Later
+overlay diplomacy
+wait 0.8
+shot o02_offer_in_diplomacy
+click Accept offer
+wait 0.5
+shot o03_accepted
+overlay
+finish1
+wait 0.5
+click Continue
+wait 1.5
+click Begin
+wait 1.5
+click ×
+turns2 6
+offer
+overlay
+wait 1.5
+shot o04_offer_act2
+click Later
+overlay empires
+wait 1
+shot o05_offer_in_diplomacy_space
+click Accept offer
+wait 0.5
+shot o06_accepted_space
+quit

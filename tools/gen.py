@@ -24,7 +24,7 @@ def singular(name):
                "wonders": "Wonder", "projects": "Project", "tech_legacy": "TechLegacy", "eras": "Era", "resources": "Resource",
                "star_classes": "StarClass", "planet_classes": "PlanetClass", "districts": "District", "planet_buildings": "PlanetBuilding",
                "ships": "Ship", "act2_techs": "Act2Tech", "modifiers": "Modifier", "aliens": "Alien", "asset_refs": "AssetRef",
-               "game_systems": "GameSystem", "units": "Unit", "galaxy_sizes": "GalaxySize", "galaxy_difficulties": "GalaxyDifficulty", "civ_traits": "CivTrait", "civ_trait_map": "CivTraitMap", "exotic_sites": "ExoticSite", "preftl_techs": "PreftlTech", "improvements": "Improvement"}
+               "game_systems": "GameSystem", "units": "Unit", "galaxy_sizes": "GalaxySize", "galaxy_difficulties": "GalaxyDifficulty", "civ_traits": "CivTrait", "civ_trait_map": "CivTraitMap", "exotic_sites": "ExoticSite", "preftl_techs": "PreftlTech", "improvements": "Improvement", "portraits": "Portrait"}
     return special.get(name, pascal(name).rstrip("s"))
 
 

@@ -61,13 +61,14 @@ public static class Playtest
         return 0;
     }
 
-    public static Act2State PlayAct2(Content content, Act1State a1, Action<Act2State>? everyMonth = null)
+    public static Act2State PlayAct2(Content content, Act1State a1, Action<Act2State>? everyMonth = null, Action<Act2State>? answer = null)
     {
         var s = Handoff.FromAct1(a1, content);
         Log.Info($"   galaxy: {s.Systems.Count} systems, {s.Systems.Sum(x => x.Lanes.Count) / 2} lanes, homes (habitable, claimable within 3 jumps): "
                  + string.Join(" ", Galaxy.Fairness(s).Select(f => $"({f.habitable},{f.claimable})")));
         while (s.Outcome == "")
         {
+            answer?.Invoke(s);
             Act2Ai.Think(s, content, s.Player);
             int before = s.Month;
             Act2.EndTurn(s, content);
@@ -124,7 +125,7 @@ public static class Playtest
         };
         string[] others = { "\u041d\u043e\u0432\u0433\u043e\u0440\u043e\u0434-\u0421\u0435\u0432\u0435\u0440\u0441\u043a\u0438\u0439 \u0412\u0435\u043b\u0438\u043a\u0438\u0439",
                             "\u014csaka-Ky\u014dto no Miyako Sh\u014dgunate", "Reykjav\u00edkurborg \u00c6\u00f0ri \u00deingvellir" };
-        int fails = 0;
+        int fails = 0, offers1 = 0, offers2 = 0;
         void Check(bool ok, string what) { if (!ok) { fails++; Log.Info("   FAIL " + what); } }
         for (int i = 0; i < runs.Length; i++)
         {
@@ -136,9 +137,14 @@ public static class Playtest
             var a1 = Act1.NewGame(setup, content);
             a1.Civs[0].YieldMult = pace;
             if (rename) a1.CitiesOf(a1.Player.Id).First().Name = LongName;
-            int renamed = 0;
+            int renamed = 0, got1 = 0, took1 = 0;
             while (a1.Outcome == "")
             {
+                foreach (var o in a1.Offers.ToList())
+                {
+                    got1++;
+                    if (got1 % 3 == 0) Diplomacy1.Decline(a1, o); else if (Diplomacy1.Accept(a1, content, o)) took1++;
+                }
                 Act1Ai.TakeTurn(a1, content, a1.Player); Act1Ai.PlaceSettlers(a1, content, a1.Player); Act1.EndTurn(a1, content);
                 if (rename) foreach (var c in a1.CitiesOf(a1.Player.Id).Where(c => !c.Capital).Take(others.Length)) if (!others.Contains(c.Name) && renamed < others.Length) c.Name = others[renamed++];
             }
@@ -146,12 +152,22 @@ public static class Playtest
             int place = a1.SpaceOrder.IndexOf(a1.Player.Id) + 1;
             string where = place == 0 ? "never reached space" : $"#{place} of {a1.SpaceOrder.Count} in space";
             Log.Info($"matrix {i + 1}: {race}, {size}, {rivals} rivals, {Defs.Difficulty[diff].Name}, {length} game{(rename ? ", long non-English names" : "")}; {Act1.CivName(content, a1.Player)}: act 1 {a1.Outcome} at turn {a1.Turn} ({Act1.YearText(a1.Year)}), player {where}, {wonders} wonders, {a1.Tiles.Count(t => t.Natural != null)} natural wonders, "
-                     + $"{a1.Units.Count} units (best {a1.Units.Select(u => content.Unit[u.Type]).OrderByDescending(u => u.Combat).Select(u => content.Text(u.NameLoc)).FirstOrDefault()}), {a1.Civs.Count(c => !c.Alive)} civs destroyed, {a1.Cities.Count(c => c.Founder != c.Owner)} cities captured");
+                     + $"{a1.Units.Count} units (best {a1.Units.Select(u => content.Unit[u.Type]).OrderByDescending(u => u.Combat).Select(u => content.Text(u.NameLoc)).FirstOrDefault()}), {a1.Civs.Count(c => !c.Alive)} civs destroyed, {a1.Cities.Count(c => c.Founder != c.Owner)} cities captured, {got1} offers to the player ({took1} accepted)");
+            offers1 += got1;
             Check(a1.Majors.Count() == rivals + 1, "civ count");
             Check(a1.Cities.Select(c => c.Name).Concat(a1.Majors.Select(c => Act1.CivName(content, c))).All(n => !Gfx.Fold(n).Contains('?')), "every Act 1 name drawable");
             if (race == "ruthless") Check((a1.Outcome == "defeat") == (a1.SpaceOrder.Count > 0 && a1.SpaceOrder[0] != a1.Player.Id), "Ruthless: defeat exactly when a rival is first");
             if (a1.Outcome != "space") continue;
-            var s = PlayAct2(content, a1);
+            int got2 = 0, took2 = 0;
+            var s = PlayAct2(content, a1, answer: st =>
+            {
+                foreach (var o in st.Offers.ToList())
+                {
+                    got2++;
+                    if (got2 % 3 == 0) Diplomacy2.Decline(st, o); else if (Diplomacy2.Accept(st, o)) took2++;
+                }
+            });
+            offers2 += got2;
             Check(s.Empires.Count(e => e.Kind == "civ") == a1.Majors.Count(cv => cv.Alive), "every surviving civ became an empire");
             Check(s.Systems.Count(x => x.Home) == s.Empires.Count, "one home per empire");
             Check(Handoff.Bfs(s, 0).Count == s.Systems.Count, "galaxy connected");
@@ -162,8 +178,10 @@ public static class Playtest
             Check(!rename || s.Systems.SelectMany(x => x.Planets).Any(p => others.Contains(p.Name)), "renamed cities name the other home planets");
             Check(s.Outcome != "", "act 2 ended");
             Check(s.Empires.Count(e => e.Kind == "alien") == setup.Aliens, "chosen number of alien empires");
-            Log.Info($"   act 2 {s.Outcome} in {s.Year}; {setup.GalaxySize} galaxy, {s.Systems.Count} systems, {setup.Aliens} aliens, AI {setup.GalaxyDifficulty}; top scores " + string.Join(", ", s.Empires.OrderByDescending(e => e.Score).Take(4).Select(e => $"{e.Adjective}{(e.IsPlayer ? "*" : "")} {e.Score}")) + $"; player {s.Player.Score}; {sw.Elapsed.TotalSeconds:0.0}s");
+            Log.Info($"   act 2 {s.Outcome} in {s.Year}; {setup.GalaxySize} galaxy, {s.Systems.Count} systems, {setup.Aliens} aliens, AI {setup.GalaxyDifficulty}; top scores " + string.Join(", ", s.Empires.OrderByDescending(e => e.Score).Take(4).Select(e => $"{e.Adjective}{(e.IsPlayer ? "*" : "")} {e.Score}")) + $"; player {s.Player.Score}; {got2} offers to the player ({took2} accepted); {sw.Elapsed.TotalSeconds:0.0}s");
         }
+        Check(offers1 > 0, "AI civs offer the player deals in Act 1");
+        Check(offers2 > 0, "AI empires offer the player deals in Act 2");
         Log.Info(fails == 0 ? "matrix: ALL PASS" : $"matrix: {fails} FAILED");
         return fails == 0 ? 0 : 1;
     }

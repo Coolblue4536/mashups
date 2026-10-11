@@ -115,6 +115,68 @@ public static class Diplomacy2
         return true;
     }
 
+    // ------------------------------------------------------------------ offers to the player
+
+    public static string Describe(Act2State s, Act2Offer o)
+    {
+        var them = s.Empires[o.From];
+        if (o.Kind == "alliance") return $"The {them.Name} proposes an alliance: each of you joins the other's defensive wars.";
+        var parts = new List<string>();
+        if (o.Give != "") parts.Add($"they give you {o.GiveAmount:0} {o.Give} a month");
+        if (o.Get != "") parts.Add($"you give them {o.GetAmount:0} {o.Get} a month");
+        return $"The {them.Name} offers a trade deal for {Rules.Act2TradeYears} years: {string.Join(", and ", parts)}.";
+    }
+
+    public static string? CantAccept(Act2State s, Act2Offer o)
+    {
+        var them = s.Empires[o.From];
+        if (!them.Alive) return "They are gone.";
+        if (o.Kind == "alliance") return CantAlly(s, them, s.Player);
+        return CantDeal(s, them, s.Player);
+    }
+
+    public static bool Accept(Act2State s, Act2Offer o)
+    {
+        s.Offers.Remove(o);
+        if (CantAccept(s, o) != null) return false;
+        var them = s.Empires[o.From];
+        return o.Kind == "alliance" ? Ally(s, them, s.Player) : Propose(s, them, s.Player, o.Give, o.GiveAmount, o.Get, o.GetAmount, force: true);
+    }
+
+    public static void Decline(Act2State s, Act2Offer o)
+    {
+        s.Offers.Remove(o);
+        s.NextOffer[o.From] = Math.Max(s.NextOffer.GetValueOrDefault(o.From), s.Month + 120);
+    }
+
+    /// <summary>An AI empire with communications offers the player a deal: its surplus for something it lacks and the
+    /// player has plenty of (a little in the player's favour, more if it likes them), or an alliance if it's friendly.</summary>
+    public static Act2Offer? MakeOffer(Act2State s, Empire ai)
+    {
+        var p = s.Player;
+        int op = Opinion(s, ai, p).value;
+        if (op < -20) return null;
+        Act2Offer? offer;
+        if (op >= 40 && CantAlly(s, ai, p) == null && s.Rng.Chance(0.35))
+            offer = new Act2Offer { From = ai.Id, Kind = "alliance" };
+        else
+        {
+            var r = Act2.Report(s, ai); var pr = Act2.Report(s, p);
+            string? get = Tradeable.Where(k => pr.Income[k] > 3).OrderBy(k => r.Income[k] / Worth[k]).FirstOrDefault();
+            string? give = Tradeable.Where(k => k != get && r.Income[k] > 5).OrderByDescending(k => r.Income[k] / Worth[k]).FirstOrDefault();
+            if (get == null || give == null || s.Deals.Any(d => d.From == ai.Id && d.To == p.Id && d.Until >= s.Month)) return null;
+            double getAmt = Math.Clamp(Math.Round(pr.Income[get] / 3), 2, 8);
+            double giveAmt = Math.Min(Math.Round(getAmt * Worth[get] / Worth[give] * (1.15 + Math.Max(0, op) / 200.0)), Math.Floor(r.Income[give] / 2));
+            if (giveAmt < 1 || Score(s, ai, p, get, getAmt, give, giveAmt) <= -100) return null;
+            offer = new Act2Offer { From = ai.Id, Give = give, GiveAmount = giveAmt, Get = get, GetAmount = getAmt };
+        }
+        offer.Expires = s.Month + 3 * Act2.MonthsPerTurn;
+        s.Offers.Add(offer);
+        s.NextOffer[ai.Id] = s.Month + 84;
+        s.Events.Add(new Act2Event(s.Month, "offer", Describe(s, offer) + " Answer in the Diplomacy window.", p.Id));
+        return offer;
+    }
+
     // ------------------------------------------------------------------ the month
 
     public static void Month(Act2State s, Content c)
@@ -154,6 +216,7 @@ public static class Diplomacy2
         }
         s.Deals.RemoveAll(d => d.Until < s.Month || !s.Empires[d.From].Alive || !s.Empires[d.To].Alive);
         s.Alliances.RemoveAll(x => !s.Empires[x[0]].Alive || !s.Empires[x[1]].Alive);
+        s.Offers.RemoveAll(o => o.Expires < s.Month || CantAccept(s, o) != null);
         if (s.Month % 6 != 0) return;
         // AI empires: open communications, keep an envoy with a friend, trade surpluses, ally friends.
         foreach (var ai in s.Empires.Where(e => e.Alive && !e.IsPlayer))
@@ -169,6 +232,9 @@ public static class Diplomacy2
                 foreach (var o in ai.Comms.Select(i => s.Empires[i]).Where(o => o.Alive && !o.IsPlayer && !s.AtWar(ai.Id, o.Id)))
                     if (surplus != need && r.Income[surplus] > 6 && Propose(s, ai, o, surplus, 3 * 1 / Worth[surplus] * Worth[need], need, 3)) break;
             }
+            if (s.Player.Alive && CantDeal(s, ai, s.Player) == null && !s.Offers.Any(o => o.From == ai.Id)
+                && s.NextOffer.GetValueOrDefault(ai.Id) <= s.Month && s.Rng.Chance(0.35))
+                MakeOffer(s, ai);
             if (s.Rng.Chance(0.05))
                 foreach (var o in ai.Comms.Select(i => s.Empires[i]).Where(o => o.Alive && !o.IsPlayer))
                     if (CantAlly(s, ai, o) == null && Opinion(s, ai, o).value >= 35) { Ally(s, ai, o); break; }

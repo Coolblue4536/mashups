@@ -89,13 +89,14 @@ public sealed partial class App
         BattleBanner(s, c);
         if (_cardTile is { } ct && _overlay1 == "" && s.Outcome == "" && G.MouseOnMap && _attackPrompt == null) TileCard(s, c, ct.x, ct.y);
         AttackPrompt(s, c);
+        OfferPopup1(s, c);
         if (_overlay1 == "research") ResearchOverlay(s, c);
         else if (_overlay1 == "diplomacy") Diplomacy1Overlay(s, c);
         else if (_overlay1 == "race") RaceOverlay(s, c);
         else if (_overlay1 == "wonders") WondersOverlay(s, c);
         else if (_overlay1 == "menu") MenuOverlay();
         if (s.Outcome != "") OutcomePopup1(s, c);
-        Toasts(_overlay1 == "" && s.Outcome == "");
+        Toasts(_overlay1 == "" && s.Outcome == "" && (_attackPrompt != null || !s.Offers.Any(o => !o.Seen)));
     }
 
     (int x, int y)? _cardTile;

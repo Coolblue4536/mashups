@@ -7,12 +7,13 @@ A two-act strategy game that runs as one program and uses the art and text of yo
 
 Stellar Ascension is a standalone game, much like *Grand Galactic*. It doesn't start Civ VI or Stellaris and doesn't change them. It reads their art, names and descriptions from your installs each time it runs, and it ships none of their files.
 
-> Status: **v0.4.0.** Both acts can be played from start to finish. Every check on this PC passes: the self-test, a 10-game simulation matrix, and scripted runs through every screen. See [MODLOG.md](MODLOG.md) for the full test report.
+> Status: **v0.4.1.** Both acts can be played from start to finish. Every check on this PC passes: the self-test, a 10-game simulation matrix, and scripted runs through every screen. See [MODLOG.md](MODLOG.md) for the full test report.
 
 ![Act 1: units and the tile card](docs/screenshots/act1-units.jpg)
 ![Act 1: a fight](docs/screenshots/act1-battle.jpg)
 ![Act 2: the galaxy](docs/screenshots/act2-galaxy.jpg)
 ![Act 2: a space battle](docs/screenshots/act2-battle.jpg)
+![Act 2: an alien empire offers a trade](docs/screenshots/act2-offer.jpg)
 
 ## How a game goes
 
@@ -53,6 +54,7 @@ Stellar Ascension is a standalone game, much like *Grand Galactic*. It doesn't s
   - Shared strategic resources count as your own.
   - You can form **alliances**; allies join each other's defensive wars.
   - Each leader shows what they think of you, and why.
+  - **The AI makes offers too.** Civilizations with open relations send you trade deals (resource swaps, gold for a resource, open borders) and, when they like you, alliances. A message pops up with **Accept**, **Decline** or **Later**. A later offer waits in the Diplomacy window (marked *Offer*) for 5 turns.
 - **War:** declare war and make peace from the Diplomacy window (you must have met them).
   - Borders are closed in peacetime unless you have an open-borders deal or an alliance.
   - Combat uses Civ VI's damage curve, with bonuses for hills and woods, fortifying and anti-cavalry.
@@ -95,6 +97,8 @@ Stellar Ascension is a standalone game, much like *Grand Galactic*. It doesn't s
   - An **envoy** needs about two turns to establish communications. You have 2 envoys, more with traits and Xeno-Linguistics.
   - Communications open monthly **trade deals** (energy, minerals, food, alloys, unity) and **alliances**.
   - An envoy left with an empire **improves relations**.
+  - **Empires make you offers.** Alien and Earth empires with communications offer monthly trades (their surplus for something you have plenty of) and, when friendly, alliances. Answer in the message popup or later in the Diplomacy window (3 turns).
+  - Alien empires show their **Stellaris species portrait**, read from your install.
 - **Space battles last several turns** for big fleets. Each month both sides trade fire, and the battle window shows the fight: both fleets, their hulls, losses and a month-by-month log.
   - **Fight on**, or make an **emergency FTL** jump. The fleet jumps out blind, loses about a quarter of its ships, and is **missing** for about three turns before it turns up at your capital.
   - AI fleets jump out too when they're losing badly.
@@ -115,7 +119,7 @@ Stellar Ascension is a standalone game, much like *Grand Galactic*. It doesn't s
 
 ## Install and play
 
-1. Unzip `StellarAscension-0.4.0.zip` anywhere.
+1. Unzip `StellarAscension-0.4.1.zip` anywhere.
 2. Run `StellarAscension.exe`.
 
 The game saves on its own every turn. Saves, settings and logs go to `%LOCALAPPDATA%\StellarAscension`.

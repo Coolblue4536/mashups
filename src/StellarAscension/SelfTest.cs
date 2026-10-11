@@ -39,6 +39,8 @@ public static class SelfTest
         Check(st.StarNames.Count > 100 && st.Prescripted.Count > 10 && st.Music.Count > 0, "Stellaris star names, empires and music read");
         var res = new AssetResolver(civ6, st);
         foreach (var a in Defs.AssetRefs.Where(a => a.Game == "stellaris" && a.Kind == "image")) Check(res.Stellaris(a.Id) != null, $"Stellaris picture {a.Id}");
+        Check(st.Portraits.Count > 100 && Defs.Portraits.All(p => st.PortraitInfoFor(p.Id) != null), $"Stellaris species portraits found ({st.Portraits.Count}), every listed one present");
+        Check(st.Portraits.Take(40).All(p => res.Portrait(p.Name) != null), "every species gets a whole portrait");
 
         // ---- Act 1
         var civ = content.Civs.First(c => c.Leader == "LEADER_TRAJAN");
@@ -221,6 +223,13 @@ public static class SelfTest
         s.Turn += (int)Rules.Act1EnvoyTurns;
         Need(s.Relations(me.Id, other.Id), "relations open when the envoy arrives");
         Need(Diplomacy1.Propose(s, content, me, other, "", "", 5, true, force: true) && s.OpenBorders(other.Id, me.Id) && s.Deals.Any(d => d.Kind == "gold"), "a trade deal (gold a turn, open borders)");
+        var offer = new Act1Offer { From = other.Id, Gold = 4, Expires = s.Turn + 5 };
+        s.Offers.Add(offer);
+        Need(Diplomacy1.Accept(s, content, offer) && s.Offers.Count == 0 && s.Deals.Any(d => d.Kind == "gold" && d.From == other.Id && d.To == me.Id && d.Gold == 4), "accepting an AI civ's offer makes the deal");
+        offer = new Act1Offer { From = other.Id, Borders = true, Expires = s.Turn + 5 };
+        s.Offers.Add(offer);
+        Diplomacy1.Decline(s, offer);
+        Need(s.Offers.Count == 0 && s.NextOffer[other.Id] > s.Turn, "declining an offer: they wait before offering again");
         s.Alliances.Add(new[] { Math.Min(me.Id, other.Id), Math.Max(me.Id, other.Id) });
         var third = s.Majors.First(x => !x.IsPlayer && x.Id != other.Id);
         Military.DeclareWar(s, content, third, me);
@@ -270,6 +279,15 @@ public static class SelfTest
         Need(Diplomacy2.Establish(s, me, other) && !s.HasComms(me.Id, other.Id), "an envoy sets out");
         for (int m = 0; m < Rules.Act2ContactMonths + 1; m++) { s.Month++; Diplomacy2.Month(s, content); }
         Need(s.HasComms(me.Id, other.Id) && Diplomacy2.CantDeal(s, me, other) == null, "communications established after a year");
+        Act2Offer? made = null;
+        for (int k = 0; k < 40 && made == null; k++) { s.Offers.Clear(); made = Diplomacy2.MakeOffer(s, other); }
+        Need(made != null && Diplomacy2.CantAccept(s, made) == null && (made.Kind == "alliance" || made.Give != "" && made.Get != "" && made.Give != made.Get),
+             "an alien empire offers the player a deal");
+        if (made != null)
+        {
+            int deals = s.Deals.Count, allies = s.Alliances.Count;
+            Need(Diplomacy2.Accept(s, made) && (s.Deals.Count > deals || s.Alliances.Count > allies) && s.Offers.Count == 0, "accepting the alien offer makes the deal");
+        }
         // A battle over several months, then emergency FTL.
         var home = s.Sys(me.Capital);
         var enemy = s.Empires.First(e => !e.IsPlayer && e.Id != other.Id);

@@ -54,6 +54,7 @@ public sealed partial class App
                 else if (s.Relations(me.Id, o.Id)) Chip(ref cx, row.Y + 32, "Relations", Gfx.Gold);
                 else if (me.Envoys.ContainsKey(o.Id)) Chip(ref cx, row.Y + 32, "Envoy on the way", Gfx.Muted);
                 else Chip(ref cx, row.Y + 32, "Met", Gfx.Muted);
+                if (s.Offers.Any(x => x.From == o.Id)) Chip(ref cx, row.Y + 32, "Offer", Gfx.Good);
                 if (G.HitArea(row, Act1.CivName(c, o))) _dipSel = o.Id;
             }
             else
@@ -111,6 +112,7 @@ public sealed partial class App
         else if (G.Button(new Rectangle(px + (bw + 6) * 2, py, bw, 38), "Declare war", them.Alive, tip: "Breaks any alliance and deals; their allies join them.", size: 16))
         { Military.DeclareWar(s, c, me, them); SaveNow(); }
         py += 50;
+        py += OfferBox1(s, c, them, px, py, pw);
         // Trade
         G.Text("Trade", px, py, 20, Gfx.Gold, true); py += 28;
         if (Diplomacy1.CantDeal(s, me, them) is { } dealWhy) { G.Text(dealWhy, px, py, 15, Gfx.Muted); return; }
@@ -183,6 +185,7 @@ public sealed partial class App
                 else if (s.HasComms(me.Id, e.Id)) Chip(ref cx, row.Y + 32, "Communications", Gfx.Gold);
                 else if (me.EnvoyTasks.TryGetValue(e.Id, out var m) && m > 0) Chip(ref cx, row.Y + 32, $"Envoy: {m - s.Month} mo", Gfx.Muted);
                 else Chip(ref cx, row.Y + 32, "Contact", Gfx.Muted);
+                if (s.Offers.Any(x => x.From == e.Id)) Chip(ref cx, row.Y + 32, "Offer", Gfx.Good);
                 if ((G.Hover(listR) || G.ScriptActive) && G.HitArea(row, e.Name)) _dipSel = e.Id;
             }
             else
@@ -236,6 +239,7 @@ public sealed partial class App
         else if (G.Button(new Rectangle(pane.X + (bw + 6) * 2, py, bw, 40), "Declare war", them.Alive, tip: "Your fleets can then fight theirs and take their systems. Their allies join them.", size: 15))
             Act2.DeclareWar(s, me, them);
         py += 56;
+        py += OfferBox2(s, them, pane.X, py, pane.Width);
         G.Text("Trade (each month, for " + Rules.Act2TradeYears + " years)", pane.X, py, 19, Gfx.Gold, true); py += 30;
         if (Diplomacy2.CantDeal(s, me, them) is { } dealWhy) { G.Text(dealWhy, pane.X, py, 15, Gfx.Muted); return; }
         void Row(string label, ref string res, ref double amt, ref float yy)

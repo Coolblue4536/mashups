@@ -97,6 +97,21 @@ public sealed class TradeDeal
     public int Until { get; set; }
 }
 
+/// <summary>A deal an AI empire offers the player: it gives Give x GiveAmount a month and asks Get x GetAmount
+/// ("alliance" offers have no resources). The player accepts or declines before Expires (month).</summary>
+public sealed class Act2Offer
+{
+    public int From { get; set; }
+    public string Kind { get; set; } = "trade";
+    public string Give { get; set; } = "";
+    public double GiveAmount { get; set; }
+    public string Get { get; set; } = "";
+    public double GetAmount { get; set; }
+    public int Expires { get; set; }
+    /// <summary>The player has seen the popup (the offer stays in the Diplomacy window until it expires).</summary>
+    public bool Seen { get; set; }
+}
+
 public sealed class Empire
 {
     public int Id { get; set; }
@@ -170,6 +185,9 @@ public sealed class Act2State
     public List<War> Wars { get; set; } = new();
     public List<Battle> Battles { get; set; } = new();
     public List<TradeDeal> Deals { get; set; } = new();
+    public List<Act2Offer> Offers { get; set; } = new();
+    /// <summary>Empire id -> the month it may next offer the player a deal.</summary>
+    public Dictionary<int, int> NextOffer { get; set; } = new();
     public List<int[]> Alliances { get; set; } = new();
     public List<Nebula> Nebulae { get; set; } = new();
     public float GalaxyRadius { get; set; }

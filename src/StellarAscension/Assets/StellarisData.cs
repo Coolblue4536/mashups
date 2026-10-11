@@ -19,6 +19,8 @@ public sealed class StellarisData
     /// <summary>The bigger planet icon (icon_large), sharper on cards.</summary>
     public readonly Dictionary<string, string> PlanetIconsLarge = new(StringComparer.OrdinalIgnoreCase);
     public readonly List<PortraitInfo> Portraits = new();
+    /// <summary>Portrait keys that just point at another (pla17 → pla17_m).</summary>
+    public readonly Dictionary<string, string> PortraitAlias = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>Lower-case path relative to the install (forward slashes) → real path, for every image under gfx/.</summary>
     public readonly Dictionary<string, string> Files = new();
     public readonly List<string> StarNames = new();
@@ -140,10 +142,15 @@ public sealed class StellarisData
         foreach (var f in Directory.EnumerateFiles(dir, "*.txt"))
             foreach (var n in CwNode.ParseFile(f).Descendants())
             {
-                var tex = n.Children != null ? n.Get("texturefile") : null;
-                if (tex == null || n.Key == null) continue;
+                if (n.Children == null || n.Key == null) continue;
+                // 2D portraits name a texturefile; today's animated ones list their painted textures under character_textures.
+                if (n.Get("default") is { } def && !n.Kids.Any(k => k.Key == "character_textures")) PortraitAlias.TryAdd(n.Key, def);
+                var ct = n.Kids.FirstOrDefault(k => string.Equals(k.Key, "character_textures", StringComparison.OrdinalIgnoreCase));
+                var tex = n.Get("texturefile")
+                          ?? ct?.Kids.Select(k => k.Children != null ? k.Get("texture") : k.Value ?? k.Key).FirstOrDefault(v => v != null && v.EndsWith(".dds", StringComparison.OrdinalIgnoreCase));
+                if (tex == null) continue;
                 var rel = tex.Replace('\\', '/').ToLowerInvariant();
-                if (!rel.StartsWith("gfx/models/portraits/") || FilePath(rel) == null || !seen.Add(rel)) continue;
+                if (!rel.StartsWith("gfx/models/portraits/") || FilePath(rel) == null || !seen.Add(n.Key)) continue;
                 var parts = rel.Split('/');
                 Portraits.Add(new PortraitInfo(n.Key, parts.Length > 4 ? parts[3] : "species", rel));
             }
@@ -177,8 +184,18 @@ public sealed class StellarisData
     }
 
     /// <summary>The picture file for a portrait key (e.g. "rep9"), when the install has it.</summary>
-    public string? PortraitFile(string key) =>
-        Portraits.FirstOrDefault(p => string.Equals(p.Name, key, StringComparison.OrdinalIgnoreCase)) is { } p ? FilePath(p.TextureFile) : null;
+    public string? PortraitFile(string key) => PortraitInfoFor(key) is { } p ? FilePath(p.TextureFile) : null;
+
+    public PortraitInfo? PortraitInfoFor(string key)
+    {
+        for (int guard = 0; guard < 4; guard++)
+        {
+            if (Portraits.FirstOrDefault(p => string.Equals(p.Name, key, StringComparison.OrdinalIgnoreCase)) is { } hit) return hit;
+            if (!PortraitAlias.TryGetValue(key, out var next)) break;
+            key = next;
+        }
+        return null;
+    }
 
     /// <summary>Resolve one lookup string from asset_refs (file:, sprite:, find:, planetclass:). Returns (path, frames, frame) or null.</summary>
     public (string path, int frames, int frame)? Lookup(string lookup)

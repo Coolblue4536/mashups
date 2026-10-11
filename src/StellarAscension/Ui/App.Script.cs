@@ -194,6 +194,31 @@ public sealed partial class App
                     ScriptLog(raider != null, "attackprompt");
                 }
                 break;
+            case "offer": // test aid: an AI makes you an offer (Act 1: the first civ you have relations with; Act 2: an alien empire)
+                if (Current == Screen.Act1)
+                {
+                    var from = A1.Majors.First(o => !o.IsPlayer && A1.Relations(o.Id, A1.Player.Id));
+                    A1.Offers.Clear();
+                    Act1Offer? offerMade = null;
+                    for (int k = 0; k < 40 && offerMade == null; k++) { A1.NextOffer.Clear(); offerMade = Diplomacy1.MakeOffer(A1, Content!, from); if (offerMade?.Kind == "alliance") { A1.Offers.Clear(); offerMade = null; } }
+                    if (offerMade == null) { offerMade = new Act1Offer { From = from.Id, Gold = 3, Borders = true, Expires = A1.Turn + 5 }; A1.Offers.Add(offerMade); }
+                    ScriptLog(true, "offer " + Diplomacy1.Describe(A1, Content!, offerMade));
+                }
+                else if (Current == Screen.Act2)
+                {
+                    var me2 = A2.Player;
+                    var from = A2.Empires.Where(e => !e.IsPlayer && e.Alive).OrderBy(e => e.Kind == "alien" ? 0 : 1).First();
+                    Diplomacy2.Contact(A2, me2, from);
+                    if (!me2.Comms.Contains(from.Id)) me2.Comms.Add(from.Id);
+                    if (!from.Comms.Contains(me2.Id)) from.Comms.Add(me2.Id);
+                    A2.Offers.Clear();
+                    Act2Offer? offerMade = null;
+                    for (int k = 0; k < 40 && offerMade == null; k++) { offerMade = Diplomacy2.MakeOffer(A2, from); if (offerMade?.Kind == "alliance") { A2.Offers.Clear(); offerMade = null; } }
+                    if (offerMade == null) { offerMade = new Act2Offer { From = from.Id, Give = "energy", GiveAmount = 5, Get = "minerals", GetAmount = 4, Expires = A2.Month + 18 }; A2.Offers.Add(offerMade); }
+                    _dipSel = from.Id;
+                    ScriptLog(true, "offer " + Diplomacy2.Describe(A2, offerMade));
+                }
+                break;
             case "spacebattle": // Act 2 test aid: war with a neighbour and their fleet at your capital
                 if (Current == Screen.Act2)
                 {
