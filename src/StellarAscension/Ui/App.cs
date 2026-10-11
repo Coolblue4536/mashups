@@ -62,6 +62,7 @@ public sealed partial class App
             }
             G.EndFrame();
             Raylib.EndDrawing();
+            RunScript(dt);
             if (_shot is { } s && _clock >= s.at)
             {
                 Raylib.TakeScreenshot(Path.GetFileName(s.path));

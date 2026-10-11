@@ -101,7 +101,7 @@ public sealed partial class App
             var civ = c.Civs[i];
             var r = new Rectangle(inner.X, y0 + i * rowH, inner.Width - 10, rowH - 6);
             if (r.Y + r.Height < inner.Y || r.Y > inner.Y + inner.Height) continue;
-            if (G.IconButton(r, CivIcon(civ.Leader), c.Text(civ.LeaderNameLoc), c.Text(civ.DescLoc), selected: i == _civPick) && G.Hover(inner)) _civPick = i;
+            if (G.IconButton(r, CivIcon(civ.Leader), c.Text(civ.LeaderNameLoc), c.Text(civ.DescLoc), selected: i == _civPick) && (G.Hover(inner) || G.ScriptActive)) _civPick = i;
         }
         G.EndScroll();
 

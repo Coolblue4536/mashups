@@ -1,0 +1,28 @@
+click New Game
+click Start
+wait 1
+turns1 130
+city capital
+wait 1.5
+shot act1_city
+click ×
+wait 1
+shot act1_map
+finish1
+wait 1
+click Continue
+wait 2
+shot handoff
+click Begin
+wait 1
+click ×
+turns2 30
+system home
+wait 1.5
+shot act2_home
+click ×
+wait 1
+galaxy
+wait 1.5
+shot act2_galaxy
+quit

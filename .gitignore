@@ -1,9 +1,6 @@
-build/
-dist/
-__pycache__/
-*.exe
-launcher/sheets/
 bin/
 obj/
 *.user
+/dist/
 /probe/
+__pycache__/

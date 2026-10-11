@@ -15,6 +15,8 @@ public static class Rules
     public const double Act1SpaceCostMult = 0.5;
     /// <summary>Act 1 can't run longer than this; at the limit the civ with the most techs is first to space.</summary>
     public const double Act1MaxTurns = 400.0;
+    /// <summary>Act 1 also ends when the calendar reaches this year (Act 2 starts in 2200): the civs go to space in order of their science.</summary>
+    public const double Act1EndYear = 2150.0;
     /// <summary>A city can't be founded within this many tiles of another city (Civ VI's rule).</summary>
     public const double CityMinDistance = 4.0;
     /// <summary>Tiles a city can work and own around itself.</summary>
@@ -464,23 +466,23 @@ public static partial class Defs
 
     public static readonly Act2TechDef[] Act2Techs =
     {
-        new("tech_destroyers", "tech_destroyers", 400, "none", "none", "destroyer", "st_tech_destroyers"),
-        new("tech_cruisers", "tech_cruisers", 900, "tech_destroyers", "none", "cruiser", "st_tech_cruisers"),
-        new("tech_battleships", "tech_battleships", 1800, "tech_cruisers", "none", "battleship", "st_tech_battleships"),
-        new("tech_lasers_2", "tech_lasers_2", 500, "none", "sa_t_damage_1", "none", "st_tech_lasers_2"),
-        new("tech_lasers_3", "tech_lasers_3", 1200, "tech_lasers_2", "sa_t_damage_2", "none", "st_tech_lasers_3"),
-        new("tech_ship_armor_1", "tech_ship_armor_1", 450, "none", "sa_t_hull_1", "none", "st_tech_ship_armor_1"),
-        new("tech_ship_armor_2", "tech_ship_armor_2", 1100, "tech_ship_armor_1", "sa_t_hull_2", "none", "st_tech_ship_armor_2"),
-        new("tech_shields_1", "tech_shields_1", 600, "none", "sa_t_hull_1", "none", "st_tech_shields_1"),
-        new("tech_power_plant_1", "tech_power_plant_1", 350, "none", "sa_t_energy", "none", "st_tech_power_plant_1"),
-        new("tech_space_mining_1", "tech_space_mining_1", 350, "none", "sa_t_minerals", "none", "st_tech_space_mining_1"),
-        new("tech_food_processing_1", "tech_food_processing_1", 300, "none", "sa_t_food", "building_hydroponics_farm", "st_tech_food_processing_1"),
-        new("tech_basic_science_lab_1", "tech_basic_science_lab_1", 400, "none", "sa_t_research", "none", "st_tech_basic_science_lab_1"),
-        new("tech_alloys_1", "tech_alloys_1", 500, "none", "sa_t_alloys", "building_factory_1", "st_tech_alloys_1"),
-        new("tech_genome_mapping", "tech_genome_mapping", 450, "none", "sa_t_growth", "none", "st_tech_genome_mapping"),
-        new("tech_hyper_drive_1", "tech_hyper_drive_1", 700, "none", "sa_t_speed", "none", "st_tech_hyper_drive_1"),
-        new("tech_starbase_3", "tech_starbase_3", 600, "none", "sa_t_starbase", "none", "st_tech_starbase_3"),
-        new("tech_global_production_strategy", "tech_global_production_strategy", 1000, "tech_alloys_1", "sa_t_naval", "none", "st_tech_global_production_strategy"),
+        new("tech_destroyers", "tech_destroyers", 650, "none", "none", "destroyer", "st_tech_destroyers"),
+        new("tech_cruisers", "tech_cruisers", 1450, "tech_destroyers", "none", "cruiser", "st_tech_cruisers"),
+        new("tech_battleships", "tech_battleships", 2900, "tech_cruisers", "none", "battleship", "st_tech_battleships"),
+        new("tech_lasers_2", "tech_lasers_2", 800, "none", "sa_t_damage_1", "none", "st_tech_lasers_2"),
+        new("tech_lasers_3", "tech_lasers_3", 1900, "tech_lasers_2", "sa_t_damage_2", "none", "st_tech_lasers_3"),
+        new("tech_ship_armor_1", "tech_ship_armor_1", 700, "none", "sa_t_hull_1", "none", "st_tech_ship_armor_1"),
+        new("tech_ship_armor_2", "tech_ship_armor_2", 1750, "tech_ship_armor_1", "sa_t_hull_2", "none", "st_tech_ship_armor_2"),
+        new("tech_shields_1", "tech_shields_1", 950, "none", "sa_t_hull_1", "none", "st_tech_shields_1"),
+        new("tech_power_plant_1", "tech_power_plant_1", 550, "none", "sa_t_energy", "none", "st_tech_power_plant_1"),
+        new("tech_space_mining_1", "tech_space_mining_1", 550, "none", "sa_t_minerals", "none", "st_tech_space_mining_1"),
+        new("tech_food_processing_1", "tech_food_processing_1", 500, "none", "sa_t_food", "building_hydroponics_farm", "st_tech_food_processing_1"),
+        new("tech_basic_science_lab_1", "tech_basic_science_lab_1", 650, "none", "sa_t_research", "none", "st_tech_basic_science_lab_1"),
+        new("tech_alloys_1", "tech_alloys_1", 800, "none", "sa_t_alloys", "building_factory_1", "st_tech_alloys_1"),
+        new("tech_genome_mapping", "tech_genome_mapping", 700, "none", "sa_t_growth", "none", "st_tech_genome_mapping"),
+        new("tech_hyper_drive_1", "tech_hyper_drive_1", 1100, "none", "sa_t_speed", "none", "st_tech_hyper_drive_1"),
+        new("tech_starbase_3", "tech_starbase_3", 950, "none", "sa_t_starbase", "none", "st_tech_starbase_3"),
+        new("tech_global_production_strategy", "tech_global_production_strategy", 1600, "tech_alloys_1", "sa_t_naval", "none", "st_tech_global_production_strategy"),
     };
     public static readonly System.Collections.Generic.Dictionary<string, Act2TechDef> Act2Tech = System.Linq.Enumerable.ToDictionary(Act2Techs, d => d.Id);
 

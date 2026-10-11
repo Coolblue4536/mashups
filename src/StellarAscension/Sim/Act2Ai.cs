@@ -7,12 +7,29 @@ public static class Act2Ai
     public static void Think(Act2State s, Content content, Empire e)
     {
         var r = Act2.Report(s, e);
+        Upkeep(s, e, r);
         Research(s, e);
         Planets(s, e, r);
         Ships(s, e, r);
         Civilians(s, e);
         War(s, e, r);
         Military(s, e);
+    }
+
+    /// <summary>A fleet the economy can no longer pay for is cut down, smallest warships first.</summary>
+    static void Upkeep(Act2State s, Empire e, EmpireReport r)
+    {
+        double energy = r.Income["energy"];
+        while (energy < 0 && e.Stock["energy"] < 100)
+        {
+            var pick = s.Fleets.Where(f => f.Owner == e.Id).SelectMany(f => f.Ships.Where(kv => kv.Value > 0 && Defs.Ship[kv.Key].Role == "military").Select(kv => (f, id: kv.Key)))
+                .OrderBy(x => Defs.Ship[x.id].Power).FirstOrDefault();
+            if (pick.f == null) break;
+            if (--pick.f.Ships[pick.id] == 0) pick.f.Ships.Remove(pick.id);
+            if (pick.f.Ships.Count == 0) s.Fleets.Remove(pick.f);
+            energy += Defs.Ship[pick.id].UpkeepEnergy + (r.NavalUsed > r.NavalCap ? Defs.Ship[pick.id].NavalCap * 1.5 : 0);
+            r.NavalUsed -= Defs.Ship[pick.id].NavalCap;
+        }
     }
 
     static void Research(Act2State s, Empire e)
@@ -28,7 +45,9 @@ public static class Act2Ai
         {
             if (p.Queue.Count > 0) continue;
             // Free jobs are wasted; build what's most needed only when pops are close to filling the jobs there are.
-            if (Act2.Jobs(p).Count > p.Pops + 2) continue;
+            // ...unless minerals are piling up: then industry turns them into alloys for ships and outposts.
+            bool surplus = e.Stock["minerals"] > 600 && r.Income["minerals"] > 8;
+            if (Act2.Jobs(p).Count > p.Pops + 2 && !surplus) continue;
             string? want = null;
             if (Act2.BuildingsBuilt(p) < Act2.BuildingSlots(p) && r.Income["energy"] > 4 && r.Income["food"] > 0)
             {
@@ -42,9 +61,10 @@ public static class Act2Ai
             {
                 double pops = r.Pops;
                 want = r.Income["food"] < 2 + pops * 0.05 ? "district_farming"
-                     : r.Income["energy"] < 4 + pops * 0.1 ? "district_generator"
+                     : r.Income["energy"] < 6 + pops * 0.15 ? "district_generator"
                      : r.Income["minerals"] < 8 + pops * 0.3 ? "district_mining"
                      : p.Pops >= Act2.MaxPops(p) - 1 ? "district_city"
+                     : surplus ? "district_industrial"
                      : s.Rng.Pick(new[] { "district_generator", "district_mining", "district_industrial", "district_city" });
             }
             if (want != null) Act2.BuildOnPlanet(s, e, p, want);
@@ -60,16 +80,17 @@ public static class Act2Ai
         bool unsurveyed = s.Systems.Any(x => !x.SurveyedBy.Contains(e.Id));
         if (unsurveyed && Count(s, e, "science") < 2) Act2.QueueShip(s, e, "science");
         if (Count(s, e, "construction") < 2 && Frontier(s, e).Any()) Act2.QueueShip(s, e, "construction");
-        if (Count(s, e, "colony") == 0 && ColonyTargets(s, e).Any() && e.Stock["food"] > 250) Act2.QueueShip(s, e, "colony");
+        if (Count(s, e, "colony") < (e.Stock["food"] > 600 ? 2 : 1) && ColonyTargets(s, e).Count() > Count(s, e, "colony") && e.Stock["food"] > 250) Act2.QueueShip(s, e, "colony");
         // Warships up to naval capacity, best hull first, keeping alloys for outposts.
         double reserve = Rules.Act2OutpostAlloys;
         foreach (var sd in Defs.Ships.Where(x => x.Role == "military").OrderByDescending(x => x.Power))
         {
             while (r.NavalUsed + sd.NavalCap <= r.NavalCap && e.Stock["alloys"] - sd.CostAlloys >= reserve && e.Shipyard.Count < 4
-                   && (r.Income["energy"] > sd.UpkeepEnergy + 1 || e.Stock["energy"] > 300) && Act2.CantQueueShip(s, e, sd.Id) == null)
+                   && r.Income["energy"] > sd.UpkeepEnergy + 2 && Act2.CantQueueShip(s, e, sd.Id) == null)
             {
                 Act2.QueueShip(s, e, sd.Id);
                 r.NavalUsed += sd.NavalCap;
+                r.Income["energy"] -= sd.UpkeepEnergy;
             }
         }
     }

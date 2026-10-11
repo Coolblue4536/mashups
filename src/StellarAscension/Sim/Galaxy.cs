@@ -125,24 +125,30 @@ public static class Galaxy
         var nearHome = Handoff.Bfs(s, Idx(0, bestHome)).Where(b => b.dist is >= 1 and <= 3).Select(b => b.id).ToList();
         var habClasses = Defs.PlanetClasses.Where(c => c.Habitable && c.Id != "pc_gaia").ToList();
         string[] barren = { "pc_barren", "pc_barren_cold", "pc_toxic", "pc_frozen", "pc_molten" };
-        int habCount = 0;
+        // Several copies of one arm system can lie within three jumps (this arm and the next): count each copy.
+        var mult = new Dictionary<int, int>();
+        var order = new List<int>();
         foreach (var id in nearHome)
         {
             int i = id % m;
+            if (i == bestHome) continue; // another home: it gets the standard home system
+            if (!mult.ContainsKey(i)) { mult[i] = 0; order.Add(i); }
+            mult[i]++;
+        }
+        int habCount = 0;
+        foreach (var i in order)
             for (int c = 0; c < planets[i].Count; c++)
             {
                 if (!Defs.PlanetClass[planets[i][c].cls].Habitable) continue;
-                if (habCount < HabitableNearHome) { habCount++; planets[i][c] = (planets[i][c].cls, Math.Clamp(planets[i][c].size, 12, 18)); }
+                if (habCount + mult[i] <= HabitableNearHome) { habCount += mult[i]; planets[i][c] = (planets[i][c].cls, Math.Clamp(planets[i][c].size, 12, 18)); }
                 else planets[i][c] = (rng.Pick(barren), planets[i][c].size);
             }
-        }
-        foreach (var id in nearHome.Where(id => id % m != bestHome))
+        foreach (var i in order.OrderBy(i => mult[i]))
         {
             if (habCount >= HabitableNearHome) break;
-            int i = id % m;
-            if (planets[i].Any(p => Defs.PlanetClass[p.cls].Habitable) || stars[i].Contains("black_hole")) continue;
+            if (habCount + mult[i] > HabitableNearHome || planets[i].Any(p => Defs.PlanetClass[p.cls].Habitable) || stars[i].Contains("black_hole")) continue;
             planets[i].Add((rng.Pick(habClasses).Id, rng.Range(12, 16)));
-            habCount++;
+            habCount += mult[i];
         }
         // Copy the arm to every empire.
         for (int k = 0; k < E; k++)

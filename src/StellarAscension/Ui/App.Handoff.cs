@@ -87,7 +87,7 @@ public sealed partial class App
             if (y > right.Y + h - 44) break;
             var pic = e.Kind == "civ" ? CivIcon(e.LeaderType) : G.Tex("portrait:" + e.Portrait, () => Res.Portrait(e.Portrait));
             Gfx.DrawFit(pic, new Rectangle(x, y, 40, 40), Color.White);
-            G.Text(G.Clip(e.Name, 17, w - 50), x + 48, y + 2, 17, Gfx.Rgb(e.ColorR, e.ColorG, e.ColorB));
+            G.Text(G.Clip(e.Name, 17, w - 50), x + 48, y + 2, 17, EText(e.ColorR, e.ColorG, e.ColorB));
             G.Text(e.Kind == "civ" ? $"From Earth · led by {e.Leader}" : "Stellaris: native to this galaxy", x + 48, y + 22, 14, Gfx.Muted);
             y += 46;
         }

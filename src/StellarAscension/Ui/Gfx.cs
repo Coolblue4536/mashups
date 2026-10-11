@@ -16,6 +16,22 @@ public sealed class Gfx
     string? _tooltip;
     bool _clickTaken;
     public readonly Dictionary<string, float> Scroll = new();
+    /// <summary>UI scripts (test aid): the topmost enabled button whose label starts with this is pressed, as if
+    /// clicked. Topmost means drawn last, as with the mouse: a window covers the panels under it.</summary>
+    public string? ScriptClick;
+    public bool ScriptClicked;
+    public readonly List<string> LabelsThisFrame = new();
+    int _scriptMatches, _scriptTarget = -1;
+
+    bool Scripted(string label, bool enabled)
+    {
+        LabelsThisFrame.Add(label);
+        if (ScriptClick == null || !enabled || !label.StartsWith(ScriptClick, StringComparison.OrdinalIgnoreCase)) return false;
+        if (_scriptMatches++ != _scriptTarget) return false; // last frame's matches tell which one is on top
+        ScriptClick = null;
+        ScriptClicked = true;
+        return true;
+    }
 
     // Theme: Civ VI's navy and gold for Act 1, Stellaris's teal for Act 2.
     public static readonly Color Ink = new(236, 232, 220, 255);
@@ -40,13 +56,21 @@ public sealed class Gfx
 
     public static float W => Raylib.GetScreenWidth();
     public static float H => Raylib.GetScreenHeight();
-    public static Vector2 Mouse => Raylib.GetMousePosition();
+    /// <summary>In UI scripts the real pointer is ignored, so it can't hover or click anything.</summary>
+    public static bool IgnoreMouse;
+    public static Vector2 Mouse => IgnoreMouse ? new Vector2(-9999, -9999) : Raylib.GetMousePosition();
+
+    /// <summary>The characters the fonts are built with: Latin (with accents), Greek, Cyrillic and common punctuation.</summary>
+    public static readonly int[] Glyphs = Enumerable.Range(32, 95).Concat(Enumerable.Range(0xA0, 0x24F - 0xA0 + 1)).Concat(Enumerable.Range(0x370, 0x90)).Concat(Enumerable.Range(0x400, 0x100))
+        .Concat(new[] { 0x2013, 0x2014, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2026, 0x2192, 0x2190, 0x00D7 }).Distinct().ToArray();
+    static readonly HashSet<int> GlyphSet = Glyphs.ToHashSet();
+    /// <summary>True if every character of the text has a glyph in the game's fonts.</summary>
+    public static bool Drawable(string text) => text.EnumerateRunes().All(r => GlyphSet.Contains(r.Value));
 
     public void LoadFonts(string? bodyFile, string? titleFile)
     {
         Body = Title = Raylib.GetFontDefault();
-        var glyphs = Enumerable.Range(32, 95).Concat(Enumerable.Range(0xA0, 0x24F - 0xA0 + 1)).Concat(Enumerable.Range(0x370, 0x90)).Concat(Enumerable.Range(0x400, 0x100))
-            .Concat(new[] { 0x2013, 0x2014, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2026, 0x2192, 0x2190, 0x00D7 }).Distinct().ToArray();
+        var glyphs = Glyphs;
         Font Load(string file)
         {
             var bytes = File.ReadAllBytes(file);
@@ -74,6 +98,10 @@ public sealed class Gfx
         _blockersNext.Clear();
         _tooltip = null;
         _clickTaken = false;
+        LabelsThisFrame.Clear();
+        ScriptClicked = false;
+        _scriptTarget = ScriptClick == null ? -1 : _scriptMatches - 1;
+        _scriptMatches = 0;
     }
 
     public void EndFrame()
@@ -146,9 +174,29 @@ public sealed class Gfx
     // ---------------------------------------------------------------- text
 
     public void Text(string s, float x, float y, float size, Color c, bool title = false) =>
-        Raylib.DrawTextEx(title ? Title : Body, s, new Vector2(MathF.Round(x), MathF.Round(y)), size, size / 32f, c);
+        Raylib.DrawTextEx(title ? Title : Body, Fold(s), new Vector2(MathF.Round(x), MathF.Round(y)), size, size / 32f, c);
 
-    public float Measure(string s, float size, bool title = false) => Raylib.MeasureTextEx(title ? Title : Body, s, size, size / 32f).X;
+    public float Measure(string s, float size, bool title = false) => Raylib.MeasureTextEx(title ? Title : Body, Fold(s), size, size / 32f).X;
+
+    static readonly Dictionary<string, string> _folded = new();
+    /// <summary>The base letter of each character U+1E00 to U+1EFF (Vietnamese and other accented Latin), from Unicode's decompositions.</summary>
+    const string LatinExtendedAdditionalBase = "AaBbBbBbCcDdDdDdDdDdEeEeEeEeEeFfGgHhHhHhHhHhIiIiKkKkKkLlLlLlLlMmMmMmNnNnNnNnOoOoOoOoPpPpRrRrRrRrSsSsSsSsSsTtTtTtTtUuUuUuUuUuVvVvWwWwWwWwWwXxXxYyZzZzZzhtwy??????AaAaAaAaAaAaAaAaAaAaAaAaEeEeEeEeEeEeEeEeIiIiOoOoOoOoOoOoOoOoOoOoOoOoUuUuUuUuUuUuUuYyYyYyYy??????";
+
+    /// <summary>Text the fonts can draw: a letter the fonts lack loses its accent (Vietnamese "Hạ Long" shows as "Ha Long");
+    /// anything else missing becomes "?".</summary>
+    public static string Fold(string s)
+    {
+        if (Drawable(s)) return s;
+        if (_folded.TryGetValue(s, out var f)) return f;
+        var sb = new System.Text.StringBuilder();
+        foreach (var r in s.EnumerateRunes())
+        {
+            if (GlyphSet.Contains(r.Value)) { sb.Append(r.ToString()); continue; }
+            // (Normalize() can't decompose with this build's invariant globalization, so the accented Latin block is a table.)
+            sb.Append(r.Value is >= 0x1E00 and < 0x1F00 ? LatinExtendedAdditionalBase[r.Value - 0x1E00] : '?');
+        }
+        return _folded[s] = sb.ToString();
+    }
 
     public void TextCentered(string s, Rectangle r, float size, Color c, bool title = false) =>
         Text(s, r.X + (r.Width - Measure(s, size, title)) / 2, r.Y + (r.Height - size) / 2, size, c, title);
@@ -201,7 +249,7 @@ public sealed class Gfx
         TextCentered(label, r, size, enabled ? Ink : Muted);
         if (tip != null && Hover(r)) Tip(tip);
         Block(r);
-        return enabled && Clicked(r);
+        return Scripted(label, enabled) || enabled && Clicked(r);
     }
 
     /// <summary>A button with an icon on the left and up to two lines of text.</summary>
@@ -223,8 +271,11 @@ public sealed class Gfx
         }
         if (tip != null && Hover(r)) Tip(tip);
         Block(r);
-        return enabled && Clicked(r);
+        return Scripted(line1, enabled) || enabled && Clicked(r);
     }
+
+    /// <summary>Scripted presses come from outside the scroll area too; this lets list rows accept them.</summary>
+    public bool ScriptActive => ScriptClicked;
 
     public string Clip(string s, float size, float width)
     {

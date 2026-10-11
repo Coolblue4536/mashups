@@ -105,7 +105,10 @@ public static class Handoff
             if (e.Kind == "civ" && content.Civs.FirstOrDefault(c => c.Type == e.CivType && c.Leader == e.LeaderType) is { } d)
                 cand.Add((d.Secondary.r, d.Secondary.g, d.Secondary.b));
             for (int k = 0; k < 24; k++) { cand.Add(Hsv(hue % 1, 0.65, 0.95)); hue += 0.618034; }
-            var pick = cand.First(c => (c.Item1 + c.Item2 + c.Item3) > 150 && used.All(u => Dist(u, c) > 160));
+            // The first bright candidate far from every colour in use; with many empires, the one farthest from them.
+            var bright = cand.Where(c => (c.Item1 + c.Item2 + c.Item3) > 150).ToList();
+            var pick = bright.FirstOrDefault(c => used.All(u => Dist(u, c) > 160));
+            if (pick == default) pick = bright.MaxBy(c => used.Count == 0 ? 0 : used.Min(u => Dist(u, c)));
             used.Add(pick);
             (e.ColorR, e.ColorG, e.ColorB) = pick;
         }

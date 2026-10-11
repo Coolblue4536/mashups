@@ -64,15 +64,16 @@ public static class Act2
     {
         int pops = (int)Math.Floor(p.Pops);
         var all = Jobs(p);
-        var food = all.Where(j => j.resource == "food").ToList();
         var worked = new List<(string resource, double perJob, string source)>();
+        var rest = new List<(string resource, double perJob, string source)>();
         double feed = p.Pops * Rules.Act2FoodPerPop + 1;
-        foreach (var j in food)
+        // (Identical jobs are separate jobs: keep duplicates, no set operations here.)
+        foreach (var j in all)
         {
-            if (worked.Count >= pops || feed <= 0) break;
-            worked.Add(j); feed -= j.perJob;
+            if (j.resource == "food" && worked.Count < pops && feed > 0) { worked.Add(j); feed -= j.perJob; }
+            else rest.Add(j);
         }
-        var rest = all.Except(worked).OrderBy(j => Defs.PlanetBuilding.ContainsKey(j.source) ? 0 : j.resource switch
+        rest = rest.OrderBy(j => Defs.PlanetBuilding.ContainsKey(j.source) ? 0 : j.resource switch
             { "energy" => 1, "minerals" => 2, "alloys" => 3, "food" => 4, _ => 5 }).ToList();
         foreach (var j in rest)
         {

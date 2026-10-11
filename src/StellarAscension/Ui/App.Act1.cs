@@ -88,7 +88,7 @@ public sealed partial class App
         else if (_overlay1 == "wonders") WondersOverlay(s, c);
         else if (_overlay1 == "menu") MenuOverlay();
         if (s.Outcome != "") OutcomePopup1(s, c);
-        Toasts();
+        Toasts(_overlay1 == "" && s.Outcome == "");
     }
 
     void HandleMapInput1(float dt)
@@ -217,6 +217,8 @@ public sealed partial class App
         var player = s.Player;
         float mw = MapPixelW;
         var hover = G.MouseOnMap && _overlay1 == "" ? TileAt(Gfx.Mouse) : null;
+        bool scriptedClick = false;
+        if (_scriptTile is { } st && _overlay1 == "") { hover = st; scriptedClick = true; _scriptTile = null; }
         float r = HexR * _zoom1, size = HexW * _zoom1;
         Raylib.DrawRectangleGradientV(0, 0, (int)Gfx.W, (int)Gfx.H, new Color(26, 42, 60, 255), new Color(14, 24, 38, 255));
         int y0 = Math.Max(0, (int)(_cam1.Y / (HexR * 1.5f)) - 2), y1 = Math.Min(s.H - 1, (int)((_cam1.Y + Gfx.H / _zoom1) / (HexR * 1.5f)) + 2);
@@ -345,7 +347,7 @@ public sealed partial class App
             if (hover is { } hv && hv.x == x && hv.y == y) Raylib.DrawPolyLinesEx(p, 6, r, 30, 2.5f, Gfx.Gold);
         }
         // ---- clicks
-        if (hover is { } h && _overlay1 == "" && Raylib.IsMouseButtonPressed(MouseButton.Left) && !G.ClickTaken)
+        if (hover is { } h && _overlay1 == "" && (scriptedClick || Raylib.IsMouseButtonPressed(MouseButton.Left) && !G.ClickTaken))
         {
             if (_settlerMode)
             {
@@ -453,7 +455,7 @@ public sealed partial class App
             x += r.Width + 18;
         }
         Stat("ICON_YIELD_SCIENCE_5", $"+{Gfx.Num(y.Science)}", "Science per turn, from citizens, palaces, libraries and tiles.");
-        Stat("ICON_YIELD_GOLD_5", $"{Gfx.Num(p.Gold)} (+{Gfx.Num(y.Gold)})", "Gold, and gold per turn. Spend it to buy a city's current Settler or building.");
+        Stat("ICON_YIELD_GOLD_5", $"{Math.Floor(p.Gold):0} (+{Gfx.Num(y.Gold)})", "Gold, and gold per turn. Spend it to buy a city's current Settler or building.");
         Stat("ICON_YIELD_PRODUCTION_5", $"+{Gfx.Num(y.Production)}", "Production per turn across all your cities.");
         Stat("ICON_YIELD_FOOD_5", $"+{Gfx.Num(y.Food)}", "Food per turn across all your cities (before citizens eat).");
         // Research
@@ -485,6 +487,7 @@ public sealed partial class App
                 _toasts.Add((e.Text, (float)Raylib.GetTime() + 7));
         }
         _seenEvents1 = s.Events.Count;
+        if (_overlay1 != "") return; // a window is open: keep the log out of its way
         var recent = s.Events.Where(e => e.Civ == s.Player.Id || e.Kind is "wonder" or "rival_space" or "satellite").TakeLast(6).Reverse().ToList();
         float y = Gfx.H - 20 - recent.Count * 26;
         foreach (var e in recent)
@@ -499,11 +502,13 @@ public sealed partial class App
         }
     }
 
-    void Toasts()
+    /// <summary>Pop-up news under the top bar; hidden while a window is open (the log keeps it).</summary>
+    void Toasts(bool show)
     {
         float now = (float)Raylib.GetTime();
         _toasts.RemoveAll(t => t.until < now);
         if (_toasts.Count > 4) _toasts.RemoveRange(0, _toasts.Count - 4);
+        if (!show) return;
         float y = 60;
         foreach (var (text, until) in _toasts)
         {
@@ -591,7 +596,7 @@ public sealed partial class App
             int turns = rep.Total.Production > 0 ? (int)Math.Ceiling(Math.Max(0, cost - city.Progress.GetValueOrDefault(id)) / rep.Total.Production) : 99;
             string kind = Act1.Kind(id) switch { "wonder" => "Wonder", "project" => "Project", "unit" => "Unit", _ => "Building" };
             if (G.IconButton(r, BuildIcon(id), BuildName(c, id), why ?? $"{kind} · {turns} turn{(turns == 1 ? "" : "s")} · {Gfx.Num(cost)}", enabled: why == null, selected: city.Build == id, tip: BuildDesc(c, id))
-                && G.Hover(listR))
+                && (G.Hover(listR) || G.ScriptActive))
             {
                 Act1.SetBuild(s, c, city, id);
                 SaveNow();
@@ -677,7 +682,7 @@ public sealed partial class App
             string tip = c.Text("LOC_" + t.Type + "_DESCRIPTION", "") is { Length: > 0 } d && !d.StartsWith("LOC_") ? d : "";
             if (legacy != null) tip = (tip.Length > 0 ? tip + "\n\n" : "") + $"Space Age legacy: {legacy.Title}. In Stellaris: {Defs.Modifier[legacy.Modifier].EffectText}.";
             if (G.IconButton(new Rectangle(cell.X, cell.Y, cell.Width, 62), Icon("ICON_" + t.Type), c.Name(t.Type), $"{turns} turn{(turns == 1 ? "" : "s")} · {c.Text("LOC_" + t.Era + "_NAME")}",
-                    selected: sel, tip: tip.Length > 0 ? tip : null) && G.Hover(area))
+                    selected: sel, tip: tip.Length > 0 ? tip : null) && (G.Hover(area) || G.ScriptActive))
             {
                 Act1.SetResearch(c, p, t.Type);
                 SaveNow();

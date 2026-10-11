@@ -33,6 +33,13 @@ public sealed partial class App
     Vector2 W2(Vector2 screen) => screen / _zoom2 + _cam2;
 
     static Color EColor(Empire e, int a = 255) => new((byte)e.ColorR, (byte)e.ColorG, (byte)e.ColorB, (byte)a);
+    /// <summary>An empire's colour made light enough to read as text on the dark panels.</summary>
+    public static Color EText(int r, int g, int b)
+    {
+        double lum = 0.3 * r + 0.59 * g + 0.11 * b, t = lum >= 150 ? 0 : (150 - lum) / (255 - lum);
+        return new Color((byte)(r + (255 - r) * t), (byte)(g + (255 - g) * t), (byte)(b + (255 - b) * t), (byte)255);
+    }
+    static Color EText(Empire e) => EText(e.ColorR, e.ColorG, e.ColorB);
 
     string StName(string key, string fallback) => Act2.Name(Content!, key, fallback);
     string ResName(string id) => Defs.Resource.TryGetValue(id, out var r) ? r.Name : id;
@@ -63,7 +70,7 @@ public sealed partial class App
         else if (_overlay2 == "empires") Empires2(s, c);
         else if (_overlay2 == "menu") MenuOverlay();
         if (s.Outcome != "") EndPopup2(s, c);
-        Toasts();
+        Toasts(_overlay2 == "" && s.Outcome == "");
     }
 
     void HandleInput2(float dt)
@@ -212,7 +219,9 @@ public sealed partial class App
                 k++;
             }
         }
-        // Clicks
+        // Clicks (and scripted ones, for UI tests)
+        if (_scriptSystem >= 0) { _selSystem = _scriptSystem; _selPlanet = -1; _scriptSystem = -1; }
+        if (_scriptOrder >= 0 && _selFleet >= 0 && s.Fleets.FirstOrDefault(f => f.Id == _selFleet) is { } of) { SmartOrder(s, of, _scriptOrder); _scriptOrder = -1; }
         if (hover is { } hv && _overlay2 == "")
         {
             if (Raylib.IsMouseButtonPressed(MouseButton.Left) && !G.ClickTaken) { _selSystem = hv; _selPlanet = -1; }
@@ -362,7 +371,7 @@ public sealed partial class App
             double stock = id == "research" ? me.ResearchProgress : me.Stock.GetValueOrDefault(id);
             double inc = rep.Income[id];
             Gfx.DrawFit(ResIcon(id), new Rectangle(x, 12, 26, 26), Color.White);
-            string txt = id == "research" ? $"+{Gfx.Num(inc)}" : $"{Gfx.Num(stock)}";
+            string txt = id == "research" ? $"+{Gfx.Num(inc)}" : $"{Gfx.Num(Math.Floor(stock))}";
             G.Text(txt, x + 30, 8, 18, Gfx.Ink);
             if (id != "research") G.Text(Gfx.Signed(inc), x + 30, 27, 14, inc < 0 ? Gfx.Bad : Gfx.Good);
             float wdt = 36 + Math.Max(G.Measure(txt, 18), 40);
@@ -391,6 +400,7 @@ public sealed partial class App
                 _toasts.Add((e.Text, (float)Raylib.GetTime() + 7));
         }
         _seenEvents2 = s.Events.Count;
+        if (_overlay2 != "") return; // a window is open: keep the log out of its way
         var recent = s.Events.Where(e => e.Empire == me.Id || e.Kind is "war" or "peace" or "eliminated" or "captured").TakeLast(6).Reverse().ToList();
         float y = Gfx.H - 20 - recent.Count * 26;
         foreach (var e in recent)
@@ -417,7 +427,7 @@ public sealed partial class App
         if (G.Button(new Rectangle(panel.X + panel.Width - 38, y, 26, 26), "×", size: 16)) { _selSystem = -1; return; }
         y += 32;
         var owner = x.Owner >= 0 ? s.Empires[x.Owner] : null;
-        G.Text($"{StName(Defs.StarClass.TryGetValue(x.Star, out var sc) ? sc.NameLoc : x.Star, x.Star)}" + (owner != null ? $" · {owner.Name}" : " · unclaimed"), px, y, 16, owner != null ? EColor(owner) : Gfx.Muted);
+        G.Text($"{StName(Defs.StarClass.TryGetValue(x.Star, out var sc) ? sc.NameLoc : x.Star, x.Star)}" + (owner != null ? $" · {owner.Name}" : " · unclaimed"), px, y, 16, owner != null ? EText(owner) : Gfx.Muted);
         y += 24;
         if (x.RareFeature != null)
         {
@@ -548,7 +558,7 @@ public sealed partial class App
             int have = p.Buildings.Count(x => x == b.Id);
             string? why = Act2.CantBuildOnPlanet(s, me, p, b.Id);
             if (G.IconButton(r, St(b.Art), $"{StName(b.NameLoc, b.Id)}" + (have > 0 ? $" ({have})" : ""), $"{b.CostMinerals} minerals", why == null,
-                    tip: $"{b.Desc} {b.Jobs} job{(b.Jobs == 1 ? "" : "s")} making {b.PerJob} {ResName(b.Resource)}, upkeep {b.UpkeepEnergy} energy." + (why != null ? "\n" + why : "")) && G.Hover(area))
+                    tip: $"{b.Desc} {b.Jobs} job{(b.Jobs == 1 ? "" : "s")} making {b.PerJob} {ResName(b.Resource)}, upkeep {b.UpkeepEnergy} energy." + (why != null ? "\n" + why : "")) && (G.Hover(area) || G.ScriptActive))
                 Act2.BuildOnPlanet(s, me, p, b.Id);
             i++;
         }
@@ -612,7 +622,7 @@ public sealed partial class App
             G.Text(StName(sd.NameLoc, sd.Id), cell.X + 170, cell.Y + 10, 20, Gfx.Ink, true);
             string cost = string.Join(", ", new[] { (sd.CostAlloys, "alloys"), (sd.CostMinerals, "minerals"), (sd.CostFood, "food") }.Where(x => x.Item1 > 0).Select(x => $"{x.Item1} {x.Item2}"));
             G.Text($"{cost} · {sd.BuildMonths} months", cell.X + 170, cell.Y + 38, 15, Gfx.Muted);
-            G.Text(sd.Role == "military" ? $"Power {sd.Power}, hull {sd.Hull}, fleet size {sd.NavalCap}" : sd.Role switch { "science" => "Surveys systems.", "construction" => "Builds outposts that claim systems.", _ => "Founds a colony on a habitable world." }, cell.X + 170, cell.Y + 58, 15, Gfx.Muted);
+            G.Text(sd.Role == "military" ? $"Power {sd.Power}, hull {sd.Hull}, fleet size {sd.NavalCap}" : sd.Role switch { "science" => "Surveys systems.", "construction" => "Builds outposts to claim systems.", _ => "Settles a habitable world." }, cell.X + 170, cell.Y + 58, 15, Gfx.Muted);
             if (G.Button(new Rectangle(cell.X + cell.Width - 120, cell.Y + cell.Height - 42, 108, 34), "Build", why == null, tip: why, size: 16)) Act2.QueueShip(s, me, sd.Id);
             i++;
         }
@@ -634,7 +644,7 @@ public sealed partial class App
         {
             var row = new Rectangle(r.X + 20, yy, r.Width - 40, 72);
             Gfx.DrawFit(EmpirePic(e), new Rectangle(row.X, row.Y + 4, 64, 64), e.Alive ? Color.White : new Color(255, 255, 255, 90));
-            G.Text(e.Name + (e.IsPlayer ? " (you)" : e.Alive ? "" : " (fallen)"), row.X + 90, row.Y + 8, 20, e.Alive ? EColor(e) : Gfx.Muted);
+            G.Text(e.Name + (e.IsPlayer ? " (you)" : e.Alive ? "" : " (fallen)"), row.X + 90, row.Y + 8, 20, e.Alive ? EText(e) : Gfx.Muted);
             string sub = e.Kind == "civ" ? $"Led by {e.Leader} · reached space #{e.SpaceRank}" : "Native to this galaxy";
             if (!e.IsPlayer && s.AtWar(me.Id, e.Id)) sub += " · AT WAR";
             G.Text(sub, row.X + 90, row.Y + 38, 15, s.AtWar(me.Id, e.Id) ? Gfx.Bad : Gfx.Muted);
@@ -647,10 +657,10 @@ public sealed partial class App
                 if (s.AtWar(me.Id, e.Id))
                 {
                     bool ok = Act2.WouldAcceptPeace(s, me, e);
-                    if (G.Button(b, "Propose peace", ok, size: 16, tip: ok ? "They will accept." : "They won't accept yet (a war lasts at least a year, and they must not be winning).") && G.Hover(area))
+                    if (G.Button(b, "Propose peace", ok, size: 16, tip: ok ? "They will accept." : "They won't accept yet (a war lasts at least a year, and they must not be winning).") && (G.Hover(area) || G.ScriptActive))
                         Act2.MakePeace(s, me, e);
                 }
-                else if (G.Button(b, "Declare war", size: 16, tip: "Your fleets can then fight theirs and take their systems.") && G.Hover(area))
+                else if (G.Button(b, "Declare war", size: 16, tip: "Your fleets can then fight theirs and take their systems.") && (G.Hover(area) || G.ScriptActive))
                     Act2.DeclareWar(s, me, e);
             }
             yy += 78;
@@ -694,7 +704,7 @@ public sealed partial class App
         foreach (var e in s.Empires.OrderByDescending(e => e.Score).Take(7))
         {
             Gfx.DrawFit(EmpirePic(e), new Rectangle(r.X + 60, y, 40, 40), Color.White);
-            G.Text(e.Name + (e.IsPlayer ? " (you)" : ""), r.X + 112, y + 8, 19, e.IsPlayer ? Gfx.Gold : EColor(e));
+            G.Text(e.Name + (e.IsPlayer ? " (you)" : ""), r.X + 112, y + 8, 19, e.IsPlayer ? Gfx.Gold : EText(e));
             G.TextRight($"{e.Score}", r.X + r.Width - 60, y + 8, 19, Gfx.Ink);
             y += 44;
         }

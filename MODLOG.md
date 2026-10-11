@@ -1,59 +1,83 @@
 # MODLOG: Stellar Ascension
 
 ## Route (and why)
-- **Civ VI (primary, Act 1):** a plain data and Lua mod in `My Games/.../Mods`. Melty installs no Civ VI loader, and none is needed. It uses FrontEnd Parameters for the setup option, `Technologies.Description` for the tooltips, a gameplay script for the space-race order (`Game:SetProperty`) and Ruthless (`Game.SetWinningTeam`), and a UI context to write the handoff block to `Lua.log` and show the popup.
-- **Stellaris (companion, Act 2):** a script mod generated at handoff time into `Documents/Paradox Interactive/Stellaris/mod` and enabled through `dlc_load.json`. Melty installs no loader here either. Empires are cloned from the player's own human prescripted empire, so every portrait, room, flag and civic key exists in their version. Each civ's home system is cloned from the player's own custom-empire home systems and carries a `sa_home_<slot>` system flag, which is how the game-start scripts find each civ.
-- **Bridge:** Civ VI's sandboxed Lua has no file I/O, so the handoff travels through `print()` → `Lua.log`, which the launcher tails. The two games run one after the other, not together.
+- **Standalone game (v0.2.0).** Stellar Ascension is one Windows program (C# / .NET 8 with raylib), built the way *Grand Galactic* was built. It never starts or changes Civilization VI or Stellaris. It reads their art, names, descriptions and music from the player's installs each time it runs, and it ships none of their files.
+- **Why it changed.** v0.1 was a pair of mods, a Civ VI mod for Act 1 and a generated Stellaris mod for Act 2, joined by a launcher that ran one game and then the other. The creator asked for a single application like their Stellaris + Stacklands mashup, following the README design: Act 1 should look like Civ VI, and Act 2 should look like Stellaris but play in turns. The mod version, its launcher and its tests were removed in this branch.
+- **Design as data.** `sheets/design.json` is the source of truth. `tools/gen.py` generates `Defs.g.cs` from it, and `tools/preflight.py` checks every Civ VI id, art name and Stellaris key against the real installs.
 
-## Sources used
-- Civ VI API names: sukritact/Civilization-VI-Modding-Knowledge-Base, for `Events.CityProjectCompleted`'s 7 args, Get/SetProperty, `Game.SetWinningTeam` (script context) and `PlayerManager.GetAliveMajorIDs`. Table columns (`Leaders.Sex`, `Technologies.Description`, `Buildings.IsWonder`, `Features.NaturalWonder`) checked in the game's own `DebugGameplay.sqlite`.
-- Stellaris: the game's own `logs/script_documentation` (written at every startup; Cygnus v4.5.2), plus the vanilla `prescripted_countries`, `solar_system_initializers` and `deposits` files for the formats. `tools/preflight.py --stellaris-docs` checks against it, and `sheets/verified/stellaris_keys.json` is the lock.
+## How the games' files are read
+- **Civ VI.** Its `.blp` art packages are decoded directly: texture entries, BC1 to BC4 and RGBA textures, and the tile atlases used for icons and leader pictures. Its XML gameplay data and text databases supply the techs, civilizations, leaders, buildings, wonders and names. Fonts come from the install too.
+- **Stellaris.** `.dds` pictures, localisation, planet classes, star names, prescripted empires, loading screens and music.
 
-## Verified
-- Preflight: 491 cells clean against Stellaris 4.5.2's documentation and the installed Civ VI data. All 59 Civ VI type names are confirmed (`sheets/verified/ingame.json`).
-- `tests/test_civ6.py`: 31 checks of the real generated Lua against a Civ VI API stand-in, in Lua 5.1.
-- `launcher` go test: handoff parse, chunked tail, truncated block rejected, Lua.log locations and restarts, Stellaris generation (home systems, no prescripted flags, localisation in every language, ruler gender) and install, `dlc_load.json` merge, pdx round-trip.
-- In the games: see the test report below.
+## Test report, 2026-10-11 (Windows 11 PC; Civ VI on Steam with all DLC; Stellaris 4.5.2)
 
-## Test report, 2026-10-11 (Windows 11 PC; Civ VI on Steam with all DLC; Stellaris Cygnus v4.5.2)
-
-Both games had never been started on this PC, so there were no saves or settings to change. After Stellaris first created its user folder, `settings.txt`, `pdx_settings.txt` and `dlc_load.json` were copied to `backups/stellaris-20261011-0315/` (outside the repo). The launcher also keeps `dlc_load.json.stellar_ascension.bak` next to `dlc_load.json` every time it installs.
+### Safety and the player's games
+- **Backups.** Before anything was changed, the old mod build's files were backed up to `backups/cleanup-20261011-1459/` and `backups/stellaris-20261011-0315/` in the folder above the repo. That covers `dlc_load.json`, `settings.txt`, `pdx_settings.txt` and the installed mods.
+- **Removed from the games.** The old v0.1 test mods were taken out of Civ VI's `Mods` folder and Stellaris's `mod` folder, and `dlc_load.json` was restored to `{"disabled_dlcs":[],"enabled_mods":[]}`. Both games are back as they were.
+- **Game windows.** Earlier in the session, testing the mod version opened and closed Civ VI and Stellaris several times, and a leftover test loop kept relaunching Stellaris. The creator asked why; the loop was stopped and the games have not been opened since.
+- **No desktop control.** Desktop control of the Stellar Ascension window was declined, so no clicks were made on screen. Instead, the game drives its own interface (`--uiscript`, below).
+- **Nothing published, nothing bought.**
 
 ### What was tested
-1. **Toolchain.** Installed Go 1.27.0 (winget) and `lupa` 2.8 (pip). `build.sh` now builds the release zip in Git Bash on Windows (it falls back to Python when `zip` is missing).
-2. **Preflight against the real games.** Every Stellaris modifier and script keyword is in 4.5.2's own script documentation. All 59 Civ VI type names are in the installed game data.
-3. **Civ VI load.** The mod was installed into `Documents/My Games/Sid Meier's Civilization VI/Mods` and Civ VI was started by running `CivilizationVI.exe` directly. Steam took over the launch and started the DX12 build. `Modding.log` shows the mod discovered and in the target (enabled) set by default. `Config/SA_Config.sql` and the text loaded, and the Space Race parameter with its 3 levels is in the real configuration database under Advanced Options. `Database.log` has no errors from the mod (only Civ VI's own promo "clickout" text duplicates).
-4. **Stellaris load.** The launcher's `--from-log` mode built and installed the Stellaris mod from the test handoff, then `stellaris.exe` was started directly. It used `dlc_load.json` and loaded the mod. With the fixes below, `error.log` has no lines from the mod. A deliberately planted bad trigger was reported, which shows that Stellaris validates the generated events when it loads, not only at game start.
-5. **10 simulated handoffs through the launcher** (the exact lines `SA_Handoff.lua` prints). Each was built and installed by the launcher into a scratch Documents folder and checked: one empire and home system per civ, the player not auto-spawned and rivals always spawned, ruler gender, flags set from the home system, every modifier, deposit and localisation key defined, localisation identical in all 10 Stellaris languages and free of `[ ] $ § £ "`, script files ASCII-only, rare systems capped at 8 and deduplicated by name, the right space-race bonuses per level, and `dlc_load.json` merged with a backup. All 10 pass.
+1. **Self-test (`--selftest`): ALL PASS.**
+   - Readers: 18+ civilizations, the 68-tech tree, icons, a leader picture, strategic-view sprites, every terrain and wonder sprite, Stellaris star names, empires, music and every Stellaris picture in the sheet.
+   - Act 1: setup, natural wonders, fog of war, districts on their own tiles, save and load, a game to space, and the calendar reaching the space age.
+   - Handoff: every civ becomes an empire plus aliens, one home each, a connected galaxy, no crossing hyperlanes, identical arms, the homeworld named after the capital, wonders as homeworld features, natural wonders as rare systems owned by the first civ in space, and legacy bonuses.
+   - Act 2: save and load, the game ending, every living empire holding something, and **no resource running down at the start** (new).
+   - Ruthless: a rival first ends the game.
+2. **Simulation matrix (`--matrix`), 10 games: ALL PASS.** Each game is played through both acts by the AI.
 
-| # | Run | Result |
-|---|---|---|
-| 1 | Relaxed; player 1st; 2 rivals; 1 wonder; 1 natural wonder | pass |
-| 2 | Relaxed; player last (5th); 6 rivals; no wonders or natural wonders | pass |
-| 3 | Standard; player 3rd of 5; 7 rivals; 10 wonders incl. 2 not in the sheet; 5 natural wonders | pass |
-| 4 | Standard; player 1st; 11 rivals (max); all 28 sheet wonders; all 12 natural wonders (8 kept) | pass |
-| 5 | Ruthless; player 1st; 3 rivals; 3 wonders; 2 natural wonders | pass |
-| 6 | Ruthless; a rival first (defeat block) | pass: no Act 2 built, `dlc_load.json` untouched |
-| 7 | Standard; Japanese, Russian, Korean, Greek and accented names; player middle | pass (in-game rendering not seen) |
-| 8 | Relaxed; very long names, quotes, apostrophes, `$`, `[ ]`, `§`; player last | pass |
-| 9 | Standard; player 2nd; the same natural wonder twice, 2 not in the sheet; a duplicate wonder | pass |
-| 10 | Ruthless; player 1st; female leader with 1 city; a rival with no cities; no techs; 6 wonders | pass |
+| # | Setup | Act 1 | Act 2 |
+|---|---|---|---|
+| 1 | Relaxed, small, 1 rival, Prince, short | player 1st to space, turn 122 (1982 AD), 14 wonders, 4 natural wonders | won on score, 2250 |
+| 2 | Relaxed, large, **10 rivals**, King, standard | player **last** (11th of 11), turn 319 (2150 AD, the year limit), 29 wonders, 8 natural wonders | lost on score, 2275 |
+| 3 | Relaxed, standard, 5 rivals, Settler, long, **long Greek, Russian, Japanese and Icelandic names** | player 1st, turn 241 | won, 2300; the long names carry to the homeworld and the other home planets |
+| 4 | Standard, small, 3 rivals, Prince, standard | player 3rd of 3 (middle) | lost on score, 2275 |
+| 5 | Standard, large, 10 rivals, Prince, standard, long non-English names | player 1st, turn 152 | won on score, 2275 |
+| 6 | Standard, standard, 5 rivals, Emperor, short | player last (6th of 6), 2150 AD | player conquered in 2233 |
+| 7 | Standard, standard, 7 rivals, Deity, long | player last (8th of 8) | lost on score, 2300 |
+| 8 | Ruthless, small, 2 rivals, Prince, standard | player 1st, turn 136 | won on score, 2275 |
+| 9 | Ruthless, standard, 5 rivals, Prince, standard | a rival first: **defeat, no Act 2** (correct) | n/a |
+| 10 | Ruthless, large, 7 rivals, Chieftain, long names | a rival first: defeat (correct) | n/a |
+
+   Each game checks the civ count, that every name in both acts can be drawn by the fonts, that Ruthless defeat happens exactly when a rival is first, every civ becoming an empire, one home per empire, a connected galaxy, the renamed capital reaching the homeworld, and Act 2 ending.
+3. **Balance (`--fullbalance 6`).**
+   - Act 1 reaches space at about turns 190 to 280.
+   - In Act 2 every empire's income stays positive, technologies run out around 2245 to 2255 (not by 2240), 2 to 4 wars are fought at once, and the player wins some games and loses others.
+   - Every home has the same number of habitable worlds within 3 jumps, except the first-to-space civ, whose nearby worlds became its rare systems.
+4. **The screens, driven by script (`--uiscript`).**
+   - The game presses its own buttons by their labels, clicks map tiles and systems, plays turns with the End Turn button and takes screenshots. Each press goes through the same code as a mouse click.
+   - `tests/ui/both-acts.txt` covers 31 steps across both acts: New Game, Start, picking research, 25 Act 1 turns including Settler placement, the Wonders and Space Race windows, the end of Act 1, the handoff, Begin Act 2, the Research, Shipyard and Empires windows, and 20 Act 2 turns.
+   - **31 passed, 0 failed.**
+5. **Listing screenshots.** These are real frames from the game window, taken by `tests/ui/listing-shots.txt` and stored in `docs/screenshots/`: the Act 1 map and city panel, the Wonders and Space Race windows, the handoff, the Act 2 home system, the galaxy, and the shipyard.
+6. **Packaging.** `tools/package.sh` builds `dist/StellarAscension-0.2.0.zip` (34 MB, self-contained), and the packaged exe passes `--selftest`.
 
 ### What broke, and the fixes
-1. **Stellaris rejected every empire's `flags = { ... }` block** (`Unexpected token: flags` in `prescripted_countries`). Prescripted countries can't carry country flags, so none of the game-start logic (your bonuses, wonders, names, the space-race bonuses, rare systems) could find any civ. Fix: each civ gets its own home system, cloned from the player's own `usage = custom_empire` initializers (single-star ones first), with a `sa_home_<slot>` system flag. `stellar_ascension.1` sets the country flags from that, and the rare-system event finds the first civ by its home system, so it no longer depends on which on_action runs first.
-2. **The launcher watched the wrong `Lua.log`.** Current Civ VI writes its logs, options and `Mods.sqlite` under `%LOCALAPPDATA%\Firaxis Games\Sid Meier's Civilization VI`, not `Documents/My Games`. The launcher would never have seen the handoff. Fix: it watches both locations.
-3. **The launcher gave up on Civ VI too early.** Starting `CivilizationVI.exe` hands off to Steam, and the first launch ran Steam's install scripts for about 2 minutes before the game process appeared. The launcher waited only 90 s. It now waits 5 minutes.
-4. **The tech tooltip SQL replaced Civ VI's own description** where a tech has one (Rocketry's quarry bonus). Fix: `Text/SA_TechText.sql` builds the description at load time from the player's own text plus the legacy line, in every language their game has.
-5. **Wonder features showed Civ VI build rules and markup** in Stellaris (for example "Must be built on the Coast…" and `[ICON_TradeRoute]`). `[ ]` is Stellaris scripted localisation, and `$`, `§` and `£` are variable, colour and icon codes. Fix: the wonder text is now a plain sentence with its name and bonus, and every localisation value is cleaned of markup and control characters.
-6. **Non-English names were written as raw strings in event scripts** (`set_name = "Kyōto"`). Fix: every name goes through localisation keys.
-7. **Localisation existed only in English**, so a Stellaris running in another language would show raw keys. Fix: the same text is written for all 10 Stellaris languages. Civ VI text rows are likewise written for all 12 Civ VI languages.
-8. **The wonder icon fell back to `d_active_volcano`** (none of the preferred icons exist in 4.5). It now uses `d_monument`.
-9. **Every leader got the template's female portrait.** The handoff now carries the leader's sex (`Leaders.Sex`), and male leaders get a male ruler with a portrait the game picks.
-10. **A rival with no cities had its empire name as its homeworld name.** It is now "<Adjective> Prime".
-11. **Clearer text:** space-race level descriptions now say what each level does in numbers, and the popups and setup tooltip are reworded. The rivals' bonus is renamed "Ahead in the Space Race" (several rivals can get it, so "Won the Race to Space" was wrong).
-12. **The same natural wonder could make two rare systems** (multi-feature wonders), and a repeated wonder could duplicate a deposit. Both are now deduplicated.
+1. **Act 2 economy (serious).** Pops left identical jobs unworked: a set operation (`Except`) treated two identical jobs as one, so a 14-pop homeworld filled only 9 jobs. Every empire started at −1.9 energy a month and ran dry by about turn 11. Fixed: income at the start is now +17 energy and research doubled, and the self-test now checks that no resource runs down at the start.
+2. **Act 2 research too quick once fixed.** All 17 techs were done by about 2240. Tech costs went up 1.6×.
+3. **AI stockpiles.** The AI sat on thousands of minerals. It now builds industry with a surplus, keeps up to two colony ships when food is plentiful, and cuts down a fleet it can't pay for.
+4. **Crash with many empires (serious).** A large map with 10 rivals plus aliens crashed at the start of Act 2 because no colour could be found far enough from the others. Fixed: it now picks the most distinct colour left.
+5. **Act 1 could run past 2200 AD**, after Act 2's 2200 start (2232 AD on turn 401 with a slow player). Act 1 now also ends in 2150 (`act1_end_year`), when the civs go to space in order of their science.
+6. **"Hạ Long Bay" drew as "H? Long Bay".** The fonts have no Vietnamese letters, and the Vietnamese natural wonder becomes a rare system. Letters the fonts lack now lose their accent ("Ha Long Bay"), and the matrix checks every name.
+7. **News pop-ups covered open windows**, and the event log showed through them. Both now stay hidden while a window is open (the log keeps the news).
+8. **Hard-to-read empire names.** Dark empire colours (deep blue, purple) were nearly invisible as text on the dark panels. Names are now lightened just enough to read.
+9. **Small text fixes.**
+   - Gold shows as a whole number ("757", not "757.1"), and so do Act 2 stockpiles.
+   - The shipyard's colony-ship line no longer runs under its Build button.
+10. **`tools/package.sh` failed on Windows**, where `python3` is the Microsoft Store stub. It now falls back to `python`.
 
 ### Still open
-1. **Real game starts not done.** Desktop control (screenshots and clicks) was declined when requested, so nothing has been checked on screen yet: no Stellaris game start, no Civ VI game to the Moon Landing, and no listing screenshots. Without clicks, neither game can start a game.
-2. **Stellaris will not start at the moment.** After the session's forced restarts, one Civ VI process and two Stellaris processes are stuck inside Windows (one thread each, immune to termination), and new Stellaris instances hang before writing any log. A reboot should clear them. Until then, loading each of the 10 simulated mods in Stellaris is not done (only the test-handoff mod was loaded).
-3. **Unchanged from before:** the `Game.SetWinningTeam(team, victoryIndex)` argument order (Ruthless) is still a guess (wrapped in pcall); the popup's XML styles; whether `print()` from the mod reaches `Lua.log` (Civ VI's own `Lua.log` is written, so this is likely); whether 11 always-spawned rivals fit small galaxies; and how Japanese or Korean names render with Stellaris's English fonts.
+1. **No human playthrough in the window.** Every screen has been driven by script and checked in screenshots. Nobody has played a full game with mouse and keyboard, and sound (Stellaris music) was not listened to.
+2. **The scripted test covers the main path only.** Buying with gold, placing districts by hand, the player declaring war and making peace, and saving and loading from the menu work in the headless tests but weren't pressed on screen.
+3. **Balance.**
+   - At equal yields the player, played by the AI, sometimes still loses Ruthless at Chieftain (matrix run 10). A human will likely do better, but this needs play-testing.
+   - The AI player keeps a large energy stockpile in Act 2.
+4. **Fonts.** Names in scripts the fonts don't cover at all (CJK, Thai and so on) would show as "?". Civ VI's English text doesn't use them.
+5. **Not a Melty mod.** Melty's catalog takes mods of existing games, so this standalone build is not set up for Melty and was not published anywhere.
+
+## History: v0.1 (mod version, retired)
+- A Civ VI mod (setup option, tech tooltips, gameplay and UI Lua) wrote a handoff block to `Lua.log`.
+- A Go launcher read that block, generated a Stellaris mod, enabled it in `dlc_load.json` and started Stellaris.
+- It loaded cleanly in both games and passed 10 simulated handoffs.
+- Fixes made then: home systems flagged instead of prescripted country flags, the Lua.log location, Civ VI start-up timing, tech text that kept the game's own descriptions, markup cleaned from Stellaris localisation, names passed through localisation keys, all 10 Stellaris languages, leader sex, and deduplicated wonders.
+- It was replaced by the standalone game at the creator's request; see the git history for details.

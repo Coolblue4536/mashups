@@ -351,7 +351,7 @@ public static class Act1
         s.Year = Math.Max(s.Year + 1, CalendarYear(s, content));
         Reveal(s);
         s.Turn++;
-        if (s.Outcome == "" && s.Turn > Rules.Act1MaxTurns) TimeLimit(s, content);
+        if (s.Outcome == "" && (s.Turn > Rules.Act1MaxTurns || s.Year >= Rules.Act1EndYear)) TimeLimit(s, content);
     }
 
     static void Grow(Act1State s, CityState city, CityReport r)

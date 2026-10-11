@@ -20,6 +20,7 @@ public static class Program
         if (stellaris != null) settings.StellarisPath = stellaris;
         settings.Save();
 
+        if (args.Contains("--selftest")) return SelfTest.Run(civ6, stellaris);
         if (Arg("--probe") is { } probeOut) return Probe.Run(civ6, stellaris, probeOut);
         if (Arg("--blpinfo") is { } blpPath)
         {
@@ -34,6 +35,11 @@ public static class Program
             var content = new Content(new Civ6Data(civ6), null);
             return Playtest.Act1Balance(content, int.Parse(runs), Arg("--size") ?? "standard", Arg("--difficulty") ?? "DIFFICULTY_PRINCE");
         }
+        if (args.Contains("--matrix"))
+        {
+            if (civ6 == null || stellaris == null) { Log.Info("--matrix needs both games installed"); return 2; }
+            return Playtest.Matrix(new Content(new Civ6Data(civ6), new StellarisData(stellaris)));
+        }
         if (Arg("--fullbalance") is { } fruns)
         {
             if (civ6 == null) { Log.Info("needs Civilization VI"); return 2; }
@@ -43,6 +49,7 @@ public static class Program
         var app = new App(settings, civ6, stellaris,
             Arg("--screenshot") is { } shot ? (shot, float.Parse(Arg("--screenshot-at") ?? "6", System.Globalization.CultureInfo.InvariantCulture)) : null,
             Arg("--demo"));
+        if (Arg("--uiscript") is { } script) app.LoadScript(script, Arg("--uiout") ?? Path.Combine(Paths.DataDir, "uiscript"));
         app.Run();
         return 0;
     }

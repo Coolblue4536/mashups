@@ -101,4 +101,66 @@ public static class Playtest
         }
         return 0;
     }
+
+    const string LongName = "\u0398\u03b5\u03c3\u03c3\u03b1\u03bb\u03bf\u03bd\u03af\u03ba\u03b7-\u03a0\u03cc\u03bb\u03b7 \u03c4\u03c9\u03bd \u0392\u03b1\u03c3\u03b9\u03bb\u03ad\u03c9\u03bd";
+
+    /// <summary>--matrix: ten games across the setup options. Each checks the handoff and that every name can be drawn.</summary>
+    public static int Matrix(Content content)
+    {
+        // space race, map size, rivals, difficulty, player pace (1.6 = first to space, 1 = middle, 0.55 = last), long non-English names, game length
+        var runs = new (string race, string size, int rivals, string diff, double pace, bool rename, string length)[]
+        {
+            ("relaxed", "small", 1, "DIFFICULTY_PRINCE", 1.6, false, "short"),
+            ("relaxed", "large", 10, "DIFFICULTY_KING", 0.55, false, "standard"),
+            ("relaxed", "standard", 5, "DIFFICULTY_SETTLER", 1.0, true, "long"),
+            ("standard", "small", 3, "DIFFICULTY_PRINCE", 1.0, false, "standard"),
+            ("standard", "large", 10, "DIFFICULTY_PRINCE", 1.6, true, "standard"),
+            ("standard", "standard", 5, "DIFFICULTY_EMPEROR", 0.55, false, "short"),
+            ("standard", "standard", 7, "DIFFICULTY_DEITY", 1.0, false, "long"),
+            ("ruthless", "small", 2, "DIFFICULTY_PRINCE", 1.6, false, "standard"),
+            ("ruthless", "standard", 5, "DIFFICULTY_PRINCE", 0.55, false, "standard"),
+            ("ruthless", "large", 7, "DIFFICULTY_CHIEFTAIN", 1.0, true, "standard"),
+        };
+        string[] others = { "\u041d\u043e\u0432\u0433\u043e\u0440\u043e\u0434-\u0421\u0435\u0432\u0435\u0440\u0441\u043a\u0438\u0439 \u0412\u0435\u043b\u0438\u043a\u0438\u0439",
+                            "\u014csaka-Ky\u014dto no Miyako Sh\u014dgunate", "Reykjav\u00edkurborg \u00c6\u00f0ri \u00deingvellir" };
+        int fails = 0;
+        void Check(bool ok, string what) { if (!ok) { fails++; Log.Info("   FAIL " + what); } }
+        for (int i = 0; i < runs.Length; i++)
+        {
+            var (race, size, rivals, diff, pace, rename, length) = runs[i];
+            var civ = content.Civs[(i * 5 + 3) % content.Civs.Count];
+            var setup = new GameSetup { Civ = civ.Type, Leader = civ.Leader, MapSize = size, SpaceRace = race, Rivals = rivals, Difficulty = diff, GameLength = length, Seed = (ulong)(9100 + i) };
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var a1 = Act1.NewGame(setup, content);
+            a1.Civs[0].YieldMult = pace;
+            if (rename) a1.CitiesOf(a1.Player.Id).First().Name = LongName;
+            int renamed = 0;
+            while (a1.Outcome == "")
+            {
+                Act1Ai.TakeTurn(a1, content, a1.Player); Act1Ai.PlaceSettlers(a1, content, a1.Player); Act1.EndTurn(a1, content);
+                if (rename) foreach (var c in a1.CitiesOf(a1.Player.Id).Where(c => !c.Capital).Take(others.Length)) if (!others.Contains(c.Name) && renamed < others.Length) c.Name = others[renamed++];
+            }
+            int wonders = a1.Cities.Sum(c => c.Wonders.Count);
+            int place = a1.SpaceOrder.IndexOf(a1.Player.Id) + 1;
+            string where = place == 0 ? "never reached space" : $"#{place} of {a1.SpaceOrder.Count} in space";
+            Log.Info($"matrix {i + 1}: {race}, {size}, {rivals} rivals, {Defs.Difficulty[diff].Name}, {length} game{(rename ? ", long non-English names" : "")}; {Act1.CivName(content, a1.Player)}: act 1 {a1.Outcome} at turn {a1.Turn} ({Act1.YearText(a1.Year)}), player {where}, {wonders} wonders, {a1.Tiles.Count(t => t.Natural != null)} natural wonders");
+            Check(a1.Civs.Count == rivals + 1, "civ count");
+            Check(a1.Cities.Select(c => c.Name).Concat(a1.Civs.Select(c => Act1.CivName(content, c))).All(n => !Gfx.Fold(n).Contains('?')), "every Act 1 name drawable");
+            if (race == "ruthless") Check((a1.Outcome == "defeat") == (a1.SpaceOrder.Count > 0 && a1.SpaceOrder[0] != a1.Player.Id), "Ruthless: defeat exactly when a rival is first");
+            if (a1.Outcome != "space") continue;
+            var s = PlayAct2(content, a1);
+            Check(s.Empires.Count(e => e.Kind == "civ") == a1.Civs.Count, "every civ became an empire");
+            Check(s.Systems.Count(x => x.Home) == s.Empires.Count, "one home per empire");
+            Check(Handoff.Bfs(s, 0).Count == s.Systems.Count, "galaxy connected");
+            var bad = s.Systems.Select(x => x.Name).Concat(s.Systems.SelectMany(x => x.Planets).Select(p => p.Name)).Concat(s.Empires.Select(e => e.Name)).Where(n => !Gfx.Drawable(Gfx.Fold(n)) || Gfx.Fold(n).Contains('?') && !n.Contains('?')).ToList();
+            Check(bad.Count == 0, "every Act 2 name drawable: " + string.Join(", ", bad.Select(n => $"{n} ({string.Join(" ", n.EnumerateRunes().Where(r => !Gfx.Drawable(r.ToString())).Select(r => $"U+{r.Value:X4}"))})")));
+            // (The player may have been conquered by the end, so look at the home systems, not the player's capital.)
+            Check(!rename || s.Systems.Any(x => x.Home && x.Planets.Any(p => p.Homeworld && p.Name == LongName)), "renamed capital carried to the homeworld");
+            Check(!rename || s.Systems.SelectMany(x => x.Planets).Any(p => others.Contains(p.Name)), "renamed cities name the other home planets");
+            Check(s.Outcome != "", "act 2 ended");
+            Log.Info($"   act 2 {s.Outcome} in {s.Year}; {s.Systems.Count} systems; top scores " + string.Join(", ", s.Empires.OrderByDescending(e => e.Score).Take(4).Select(e => $"{e.Adjective}{(e.IsPlayer ? "*" : "")} {e.Score}")) + $"; player {s.Player.Score}; {sw.Elapsed.TotalSeconds:0.0}s");
+        }
+        Log.Info(fails == 0 ? "matrix: ALL PASS" : $"matrix: {fails} FAILED");
+        return fails == 0 ? 0 : 1;
+    }
 }
