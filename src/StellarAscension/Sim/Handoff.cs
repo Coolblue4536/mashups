@@ -57,7 +57,7 @@ public static class Handoff
             s.Empires.Add(new Empire
             {
                 Id = s.Empires.Count, Name = p?.Name ?? $"Alien Empire {i + 1}", Adjective = p?.Adjective ?? "Alien", Leader = p?.SpeciesName ?? "",
-                Kind = "alien", Portrait = p?.Portrait ?? "", SpeciesClass = p?.SpeciesClass ?? "", ColorR = r, ColorG = g, ColorB = b,
+                Kind = "alien", Portrait = p?.Portrait ?? "", SpeciesClass = p?.SpeciesClass ?? "", ShipCulture = p?.ShipCulture ?? "", ColorR = r, ColorG = g, ColorB = b,
                 AiMult = gd.AiMult, Aggression = (0.3 + rng.Double() * 0.5) * gd.Aggression,
             });
             // Native species: every pre-FTL technology, and a trait of their own.

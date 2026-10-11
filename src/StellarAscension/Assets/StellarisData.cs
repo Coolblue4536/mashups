@@ -6,7 +6,7 @@ namespace StellarAscension;
 public sealed record SpriteInfo(string Name, string TextureFile, int Frames, int Frame = 1);
 public sealed record PortraitInfo(string Name, string Group, string TextureFile);
 /// <summary>One of Stellaris's ready-made empires (prescripted_countries): its name, species class and portrait key.</summary>
-public sealed record PrescriptedEmpire(string Key, string Name, string Adjective, string SpeciesClass, string Portrait, string? SpeciesName);
+public sealed record PrescriptedEmpire(string Key, string Name, string Adjective, string SpeciesClass, string Portrait, string? SpeciesName, string ShipCulture = "");
 
 /// <summary>Reads what the mashup needs from the player's own Stellaris install: names, sprites, planet icons, portraits.</summary>
 public sealed class StellarisData
@@ -179,7 +179,7 @@ public sealed class StellarisData
                 var name = Text(e.Get("name") ?? "");
                 var adj = Text(e.Get("adjective") ?? "");
                 if (sp == null || name == null || adj == null || name.StartsWith("$")) continue;
-                Prescripted.Add(new PrescriptedEmpire(e.Key, name, adj, sp.Get("class") ?? "", sp.Get("portrait") ?? "", Text(sp.Get("name") ?? "")));
+                Prescripted.Add(new PrescriptedEmpire(e.Key, name, adj, sp.Get("class") ?? "", sp.Get("portrait") ?? "", Text(sp.Get("name") ?? ""), e.Get("graphical_culture") ?? ""));
             }
     }
 

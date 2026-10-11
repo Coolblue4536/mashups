@@ -9,6 +9,71 @@
 - **Civ VI.** Its `.blp` art packages are decoded directly: texture entries, BC1 to BC4 and RGBA textures, and the tile atlases used for icons and leader pictures. Its XML gameplay data and text databases supply the techs, civilizations, leaders, buildings, wonders and names. Fonts come from the install too.
 - **Stellaris.** `.dds` pictures, localisation, planet classes, star names, prescripted empires, loading screens and music.
 
+## v0.5.0, 2026-10-11: Stellaris's own ship models, and exotic sites drawn as part of the land
+
+### What was asked
+- **Ships:** combat ships that look like Stellaris's.
+- **Exotic sites:**
+  - Not a picture stuck on a tile.
+  - Since you must hold the tiles around one, the site should spread onto them to make that clear.
+  - Proper tile graphics drawn for the game (for example gas smoking above an Exotic Gas Swamp), clean and good-looking.
+
+### What was built
+1. **Stellaris ship models, rendered by the game.**
+   - **Reading the models:** a reader for Stellaris's binary `.mesh` format (`PdxMesh`): positions, normals, tangents, UVs, triangles, materials and locators. Collision meshes and glow or trail meshes are left out.
+   - **Assembling a ship:** a corvette is one model. A destroyer is a bow and a stern. A cruiser or battleship is a bow, the longest mid section of its set, and a stern, joined at the frame's `part2` locators. Any gap left between sections is closed.
+   - **Drawing it:** a shader lights the hull, follows the normal map, and paints the empire's colour where Stellaris's texture marks it. A soft tone curve keeps white hulls readable.
+   - **The sprite:** each ship is drawn once, seen from the side and a little above, then reused as a picture.
+   - **Which style:** each Stellaris empire's own `graphical_culture` (now read from `prescripted_countries`). Earth civilizations get one of seven common styles. Psionic and mindwarden hulls come out near-black without Stellaris's effects, so empires with those styles use a common one.
+   - **Where they show:** the battle window (bigger now, big ships at the back, small ones screening, fire passing ship to ship), the system view, the shipyard, the fleet panel and the outliner. Map markers stay Stellaris's icons, as in Stellaris.
+   - **New tool:** `--ships <folder>` renders every style's ships to PNGs.
+2. **Exotic sites as part of the land.** The deposit picture in a frame is gone.
+   - **The ground:** each kind has its own ground, painted by the game from noise when it starts (no image files), with soft ragged edges:
+     - liquid metal reflecting the sky, inside a rim of solid metal,
+     - a murky bog,
+     - rock split by glowing crystal veins,
+     - a black pool with violet bands,
+     - grey nanite sand,
+     - sand over worn paving,
+     - purple spore loam,
+     - scorched rock with molten cracks,
+     - stormy water with foam.
+   - **Spreading:** the ground spills onto the six tiles around the site (land sites over land, sea sites over sea). Terrain sprites are left off the site's own tile.
+   - **The area to hold:** an outline runs round the seven tiles. Ring tiles inside your borders glow in the site's colour.
+   - **Animated effects above each site:**
+     - gas puffs smoking up from the swamp,
+     - ripples and glints on the metal lake,
+     - crystal spires on the site and around it,
+     - dark motes drawn into the pool,
+     - a shimmering nanite swarm,
+     - standing stones with lit glyphs,
+     - glowing spore stalks with spores drifting up,
+     - rocks floating over a glow,
+     - lightning striking the water.
+   - Sites you only remember (not in sight now) stand still and take the fog's tint.
+   - **New test aids:** `exoticgallery` (all nine near your capital) and `exoticat <kind> <zoom>`, used by the new `tests/ui/exotics.txt`.
+
+### Fixed while testing
+- **Section joins:** some ship styles came apart. Two causes:
+  - The shortest-named mid section was sometimes a short filler piece. The longest mid is now used.
+  - Some sets aren't authored with the joint at the origin. Gaps are now closed, measured from the vertices actually drawn (the stored bounding boxes can include other pieces).
+- **Hull lighting:** white hulls (cybernetics, synthetics) were overexposed. A tone curve fixes it.
+- **Paint:** the empire's colour first covered whole hulls. It is now an accent where Stellaris's texture marks it.
+- **Gas swamp:** it barely showed on green land. It now has a murkier bog and thicker, brighter gas.
+- **Living metal:** at first it looked like a white vortex. It is now a dark mirror with a sky sheen.
+
+### Tested
+- **Self-test: ALL PASS.** New check: Stellaris ship models read (15 of 19 styles' first corvette file have textured parts).
+- **Matrix (10 games): ALL PASS,** with the same results as before (the simulation is unchanged).
+- **UI scripts:** `both-acts` (31), `units` (22), `galaxy` (23), `v4` (37), `offers` (25) and the new `exotics` (13), all passing.
+- **Screenshots:**
+  - New: `act1-exotic-sites.jpg` (all nine kinds), `act1-gas-swamp.jpg`, and `act2-ship-styles.jpg` (16 Stellaris styles, four classes each, rendered by the game).
+  - Retaken: `act2-battle.jpg`, `act2-system-view.jpg` and `act1-exotic-site.jpg`.
+
+### Still open
+- A few sets still show a slight seam between sections (lithoid and infernal cruisers).
+- Ships are pictures drawn from one angle, not 3D models turning in the scene.
+
 ## v0.4.1, 2026-10-11: Real alien portraits, and the AI offers you deals
 
 ### What was asked

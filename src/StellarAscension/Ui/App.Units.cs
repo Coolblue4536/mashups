@@ -42,20 +42,6 @@ public sealed partial class App
             var tile = s.At(x, y);
             if (!tile.Revealed) continue;
             bool seen = Act1.Visible(s, x, y);
-            // Exotic sites: Stellaris's painting in a glowing frame.
-            if (tile.Exotic is { } ex && Defs.ExoticSite.TryGetValue(ex, out var xd))
-            {
-                float pulse = 0.5f + 0.5f * MathF.Sin(t * 2 + x);
-                Raylib.BeginBlendMode(BlendMode.Additive);
-                Raylib.DrawCircleGradient(p, size * 0.75f, new Color(170, 110, 255, (int)(70 + 50 * pulse)), new Color(0, 0, 0, 0));
-                Raylib.EndBlendMode();
-                var pic = St(xd.Art);
-                var r = new Rectangle(p.X - size * 0.42f, p.Y - size * 0.33f, size * 0.84f, size * 0.64f);
-                Raylib.DrawRectangleRounded(Inflate(r, 3), 0.2f, 6, new Color(20, 10, 40, 230));
-                if (pic != null) Gfx.DrawCover(pic, r, seen ? Color.White : new Color(200, 190, 210, 230));
-                Raylib.DrawRectangleRoundedLinesEx(Inflate(r, 3), 0.2f, 6, 2, new Color(200, 150, 255, (int)(160 + 90 * pulse)));
-                Gfx.DrawFit(St(xd.Icon), new Rectangle(r.X + r.Width - size * 0.18f, r.Y - size * 0.12f, size * 0.3f, size * 0.3f), Color.White);
-            }
             if (tile.Camp) Sprite(MapTex(seen ? "Improvements_BarbarianCamp_Visible" : "Improvements_BarbarianCamp_Revealed") ?? MapTex("Improvements_BarbarianCamp_Visible"), p, size * 1.1f, Color.White, size * 0.06f);
             if (tile.Village) Sprite(MapTex(seen ? "Improvements_GoodyHut_Visible" : "Improvements_GoodyHut_Revealed") ?? MapTex("Improvements_GoodyHut_Visible"), p, size * 1.0f, Color.White, size * 0.06f);
             if (tile.Resource is { } res && Military.CanSee(c, s.Player, res) && tile.Built == null && s.CityAt(x, y) == null)

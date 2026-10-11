@@ -7,13 +7,15 @@ A two-act strategy game that runs as one program and uses the art and text of yo
 
 Stellar Ascension is a standalone game, much like *Grand Galactic*. It doesn't start Civ VI or Stellaris and doesn't change them. It reads their art, names and descriptions from your installs each time it runs, and it ships none of their files.
 
-> Status: **v0.4.1.** Both acts can be played from start to finish. Every check on this PC passes: the self-test, a 10-game simulation matrix, and scripted runs through every screen. See [MODLOG.md](MODLOG.md) for the full test report.
+> Status: **v0.5.0.** Both acts can be played from start to finish. Every check on this PC passes: the self-test, a 10-game simulation matrix, and scripted runs through every screen. See [MODLOG.md](MODLOG.md) for the full test report.
 
 ![Act 1: units and the tile card](docs/screenshots/act1-units.jpg)
 ![Act 1: a fight](docs/screenshots/act1-battle.jpg)
 ![Act 2: the galaxy](docs/screenshots/act2-galaxy.jpg)
 ![Act 2: a space battle](docs/screenshots/act2-battle.jpg)
 ![Act 2: an alien empire offers a trade](docs/screenshots/act2-offer.jpg)
+![Act 1: exotic sites on the map](docs/screenshots/act1-exotic-sites.jpg)
+![Act 2: Stellaris ship styles](docs/screenshots/act2-ship-styles.jpg)
 
 ## How a game goes
 
@@ -64,6 +66,9 @@ Stellar Ascension is a standalone game, much like *Grand Galactic*. It doesn't s
 - **Exotic sites** (Stellaris's strange deposits) appear on each map, a few per game from a pool of nine, so games differ.
   - The nine are Living Metal Lake, Exotic Gas Swamp, Crystalline Caverns, Liquid Dark Matter Pool, Nanite Fields, Precursor Ruins, Zro Spore Forest, Volatile Mote Storm and Electrified Oceans.
   - Each yields well when worked, and gives an empire-wide bonus once you hold it and 3 of the tiles around it.
+  - **On the map they are part of the land, not pictures:**
+    - Each kind has its own animated ground: gas smoking up from the Exotic Gas Swamp, a mirror-bright Living Metal Lake, crystal spires, a slowly turning dark-matter pool, a nanite swarm, standing stones, glowing spore stalks, floating motes over molten cracks, and lightning on the Electrified Oceans.
+    - The site spills onto the six tiles around it, and an outline marks those seven tiles, the area to hold. Ring tiles inside your borders glow.
   - It also opens a special technology in space. For example, the Living Metal Lake (whose metal mends itself) leads to Regenerative Hull Tissue.
 - **Pre-FTL research:** 18 of Stellaris's starting technologies join the end of the tree, among them Fission Power, Space Exploration, Chemical Thrusters, Offworld Construction, Unified Government, Corvettes, Red Lasers and Deflectors.
   - The six core ones are needed for the Moon Landing.
@@ -99,6 +104,9 @@ Stellar Ascension is a standalone game, much like *Grand Galactic*. It doesn't s
   - An envoy left with an empire **improves relations**.
   - **Empires make you offers.** Alien and Earth empires with communications offer monthly trades (their surplus for something you have plenty of) and, when friendly, alliances. Answer in the message popup or later in the Diplomacy window (3 turns).
   - Alien empires show their **Stellaris species portrait**, read from your install.
+- **Ships are Stellaris's own models**, read from your install and rendered by the game, painted in each empire's colour.
+  - Each alien empire flies its Stellaris ship style (avian, reptilian, lithoid and so on); each Earth civilization gets one of the common styles.
+  - They appear in the battle window, the system view, the shipyard and the fleet panels.
 - **Space battles last several turns** for big fleets. Each month both sides trade fire, and the battle window shows the fight: both fleets, their hulls, losses and a month-by-month log.
   - **Fight on**, or make an **emergency FTL** jump. The fleet jumps out blind, loses about a quarter of its ships, and is **missing** for about three turns before it turns up at your capital.
   - AI fleets jump out too when they're losing badly.
@@ -119,7 +127,7 @@ Stellar Ascension is a standalone game, much like *Grand Galactic*. It doesn't s
 
 ## Install and play
 
-1. Unzip `StellarAscension-0.4.1.zip` anywhere.
+1. Unzip `StellarAscension-0.5.0.zip` anywhere.
 2. Run `StellarAscension.exe`.
 
 The game saves on its own every turn. Saves, settings and logs go to `%LOCALAPPDATA%\StellarAscension`.
@@ -161,7 +169,8 @@ Everything is driven by one design sheet, `sheets/design.json`: the rules, Act 1
 | `StellarAscension.exe --selftest` | Checks the asset readers, then plays both acts headless. It checks units, combat, capture, upgrades, peace, resources, Builders, the tribes, diplomacy, multi-turn fights, pre-FTL research, exotic sites, the handoff, the galaxy options, tech tiers, space battles and emergency FTL, saves and Ruthless defeat. |
 | `--matrix` | Plays 10 games across the space-race levels, map sizes, rival counts, difficulties, galaxy sizes, alien counts and galaxy AI levels. It covers the player first, middle and last to space, and long non-English names. |
 | `--fullbalance N` / `--act1balance N` | Balance reports. |
-| `--uiscript tests/ui/<script>.txt --uiout <folder>` | Opens the game window and drives the real screens from a script: `both-acts`, `units`, `galaxy`, `v4` (Builders, fights, diplomacy, battles, system view, tech tree) and `listing-shots`. It presses buttons by their labels, clicks tiles and systems, hovers, plays turns and takes screenshots, then writes a PASS/FAIL log. |
+| `--uiscript tests/ui/<script>.txt --uiout <folder>` | Opens the game window and drives the real screens from a script: `both-acts`, `units`, `galaxy`, `v4` (Builders, fights, diplomacy, battles, system view, tech tree), `offers` (AI offers in both acts), `exotics` (every exotic site on the map) and `listing-shots`. It presses buttons by their labels, clicks tiles and systems, hovers, plays turns and takes screenshots, then writes a PASS/FAIL log. |
+| `--ships <folder>` | Renders every Stellaris ship style in your install (corvette to battleship, science, construction and colony ships) to PNG files. |
 | `--icon NAME[,NAME…]` | Reports whether Civ VI icons decode. |
 
 ## Credits

@@ -21,9 +21,41 @@ public sealed partial class App
         G.TextCentered(e.Name.Length > 0 ? e.Name[..1] : "?", r, rad * 1.1f, EText(e), true);
     }
 
-    /// <summary>A ship drawn as Stellaris's class silhouette in its empire's colour, with an engine glow.</summary>
+    ShipRenderer? _shipArt;
+    ShipRenderer? ShipArt => _shipArt ??= _stellarisPath != null && GameLocator.IsStellaris(_stellarisPath) ? new ShipRenderer(_stellarisPath) : null;
+
+    /// <summary>The empire's own Stellaris ship, rendered in its colours (null for a frame or two while it is baked).</summary>
+    Texture2D? ShipSprite(string id, Empire e) =>
+        ShipArt is { } art ? art.Sprite(art.Culture(e.ShipCulture, e.CivType + e.Name), id, new Color((byte)e.ColorR, (byte)e.ColorG, (byte)e.ColorB, (byte)255)) : null;
+
+    /// <summary>A ship picture fitted in r, bow to the right: the rendered model, else Stellaris's painting.</summary>
+    void DrawShipIn(string id, Empire e, Rectangle r)
+    {
+        if (ShipSprite(id, e) is { } t)
+        {
+            float len = Math.Min(r.Width, r.Height * t.Width / t.Height);
+            ShipRenderer.Draw(t, new Vector2(r.X + r.Width / 2, r.Y + r.Height / 2), len, true, Color.White);
+        }
+        else Gfx.DrawFit(ShipPic(id), r, Color.White);
+    }
+
+    /// <summary>How long a ship of this class is drawn in a scene, relative to a corvette.</summary>
+    static float ShipScale(string id) => id switch { "battleship" => 2.1f, "cruiser" => 1.7f, "destroyer" => 1.3f, "corvette" => 1f, _ => 1.1f };
+
+    /// <summary>A ship in a scene: the rendered Stellaris model with its engines glowing (or, until it is baked, the class
+    /// silhouette in the empire's colour). `size` is a corvette's length in pixels.</summary>
     void ShipGlyph(string shipId, Empire e, Vector2 at, float size, bool facingRight)
     {
+        if (ShipSprite(shipId, e) is { } spr)
+        {
+            float len = size * ShipScale(shipId) * 1.6f;
+            Raylib.BeginBlendMode(BlendMode.Additive);
+            float flick = 0.85f + 0.15f * MathF.Sin((float)Raylib.GetTime() * 13 + at.X);
+            Raylib.DrawCircleGradient(at + new Vector2(facingRight ? -len * 0.4f : len * 0.4f, 0), len * 0.16f, new Color((byte)120, (byte)200, (byte)255, (byte)(110 * flick)), new Color(0, 0, 0, 0));
+            Raylib.EndBlendMode();
+            ShipRenderer.Draw(spr, at, len, facingRight, Color.White);
+            return;
+        }
         Raylib.BeginBlendMode(BlendMode.Additive);
         Raylib.DrawCircleGradient(at + new Vector2(facingRight ? -size * 0.45f : size * 0.45f, 0), size * 0.5f, new Color(120, 200, 255, 120), new Color(0, 0, 0, 0));
         Raylib.EndBlendMode();
@@ -44,7 +76,7 @@ public sealed partial class App
         var r = Overlay2(battle.Over ? $"Battle of {sys.Name}: {battle.Result}" : $"Battle of {sys.Name}");
         float now = (float)Raylib.GetTime();
         // The scene: the star behind, two fleets facing each other, weapons fire between them.
-        var scene = new Rectangle(r.X + 16, r.Y + 62, r.Width - 32, 300);
+        var scene = new Rectangle(r.X + 16, r.Y + 62, r.Width - 32, 360);
         Raylib.DrawRectangleRounded(scene, 0.04f, 6, new Color(4, 8, 18, 255));
         Raylib.BeginScissorMode((int)scene.X, (int)scene.Y, (int)scene.Width, (int)scene.Height);
         var rng = new Rng(11);
@@ -56,17 +88,22 @@ public sealed partial class App
         var mineSide = battle.Sides.Where(x => x == me.Id || s.Allied(x, me.Id)).ToList();
         if (mineSide.Count == 0) mineSide.Add(battle.Sides[0]);
         var theirSide = battle.Sides.Where(x => !mineSide.Contains(x)).ToList();
+        var spots = new Dictionary<bool, List<Vector2>> { [true] = new(), [false] = new() };
         void Side(List<int> owners, bool left)
         {
             var fleets = s.Active.Where(f => f.System == battle.System && owners.Contains(f.Owner) && Act2.IsMilitary(f)).ToList();
-            var ships = fleets.SelectMany(f => f.Ships.SelectMany(kv => Enumerable.Repeat(kv.Key, kv.Value))).OrderByDescending(k => Defs.Ship[k].Power).Take(14).ToList();
+            var ships = fleets.SelectMany(f => f.Ships.SelectMany(kv => Enumerable.Repeat((id: kv.Key, owner: f.Owner), kv.Value))).OrderByDescending(k => Defs.Ship[k.id].Power).Take(12).ToList();
+            // Formation: the big ships hold the back line, the small ones screen in front; three rows, staggered.
+            float half = scene.Width / 2;
             for (int i = 0; i < ships.Count; i++)
             {
-                float bob = MathF.Sin(now * 1.5f + i) * 3;
-                float sx = left ? scene.X + 90 + (i % 4) * 70 + (i / 4) * 24 : scene.X + scene.Width - 90 - (i % 4) * 70 - (i / 4) * 24;
-                float sy = scene.Y + 70 + (i / 4) * 64 + (i % 2) * 20 + bob;
-                var owner = fleets.First(f => f.Ships.ContainsKey(ships[i])).Owner;
-                ShipGlyph(ships[i], s.Empires[owner], new Vector2(sx, sy), 30 + Defs.Ship[ships[i]].NavalCap * 4, left);
+                int col = i / 3, row = i % 3;
+                float bob = MathF.Sin(now * 1.3f + i * 1.7f) * 3;
+                float fromEdge = 95 + col * Math.Min(150, (half - 190) / 3.2f);
+                float sx = left ? scene.X + fromEdge : scene.X + scene.Width - fromEdge;
+                float sy = scene.Y + 70 + row * 105 + (col % 2) * 34 + bob;
+                spots[left].Add(new Vector2(sx, sy));
+                ShipGlyph(ships[i].id, s.Empires[ships[i].owner], new Vector2(sx, sy), 76, left);
             }
             if (owners.Contains(sys.Owner) && sys.Owner >= 0 && St("st_starbase_icon") is { } sbi)
                 Gfx.DrawFit(sbi, new Rectangle(left ? scene.X + 14 : scene.X + scene.Width - 54, scene.Y + scene.Height - 54, 40, 40), EText(s.Empires[sys.Owner]));
@@ -77,11 +114,11 @@ public sealed partial class App
         {
             // Lasers and missiles crossing between the lines.
             var lr = new Rng((ulong)(now * 8));
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < 10 && spots[true].Count > 0 && spots[false].Count > 0; i++)
             {
                 float t = (now * 1.7f + i * 0.37f) % 1f;
-                var a = new Vector2(scene.X + 140 + lr.Int(240), scene.Y + 60 + lr.Int(200));
-                var b = new Vector2(scene.X + scene.Width - 140 - lr.Int(240), scene.Y + 60 + lr.Int(200));
+                var a = spots[true][lr.Int(spots[true].Count)] + new Vector2(30, 0);
+                var b = spots[false][lr.Int(spots[false].Count)] - new Vector2(30, 0);
                 if (i % 2 == 1) (a, b) = (b, a);
                 var head = a + (b - a) * t;
                 var tail = a + (b - a) * MathF.Max(0, t - 0.12f);
@@ -208,7 +245,7 @@ public sealed partial class App
             float ang = -1.2f + i * 0.35f + now * 0.05f;
             var fp = centre + new Vector2(MathF.Cos(ang), MathF.Sin(ang) * 0.82f) * 95;
             var top = f.Ships.Keys.OrderByDescending(k => Defs.Ship[k].Power).First();
-            ShipGlyph(top, s.Empires[f.Owner], fp, 34, MathF.Cos(ang) < 0);
+            ShipGlyph(top, s.Empires[f.Owner], fp, 50, MathF.Cos(ang) < 0);
             G.Text($"{f.Ships.Values.Sum()}", fp.X + 24, fp.Y - 28, 13, EText(s.Empires[f.Owner]));
         }
         if (sys.Owner >= 0 && St("st_starbase_icon") is { } sb)

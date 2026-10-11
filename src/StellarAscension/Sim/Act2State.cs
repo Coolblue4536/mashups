@@ -125,6 +125,8 @@ public sealed class Empire
     public string LeaderType { get; set; } = "";
     public string Portrait { get; set; } = "";
     public string SpeciesClass { get; set; } = "";
+    /// <summary>Stellaris graphical culture for its ships (e.g. "avian_01"); empty: picked from the empire.</summary>
+    public string ShipCulture { get; set; } = "";
     public int ColorR { get; set; }
     public int ColorG { get; set; }
     public int ColorB { get; set; }

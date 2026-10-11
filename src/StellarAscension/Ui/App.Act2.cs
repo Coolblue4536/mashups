@@ -691,7 +691,7 @@ public sealed partial class App
             bool sel = f.Id == _selFleet, hot = inArea && G.Hover(row);
             Raylib.DrawRectangleRounded(row, 0.25f, 4, sel ? Alpha(G.PanelEdge, 110) : hot ? G.ButtonHot : new Color(0, 0, 0, 50));
             var first = f.Ships.Keys.First();
-            Gfx.DrawFit(ShipPic(first), new Rectangle(row.X + 4, row.Y + 3, 40, 30), Color.White);
+            DrawShipIn(first, s.Empires[f.Owner], new Rectangle(row.X + 2, row.Y + 3, 44, 30));
             string name = f.Name.Length > 0 && !Defs.Ship.ContainsKey(f.Name) ? f.Name : StName(Defs.Ship[first].NameLoc, first);
             G.Text(G.Clip(name, 15, row.Width - 60), row.X + 50, row.Y + 3, 15, Gfx.Ink);
             string status = f.MiaMonths > 0 ? $"missing: home in ~{Math.Ceiling(f.MiaMonths / (double)Act2.MonthsPerTurn)} turns" : s.Battles.Any(b => !b.Over && b.System == f.System && b.Sides.Contains(me.Id)) ? "IN BATTLE" : f.Order switch
@@ -850,7 +850,7 @@ public sealed partial class App
         float x = px;
         foreach (var (id, n) in f.Ships)
         {
-            Gfx.DrawFit(ShipPic(id), new Rectangle(x, y, 64, 46), Color.White);
+            DrawShipIn(id, s.Empires[f.Owner], new Rectangle(x - 6, y, 84, 46));
             G.Text($"{n}× {StName(Defs.Ship[id].NameLoc, id)}", x, y + 48, 13, Gfx.Ink);
             x += 92;
             if (x > panel.X + panel.Width - 80) break;
@@ -1010,7 +1010,7 @@ public sealed partial class App
             var cell = new Rectangle(r.X + 22 + i % 2 * (cw + 16), r.Y + 92 + i / 2 * (ch + 10), cw, ch);
             string? why = Act2.CantQueueShip(s, me, sd.Id);
             Raylib.DrawRectangleRounded(cell, 0.08f, 6, G.ButtonBg);
-            Gfx.DrawFit(ShipPic(sd.Id), new Rectangle(cell.X + 8, cell.Y + 8, 150, cell.Height - 16), Color.White);
+            DrawShipIn(sd.Id, me, new Rectangle(cell.X + 4, cell.Y + 8, 160, cell.Height - 16));
             G.Text(StName(sd.NameLoc, sd.Id), cell.X + 170, cell.Y + 10, 20, Gfx.Ink, true);
             string cost = string.Join(", ", new[] { (sd.CostAlloys, "alloys"), (sd.CostMinerals, "minerals"), (sd.CostFood, "food") }.Where(x => x.Item1 > 0).Select(x => $"{x.Item1} {x.Item2}"));
             G.Text($"{cost} · {sd.BuildMonths} months", cell.X + 170, cell.Y + 38, 15, Gfx.Muted);

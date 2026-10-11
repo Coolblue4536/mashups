@@ -20,6 +20,14 @@ public static class Program
         if (stellaris != null) settings.StellarisPath = stellaris;
         settings.Save();
 
+        if (Arg("--ships") is { } shipsOut && stellaris != null)
+        {
+            Raylib_cs.Raylib.SetConfigFlags(Raylib_cs.ConfigFlags.HiddenWindow);
+            Raylib_cs.Raylib.InitWindow(640, 360, "ships");
+            int rc = new ShipRenderer(stellaris).Export(shipsOut);
+            Raylib_cs.Raylib.CloseWindow();
+            return rc;
+        }
         if (args.Contains("--selftest")) return SelfTest.Run(civ6, stellaris);
         if (Arg("--probe") is { } probeOut) return Probe.Run(civ6, stellaris, probeOut);
         if (Arg("--icon") is { } iconName && civ6 != null)

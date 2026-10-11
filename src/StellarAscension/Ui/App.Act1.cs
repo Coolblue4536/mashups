@@ -295,6 +295,8 @@ public sealed partial class App
                 k++;
             }
         }
+        // ---- exotic sites: their ground, spilling onto the tiles around them, and the area to hold
+        DrawExoticGround(s, tiles);
         // ---- sprites, back to front
         var improve = Improvements(s);
         foreach (var (p, w, x, y) in tiles.OrderBy(t => t.y))
@@ -304,9 +306,9 @@ public sealed partial class App
             bool vis = Act1.Visible(s, x, y);
             var t = Defs.Terrains[tile.Terrain];
             var fogTint = vis ? Color.White : new Color(236, 224, 200, 235);
-            if (t.Land && t.Overlay != "none" && tile.Natural == null && tile.Built == null && s.CityAt(x, y) == null)
+            if (t.Land && t.Overlay != "none" && tile.Natural == null && tile.Built == null && tile.Exotic == null && s.CityAt(x, y) == null)
                 Sprite(Variant(vis ? t.Overlay : t.OverlayFow, x, y), p, size * (t.Id.EndsWith("_MOUNTAIN") ? 1.35f : 1.25f), fogTint, size * 0.08f);
-            if (tile.Feature >= 0 && tile.Built == null && s.CityAt(x, y) == null)
+            if (tile.Feature >= 0 && tile.Built == null && tile.Exotic == null && s.CityAt(x, y) == null)
             {
                 var f = Defs.Features[tile.Feature];
                 Sprite(MapTex(vis ? f.Sprite : f.SpriteFow), p, size * 1.3f, Color.White, size * 0.04f);
@@ -340,6 +342,7 @@ public sealed partial class App
                 else if (Defs.Wonder.TryGetValue(built, out var wd)) Sprite(MapTex(wd.Sprite), p, size * 1.25f, fogTint, size * 0.1f);
             }
         }
+        DrawExoticAir(s, tiles);
         DrawTileExtras(s, c, tiles, hover);
         DrawSelection(s, c, tiles, hover);
         foreach (var (p, w, x, y) in tiles)

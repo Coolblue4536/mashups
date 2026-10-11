@@ -246,6 +246,45 @@ public sealed partial class App
                     ScriptLog(true, "exotic " + A1.Tiles[ei].Exotic);
                 }
                 break;
+            case "exoticgallery": // Act 1 test aid: one of every exotic site on a 3x3 grid round your capital, each seen by a Scout
+                if (Current == Screen.Act1 && A1.CitiesOf(A1.Player.Id).FirstOrDefault(x => x.Capital) is { } gc)
+                {
+                    foreach (var tl in A1.Tiles) tl.Exotic = null;
+                    int placed = 0;
+                    for (int i = 0; i < Defs.ExoticSites.Length && i < 9; i++)
+                    {
+                        int gx = ((gc.X + (i % 3 - 1) * 5) % A1.W + A1.W) % A1.W, gy = Math.Clamp(gc.Y + (i / 3 - 1) * 4 + 1, 1, A1.H - 2);
+                        if (gx == gc.X && gy == gc.Y) gy = Math.Clamp(gy + 2, 1, A1.H - 2);
+                        bool sea = Defs.ExoticSites[i].Id == "storm_sea";
+                        var near = Hex.Within(gx, gy, 2, A1.W, A1.H).Where(q => Defs.Terrains[A1.At(q.x, q.y).Terrain].Land != sea && A1.CityAt(q.x, q.y) == null)
+                            .OrderBy(q => Hex.Distance(q.x, q.y, gx, gy, A1.W)).Select(q => ((int, int)?)q).FirstOrDefault();
+                        if (near is { } nq) (gx, gy) = nq;
+                        var gsite = A1.At(gx, gy);
+                        gsite.Exotic = Defs.ExoticSites[i].Id;
+                        foreach (var (tx, ty) in Hex.Within(gx, gy, 3, A1.W, A1.H)) A1.At(tx, ty).Revealed = true;
+                        if (Hex.Within(gx, gy, 2, A1.W, A1.H).FirstOrDefault(q => Hex.Distance(q.x, q.y, gx, gy, A1.W) == 2 && A1.UnitAt(q.x, q.y) == null && Defs.Terrains[A1.At(q.x, q.y).Terrain].Land) is var sp && sp != default)
+                            Military.Spawn(A1, Content!, A1.Player, "UNIT_SCOUT", sp.x, sp.y);
+                        placed++;
+                    }
+                    _selUnit = -1; _selCity = -1; _zoom1 = 0.95f;
+                    CenterOn(gc.X, gc.Y + 1);
+                    Gfx.FakeMouse = new System.Numerics.Vector2(-100, -100);
+                    ScriptLog(placed == Math.Min(9, Defs.ExoticSites.Length), "exoticgallery " + placed);
+                }
+                break;
+            case "exoticat": // Act 1 test aid: centre and zoom on a kind of exotic site ("exoticat gas_swamp 1.8")
+                if (Current == Screen.Act1)
+                {
+                    var parts = arg.Split(' ');
+                    int idx = Array.FindIndex(A1.Tiles, tl => tl.Exotic == parts[0]);
+                    if (idx >= 0)
+                    {
+                        _zoom1 = parts.Length > 1 ? float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture) : 1.6f;
+                        CenterOn(idx % A1.W, idx / A1.W);
+                    }
+                    ScriptLog(idx >= 0, "exoticat " + arg);
+                }
+                break;
             case "overlay": if (Current == Screen.Act1) _overlay1 = arg; else if (Current == Screen.Act2) _overlay2 = arg; ScriptLog(true, "overlay " + arg); break;
             case "lens": _yieldLens = arg != "off"; ScriptLog(true, "lens " + arg); break;
             case "quit": FinishScript(); return;

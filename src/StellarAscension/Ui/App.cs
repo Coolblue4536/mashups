@@ -48,6 +48,7 @@ public sealed partial class App
             if (Current == Screen.Loading) Load();
             UpdateMusic();
             G.BeginFrame();
+            if (Current == Screen.Act2) _shipArt?.BakePending(2);
             Raylib.BeginDrawing();
             Raylib.ClearBackground(new Color(6, 8, 18, 255));
             switch (Current)

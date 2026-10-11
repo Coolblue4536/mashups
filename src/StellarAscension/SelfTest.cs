@@ -39,6 +39,10 @@ public static class SelfTest
         Check(st.StarNames.Count > 100 && st.Prescripted.Count > 10 && st.Music.Count > 0, "Stellaris star names, empires and music read");
         var res = new AssetResolver(civ6, st);
         foreach (var a in Defs.AssetRefs.Where(a => a.Game == "stellaris" && a.Kind == "image")) Check(res.Stellaris(a.Id) != null, $"Stellaris picture {a.Id}");
+        var shipDir = Path.Combine(stellarisPath!, "gfx", "models", "ships");
+        var shipMeshes = Directory.Exists(shipDir) ? Directory.GetDirectories(shipDir, "*_01").SelectMany(d => Directory.GetFiles(d, "*_corvette*.mesh").Take(1)).Select(PdxMesh.Load).ToList() : new();
+        int shipsRead = shipMeshes.Count(m => m != null && m.Parts.Any(p => p.Tri.Length > 0 && p.Diffuse.EndsWith(".dds", StringComparison.OrdinalIgnoreCase)));
+        Check(shipsRead >= 12, $"Stellaris ship models read ({shipsRead} of {shipMeshes.Count} styles' corvettes, with their textures named)");
         Check(st.Portraits.Count > 100 && Defs.Portraits.All(p => st.PortraitInfoFor(p.Id) != null), $"Stellaris species portraits found ({st.Portraits.Count}), every listed one present");
         Check(st.Portraits.Take(40).All(p => res.Portrait(p.Name) != null), "every species gets a whole portrait");
 

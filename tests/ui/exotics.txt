@@ -1,0 +1,22 @@
+# Exotic sites as land art: every kind on the map, then close-ups
+click New Game
+wait 0.5
+click Start
+wait 1
+click ×
+exoticgallery
+wait 1.5
+shot e01_gallery
+exoticat gas_swamp 1.9
+wait 1.2
+shot e02_gas_swamp
+exoticat living_metal 1.9
+wait 1.2
+shot e03_living_metal
+exoticat crystal_caverns 1.9
+wait 1.2
+shot e04_crystal_caverns
+exoticat motes 1.9
+wait 1.2
+shot e05_motes
+quit
